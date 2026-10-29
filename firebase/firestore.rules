@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function role() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : '';
+    }
+    function managesOperation() { return role() in ['owner', 'manager']; }
+    function createsContent() { return role() in ['owner', 'manager', 'marketing', 'site']; }
+
+    match /users/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || managesOperation());
+      allow create: if signedIn() && request.auth.uid == userId;
+      allow update: if signedIn() && request.auth.uid == userId
+        && request.resource.data.role == resource.data.role;
+      allow delete: if false;
+    }
+
+    // Catálogo vindo do UniPlus: escrita é somente pelo conector local usando Admin SDK.
+    match /products/{productId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    // Ações de aprovação e publicação passam por Cloud Functions; evita alteração indevida no navegador.
+    match /publicationQueue/{itemId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /campaigns/{campaignId} {
+      allow read: if signedIn();
+      allow create, update: if managesOperation() || role() == 'marketing';
+      allow delete: if managesOperation();
+    }
+
+    match /artRequests/{requestId} {
+      allow read: if signedIn();
+      allow create: if createsContent();
+      allow update: if createsContent();
+      allow delete: if managesOperation();
+    }
+
+    match /leads/{leadId} {
+      allow read: if signedIn();
+      allow create, update: if createsContent();
+      allow delete: if managesOperation();
+    }
+
+    match /audit/{entryId} {
+      allow read: if managesOperation();
+      allow write: if false;
+    }
+  }
+}
