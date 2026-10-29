@@ -7,7 +7,7 @@ painel genérico de SaaS. A identidade vem de dois objetos do dia a dia rural:
 
 - **Brinco de gado** — a etiqueta amarela com furo que identifica cada animal. No portal, ela
   identifica a etapa de cada coisa: todo status é uma `tag` com furo (`ui.js → tag()`).
-- **Porteira / trilha** — o caminho que o produto percorre do UniPlus até a Nuvemshop, desenhado
+- **Porteira / trilha** — o caminho que o produto percorre do UniPlus até estar à venda, desenhado
   como uma trilha tracejada com estações (painel inicial e login). A marca é uma porteira.
 
 O amarelo-brinco é usado **com parcimônia**: foco do teclado, item ativo da navegação, contagem

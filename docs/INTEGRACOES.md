@@ -6,10 +6,8 @@ Depois de preencher, reinicie o portal e confira em **Integrações** (status e 
 | Integração | Código | Situação | Como testar |
 |---|---|---|---|
 | UniPlus | `server/integrations/uniplus.js` | Pronto (lê `/api/erp/products`) | Sincronizar agora em Produtos |
-| Nuvemshop — produtos | `server/integrations/nuvemshop.js` | Pronto, **não testado na loja real** | Publicar um item aprovado (canal Site) |
-| Nuvemshop — pedidos | idem + `services/orders.js` | Importação manual + webhook assinado | Pedidos → Importar; webhook `order/created` |
-| Shopee | `server/integrations/marketplaces.js` | Assinatura pronta; criação de anúncio **a ligar** | Hoje: registrar anúncio feito à mão |
-| Mercado Livre | idem | Chamada autenticada pronta; criação **a ligar** | Hoje: registrar anúncio feito à mão |
+| Site próprio | `server/services/store.js` | Pronto e testado (catálogo, fotos, pedidos) | `docs/SITE.md` |
+| Shopee / Mercado Livre | — | **Manual por decisão da loja**: anuncia no painel e registra o link | Ficha da fila → Registrar anúncio |
 | Google Analytics 4 | `server/integrations/analytics.js` | Pronto, testado com respostas simuladas | Indicadores → Buscar dados agora |
 | Google Ads | idem | Pronto, testado com respostas simuladas | idem |
 | Meta Ads | idem | Pronto, testado com respostas simuladas | idem |
@@ -28,42 +26,21 @@ o mapeamento na função correspondente e acrescente o caso ao teste.
 - **Custo**: o portal lê `preco_custo`, `custo` ou `custo_medio`. Se o UniPlus enviar, a margem aparece
   para dono e gerente. Se não enviar, o portal funciona igual, só sem margem.
 
-## Nuvemshop
-1. Em parceiros.nuvemshop.com.br crie um app, com escopos de produtos (leitura/escrita) e pedidos (leitura).
-2. Instale o app na loja e troque o `code` pelo token (`POST https://www.tiendanube.com/apps/authorize/token`).
-3. Variáveis: `NUVEMSHOP_STORE_ID` (user_id da resposta), `NUVEMSHOP_ACCESS_TOKEN`,
-   `NUVEMSHOP_USER_AGENT="Portal Shopping Rural (seu-email@…)"`, `NUVEMSHOP_APP_SECRET` (client secret).
-4. Webhooks de pedido: cadastrar `order/created`, `order/paid`, `order/fulfilled`, `order/cancelled` apontando
-   para `https://SEU-PORTAL/api/webhooks/nuvemshop` (`POST /v1/{store_id}/webhooks`). A assinatura
-   `x-linkedstore-hmac-sha256` é verificada com o client secret.
-5. **Primeiro teste**: publique um produto barato e confira na loja. Fotos só sobem se a publicação for
-   feita pelo servidor da loja (onde está `media/`).
-6. Falta ligar: categoria da Nuvemshop (`categories` no payload), atualizar preço/estoque de produto já publicado.
+## Site próprio
+- Variáveis: `STORE_API_TOKEN`, `STORE_PUBLIC_URL`, `STORE_PRODUCT_PATH`, `STORE_ALLOWED_ORIGINS`, `PORTAL_PUBLIC_URL`.
+- Contrato completo (catálogo, fotos, pedidos, fluxo do gateway): `docs/SITE.md`.
 
-## Shopee (Open Platform v2)
-1. Cadastro em open.shopee.com → app → `partner_id` e `partner_key`.
-2. Autorizar a loja (fluxo `/api/v2/shop/auth_partner`) → `code` → `access_token`, `refresh_token`, `shop_id`.
-   O access token dura 4 h: implemente a renovação (`/api/v2/auth/access_token/get`) e guarde em `integrations/shopee`.
-3. Variáveis: `SHOPEE_PARTNER_ID`, `SHOPEE_PARTNER_KEY`, `SHOPEE_SHOP_ID`, `SHOPEE_ACCESS_TOKEN`.
-4. Para ligar a criação: em `publishToMarketplace()` trocar o erro `NOT_IMPLEMENTED` por:
-   upload das fotos (`/api/v2/media_space/upload_image`), `add_item` com categoria, atributos, peso,
-   dimensões e logística (`/api/v2/logistics/get_channel_list`). Use `shopeeRequest()` (assinatura pronta).
-5. Devolva `{ externalId: item_id, url }`; a fila já grava e conclui o canal.
-
-## Mercado Livre
-1. developers.mercadolivre.com.br → app → autorizar a conta da loja (OAuth) → `access_token` (6 h) e `refresh_token`.
-2. Variáveis: `MELI_ACCESS_TOKEN`, `MELI_USER_ID`. Implemente a renovação com o refresh token.
-3. Para ligar a criação: `buildMeliItem()` já monta título, preço, estoque, SKU. Falta:
-   categoria (`/sites/MLB/domain_discovery/search?q=`), atributos obrigatórios da categoria e fotos
-   (`/pictures/items/upload`). Depois `meliRequest('POST', '/items', payload)` e devolver `{ externalId: id, url: permalink }`.
-4. Tarifas: o ML cobra comissão por categoria/tipo de anúncio e tarifa fixa abaixo de certo preço —
-   ajuste em **Canais e taxas** (campos "Tarifa fixa" e "Tarifa só abaixo de").
+## Shopee e Mercado Livre
+- Sem integração por decisão da loja. O dono define preço por canal (com taxa e líquido) e o
+  responsável anuncia no painel de cada marketplace e registra o link na ficha do produto.
+- Taxas: ajuste em **Canais e taxas** (comissão, tarifa fixa e "tarifa só abaixo de").
 
 ## Google Analytics 4
 1. Google Cloud → criar conta de serviço → gerar chave JSON. Ativar a "Google Analytics Data API".
 2. GA4 → Administrador → Gerenciamento de acesso à propriedade → adicionar o e-mail da conta de serviço como **Leitor**.
 3. Variáveis: `GA4_PROPERTY_ID` (número da propriedade), `GOOGLE_SERVICE_ACCOUNT_JSON` (JSON em uma linha).
 4. Métricas usadas: `sessions`, `totalUsers`, `keyEvents`, `totalRevenue`, por `sessionDefaultChannelGroup`.
+5. No site próprio, instale a tag do GA4 e marque a compra (`purchase`) como evento-chave.
 
 ## Google Ads
 1. Developer token (Central de API da conta MCC), app OAuth (client id/secret) e refresh token da conta.
@@ -84,7 +61,7 @@ o mapeamento na função correspondente e acrescente o caso ao teste.
   `POST /api/leads/inbound` com `Authorization: Bearer <token>` e JSON
   `{ "name", "phone", "email", "source", "message", "campaign", "utm_source", "utm_medium", "utm_campaign" }`.
 - `source` aceita os valores de `LEAD_SOURCES` (domain.js); `campaign` aceita nome ou ID da campanha.
-- **Não** coloque o token em página pública (JavaScript do site). Use um intermediário no servidor.
+- **Não** coloque o token em página pública (JavaScript do site). Use o servidor do site como intermediário.
 
 ## Atualização automática dos indicadores
 - No servidor da loja: a cada `METRICS_SYNC_HOURS` (padrão 6). `0` desliga.

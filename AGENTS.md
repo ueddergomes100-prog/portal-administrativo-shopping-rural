@@ -6,14 +6,15 @@ projeto está organizado, o que já funciona e o que falta. Detalhes em `docs/`.
 ## O que é
 
 Portal administrativo do **Shopping Rural** (loja agro/pet/jardinagem). Centraliza:
-catálogo e estoque do **UniPlus** → fila de publicação de produtos na **Nuvemshop** →
+catálogo e estoque do **UniPlus** → escolha de preço por canal (site próprio, Shopee, Mercado Livre) →
+fila de publicação → **catálogo do site próprio** (o site lê do portal e devolve os pedidos) →
 campanhas, promoções, pedidos de arte, leads e indicadores de mídia. Interface 100% em pt-BR,
 datas no fuso `America/Sao_Paulo`, moeda BRL.
 
 ## Como a loja usa o portal (visão do dono)
 
 - **Dono**: vê todo o estoque com preço (e custo, se o UniPlus mandar). Em cada produto clica
-  **Colocar à venda** e um pop-up mostra os canais (Site/Nuvemshop, Shopee, Mercado Livre…). Para
+  **Colocar à venda** e um pop-up mostra os canais (Site próprio, Shopee, Mercado Livre…). Para
   cada canal ele digita o preço e o portal já desconta a taxa do canal e mostra o **valor líquido**
   e o **lucro** (ex.: Shopee 20% + R$ 6; Mercado Livre 17%). As taxas ficam em **Canais e taxas**.
 - **Gerente** (ou dono): pede **promoção** de um produto — preço normal vem do UniPlus, ele
@@ -22,10 +23,18 @@ datas no fuso `America/Sao_Paulo`, moeda BRL.
 - **Campanhas** são planejadas com antecedência ("daqui 2 semanas", "daqui 1 mês") e aparecem na
   **Agenda** junto com promoções e prazos de arte. Campanha também pode pedir arte junto.
 - **Site**: prepara foto/descrição/SEO dos produtos escolhidos, envia para aprovação e publica em cada
-  canal depois de aprovado (Nuvemshop automático; Shopee/ML registrados à mão até a API ser ligada).
+  canal depois de aprovado: **Publicar no site** coloca o produto no catálogo do site próprio;
+  na Shopee e no Mercado Livre ele anuncia à mão no painel e **registra o link** no portal.
 - **Marketing**: cria as artes, indica o arquivo em `media/`, entrega para aprovação e registra onde
   publicou. Acompanha indicadores (GA4, Google Ads, Meta) e leads.
 - Tudo amarrado: produto ↔ fila de venda ↔ promoção ↔ campanha ↔ arte ↔ leads.
+
+## Projeto do site (separado)
+
+`C:\Projetos\Site Shopping Rural` (Vite + React, Vercel). **Não altere esse projeto a partir daqui.**
+O portal segue os tipos dele: `Product` (`src/data/products.ts`) e `Order` (`src/types/commerce.ts`).
+Se o site mudar um campo, ajuste `server/services/store.js`, `SITE_*`/`ORDER_*` em `domain.js` e
+`docs/SITE.md` juntos.
 
 ## Regras que não podem ser quebradas
 
@@ -74,13 +83,15 @@ server/
   auth.js                     login local (scrypt + token HMAC) e Firebase Auth (ID token)
   audit.js                    histórico imutável com diff antes/depois
   router.js                   TODAS as rotas /api (lista em docs/API.md)
-  media.js                    pasta media/: listar, validar caminho, ler imagem p/ Nuvemshop
+  media.js                    pasta media/: listar, validar caminho, servir fotos do catálogo do site
   store/                      armazenamento plugável: json-store.js (local) | firestore-store.js
   services/                   regras de negócio: queue (venda por canal), marketing (campanhas/promoções/
                               artes/leads), settings (canais e taxas), metrics (indicadores),
                               leads-inbound (entrada automática), products, users, orders, integrations, dashboard
-  integrations/               uniplus.js, nuvemshop.js (produtos, pedidos, webhook), marketplaces.js
-                              (Shopee/ML), analytics.js (GA4, Google Ads, Meta), google-auth.js
+  integrations/               uniplus.js, analytics.js (GA4, Google Ads, Meta), google-auth.js
+  services/store.js           API do site próprio no formato do projeto do site: catálogo, estoque, fotos,
+                              pedidos com andamento, avisos -> leads (docs/SITE.md)
+  migrations.js               ajustes automáticos de dados antigos na inicialização
 connector/uniplus-sync.js     conector para a máquina da loja quando o portal está na Vercel
 public/
   index.html                  casca da aplicação
@@ -117,20 +128,23 @@ docs/                         arquitetura, API, dados, design, deploy, roteiro
   para dono/gerente (o servidor remove para os demais).
 - **Venda multicanal**: pop-up "Colocar à venda" com preço por canal, taxa, líquido e lucro calculados
   na hora; tabela de taxas editável pelo dono com simulador.
-- Fila de publicação: preparação pelo site → aprovação → publicação **por canal** (Nuvemshop pela API;
-  Shopee/ML registrados à mão com link) → "Publicado" quando todos os canais concluírem.
+- Fila de publicação: preparação → aprovação → **Publicar no site** (entra no catálogo; preço novo vale na hora;
+  "Tirar do site" remove) e Shopee/ML com link registrado; preço alterado marca "atualizar anúncio".
+  "Publicado" quando todos os canais concluírem.
 - Promoções com canais, líquido por canal e **pedido de arte no mesmo formulário**; campanhas idem.
 - Artes (quem pediu, prazo, arquivo, aprovação, canais onde saiu), **Agenda** mensal + próximos 90 dias.
 - Leads: cadastro manual, **webhook de entrada** com deduplicação, importação do Meta Lead Ads.
 - Indicadores GA4 / Google Ads / Meta Ads: código pronto (testado com respostas simuladas),
   atualização automática no servidor da loja.
-- Pedidos da Nuvemshop: importação manual e webhook assinado.
+- Pedidos do site próprio: chegam no formato `Order` do site; a equipe move o andamento no portal
+  (separando, pronto/enviado com rastreio, entregue) e o site lê de volta. Contato/newsletter/reposição viram leads.
 - Painel "Sua vez" por papel, trilha, "Vem por aí", integrações com estado real, histórico com diff.
 
 ## O que falta — ver `docs/ROADMAP.md` e `docs/INTEGRACOES.md`
 
-Conectar as contas reais e validar cada integração; ligar a criação automática de anúncios na
-Shopee e no Mercado Livre; atualizar preço/estoque de anúncio já publicado; cron na Vercel.
+Ligar o site próprio (catálogo + pedidos + gateway, ver `docs/SITE.md`); conectar as contas reais
+(Google, Meta) e validar; definir a baixa de estoque. **Não** automatizar anúncios na Shopee/ML:
+decisão da loja.
 
 ## Antes de entregar uma mudança
 

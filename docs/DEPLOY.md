@@ -31,7 +31,7 @@ Backup: copie a pasta `data/` (contém `portal-db.json` e o segredo de sessão) 
    como função. Variáveis (Settings → Environment Variables):
    `DATA_BACKEND=firestore`, `FIREBASE_PROJECT_ID`, `FIREBASE_WEB_API_KEY`, `FIREBASE_WEB_AUTH_DOMAIN`,
    `FIREBASE_WEB_APP_ID`, `FIREBASE_SERVICE_ACCOUNT_JSON` (JSON em uma linha), `BOOTSTRAP_OWNER_EMAIL`,
-   `CONNECTOR_TOKEN`, e as da Nuvemshop.
+   `CONNECTOR_TOKEN`, e as do site próprio (`STORE_*`, `PORTAL_PUBLIC_URL`).
 4. Criar no Firebase Auth o usuário do dono com o mesmo e-mail de `BOOTSTRAP_OWNER_EMAIL` e entrar.
 5. Na máquina da loja, `.env` com `UNIPLUS_API_URL`, `PORTAL_URL=https://…vercel.app` e o mesmo
    `CONNECTOR_TOKEN`; rodar `npm run connector` (deixar rodando como tarefa agendada).
@@ -40,13 +40,13 @@ Backup: copie a pasta `data/` (contém `portal-db.json` e o segredo de sessão) 
 
 ### Limitação do modo B
 
-Fotos em `media/` só existem na máquina da loja. Publicar na Nuvemshop **pela Vercel** cadastra o
-produto mas não envia as imagens (aviso aparece na ficha). Publique pelo portal local da loja, ou
-implemente o envio de imagens pelo conector (ver ROADMAP).
+Fotos em `media/` só existem na máquina da loja. O catálogo do site serve as fotos a partir do
+portal (`/api/store/images/...`): com o portal na Vercel, a máquina da loja não serve as fotos.
+Nesse caso, copie as fotos publicadas para um armazenamento público (ver ROADMAP, item 1).
 
 ## Checklist antes de colocar no ar
 
 - [ ] `npm run check` e `npm test` passando
 - [ ] `.env`/variáveis sem valores de exemplo; `SESSION_SECRET` definido
-- [ ] Testar publicação Nuvemshop com um produto **oculto** primeiro
+- [ ] Publicar um produto de teste no site e fazer uma compra de teste (pedido chega como Pago)
 - [ ] Conferir que `data/`, `media/`, `.env` e JSON de serviço não estão no Git (`git status`)

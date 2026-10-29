@@ -45,8 +45,24 @@ Fonte: `server/router.js`. Regras: `server/services/*`. Papéis: `owner`, `manag
 | PATCH | `/queue/:id/pricing` | aprovador | mesmos campos (canais, preços, prioridade, campanha) |
 | PATCH | `/queue/:id/content` | site | `{title, description, seoTitle, seoDescription, category, imageRefs[], siteNotes}` — muda "Selecionado" para "Em preparação" |
 | POST | `/queue/:id/transition` | conforme `QUEUE_TRANSITIONS` | `{to, note?}` — "review" exige título, descrição ≥ 30 e foto; ajustes/bloqueio exigem `note` |
-| POST | `/queue/:id/publish` | site, dono | `{channel}` publica pela API do canal. Sem integração: 400 com `details.code` `NOT_CONFIGURED`/`NOT_IMPLEMENTED` |
-| POST | `/queue/:id/listings/:channel` | site, dono | registra anúncio feito à mão: `{url (https), externalId?, note?}` (não vale para o site/Nuvemshop) |
+| POST | `/queue/:id/site` | site, dono | publica no catálogo do site próprio (gera `slug` e link) |
+| POST | `/queue/:id/listings/:channel` | site, dono | registra anúncio feito à mão em marketplace: `{url (https), externalId?, note?}` |
+| DELETE | `/queue/:id/listings/:channel` | site, dono | tira do site / desfaz registro do marketplace |
+
+## Site próprio (contrato completo em docs/SITE.md)
+
+| Método | Rota | Acesso | O que faz |
+|---|---|---|---|
+| GET | `/catalog` e `/store/catalog` | público (CORS por `STORE_ALLOWED_ORIGINS`) | `{ products }` no formato `Product` do site |
+| POST | `/catalog/stock-check` e `/store/catalog/stock-check` | público | `[{ productId, requested, available }]` |
+| GET | `/store/catalog/:slug` | público | um produto |
+| GET | `/store/images/<caminho>` | público | foto de produto publicado |
+| POST | `/store/orders` | `STORE_API_TOKEN` | cria/atualiza pedido (`Order` do site) |
+| GET | `/store/orders/:id` | `STORE_API_TOKEN` | pedido com andamento atual (para o site) |
+| PATCH | `/store/orders/:id` | `STORE_API_TOKEN` | `{ status?, payment? }` vindo do gateway |
+| POST | `/store/contact`, `/store/newsletter`, `/store/restock-alerts` | `STORE_API_TOKEN` | viram leads |
+
+Erros dessas rotas trazem `message` (campo que o site lê) além de `error`.
 
 ## Canais e taxas
 
@@ -63,7 +79,6 @@ Fonte: `server/router.js`. Regras: `server/services/*`. Papéis: `owner`, `manag
 | POST | `/metrics/:source/sync` | dono, gerente, marketing | busca agora no provedor |
 | POST | `/leads/inbound` | ferramentas (`LEADS_WEBHOOK_TOKEN`) | cria lead ou comenta no existente (mesmo telefone/e-mail) |
 | POST | `/leads/import-meta` | dono, gerente, marketing | importa leads dos formulários do Meta |
-| POST | `/webhooks/nuvemshop` | Nuvemshop (assinatura HMAC) | atualiza pedido em `orders` |
 
 ## Campanhas, promoções, artes, leads
 
@@ -91,8 +106,8 @@ Campos principais:
 
 | Método | Rota | Quem | O que faz |
 |---|---|---|---|
-| GET | `/orders` | todos | `{connected, orders}` |
-| POST | `/orders/sync` | dono, gerente, site | importa pedidos recentes da Nuvemshop |
+| GET | `/orders` | todos | `{connected, orders}` com `transitions` permitidas para quem pede |
+| POST | `/orders/:id/move` | dono, gerente, site | `{to, trackingCode?, note?}` — separando, pronto_retirada, enviado (rastreio), entregue, cancelado (motivo) |
 | GET | `/integrations` | todos | estado real + nomes das variáveis que faltam (nunca valores) |
 | PATCH | `/integrations/:id` | dono, gerente | preferências não secretas (`storeUrl`, `notes`) |
 | GET | `/audit?entity&entityId&limit` | dono/gerente (completo); todos com `entityId` | histórico |
