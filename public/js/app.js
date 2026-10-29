@@ -18,8 +18,10 @@ import integrations from './views/integrations.js';
 import team from './views/team.js';
 import historyView from './views/history.js';
 import account from './views/account.js';
+import agenda from './views/agenda.js';
+import channelsView from './views/channels.js';
 
-const VIEWS = [dashboard, products, queue, promotions, orders, campaigns, arts, leads, media, integrations, team, historyView, account];
+const VIEWS = [dashboard, products, queue, promotions, orders, agenda, campaigns, arts, leads, media, channelsView, integrations, team, historyView, account];
 const BY_ID = Object.fromEntries(VIEWS.map(v => [v.id, v]));
 const GROUPS = ['Hoje', 'Operação', 'Marketing', 'Gestão'];
 
@@ -60,7 +62,8 @@ async function lookup(name) {
   const loaders = {
     users: () => get('/users').then(r => r.users),
     campaigns: () => get('/campaigns').then(r => r.records),
-    promotions: () => get('/promotions').then(r => r.records)
+    promotions: () => get('/promotions').then(r => r.records),
+    channels: () => get('/settings/channels').then(r => r.channels)
   };
   const value = await loaders[name]();
   app.cache.set(name, { at: Date.now(), value });
@@ -239,7 +242,11 @@ document.addEventListener('change', event => {
   const el = event.target.closest('[data-change]');
   if (!el) return;
   const handler = BY_ID[app.route.name].changes?.[el.dataset.change];
-  if (handler) guarded(null, () => handler(ctx(), el, event));
+  if (!handler) return;
+  // Mudanças de campo não usam a trava de "ocupado": são instantâneas e não podem ser perdidas.
+  Promise.resolve()
+    .then(() => handler(ctx(), el, event))
+    .catch(error => toast(error.message, 'danger'));
 });
 
 // Fechar a gaveta com Esc ou clique fora volta a URL para a lista.

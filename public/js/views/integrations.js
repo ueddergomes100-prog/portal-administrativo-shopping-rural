@@ -8,7 +8,10 @@ const HELP = {
   nuvemshop: 'Crie um app na Nuvemshop (Parceiros) e autorize a loja para obter o token. A publicação e a importação de pedidos usam essas credenciais apenas no servidor.',
   ga4: 'Crie uma conta de serviço no Google Cloud, dê acesso de leitor à propriedade GA4 e informe o JSON no servidor.',
   googleads: 'Requer developer token aprovado, ID do cliente e refresh token OAuth da conta de anúncios.',
-  metaads: 'Gere um token de sistema no Gerenciador de Negócios com acesso à conta de anúncios.'
+  metaads: 'Gere um token de usuário do sistema no Gerenciador de Negócios com acesso à conta de anúncios (permissão ads_read). Para leads, um token da página com leads_retrieval.',
+  shopee: 'Cadastre a loja na Shopee Open Platform (partner_id e partner_key) e autorize a loja para obter shop_id e access_token. Até a criação automática ser ligada, anuncie no painel e registre o link na fila.',
+  mercadolivre: 'Crie um app em developers.mercadolivre.com.br, autorize a conta da loja e informe o access token e o user_id. Até a criação automática ser ligada, anuncie no painel e registre o link na fila.',
+  leads: 'Defina LEADS_WEBHOOK_TOKEN no servidor. Ferramentas externas enviam leads para /api/leads/inbound com esse token (detalhes em Indicadores e leads).'
 };
 
 export default {

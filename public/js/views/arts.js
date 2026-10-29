@@ -13,6 +13,7 @@ function card(a, users, today) {
     <span class="q-card-top">${['Alta', 'Urgente'].includes(a.priority) ? tag(a.priority, a.priority === 'Urgente' ? 'danger' : 'warn') : ''}${late ? tag('Atrasada', 'danger') : ''}</span>
     <strong class="q-title">${esc(a.title)}</strong>
     <span class="q-meta">${esc(a.format)} · ${esc(ART_ORIGINS[a.originType])}: ${esc(a.originName || '—')}</span>
+    <span class="q-meta">pedido por ${esc(a.createdBy?.name || '—')}</span>
     <span class="q-foot">${icon('calendar')}prazo ${date(a.deadline)} · ${esc(personName(users, a.assigneeId))}</span>
   </button></li>`;
 }

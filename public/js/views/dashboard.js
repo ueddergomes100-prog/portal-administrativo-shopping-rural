@@ -1,6 +1,6 @@
 // Visão geral: a trilha de publicação, o que é "sua vez" e a saúde das integrações.
 import { get } from '../api.js';
-import { esc, icon, tag, num, relative, pageHead, empty, statusTag } from '../ui.js';
+import { esc, icon, tag, num, date, relative, pageHead, empty, statusTag } from '../ui.js';
 import { QUEUE_STAGES, QUEUE_FLOW, INTEGRATION_STATUS, ROLES } from '../../shared/domain.js';
 
 const KIND_ICON = { queue: 'queue', arts: 'art', campaigns: 'campaign', promotions: 'tag' };
@@ -9,6 +9,15 @@ function greeting(name) {
   const hour = Number(new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: 'numeric', hour12: false }).format(new Date()));
   const word = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
   return `${word}, ${String(name).split(' ')[0]}`;
+}
+
+const dayDiff = (a, b) => Math.round((Date.parse(b + 'T12:00:00Z') - Date.parse(a + 'T12:00:00Z')) / 86400_000);
+function countdown(today, start, end) {
+  const d = dayDiff(today, start);
+  if (d > 1) return `começa em ${d} dias`;
+  if (d === 1) return 'começa amanhã';
+  if (d === 0) return 'começa hoje';
+  return `rolando até ${date(end)}`;
 }
 
 const plural = (n = 0, one, many) => `${num(n)} ${n === 1 ? one : many}`;
@@ -74,6 +83,13 @@ export default {
         </ul>
       </section>
     </div>
+
+    ${data.upcoming?.length ? `<section class="panel" aria-labelledby="upTitle">
+      <div class="panel-head"><h2 id="upTitle">Vem por aí</h2><a class="link" href="#/agenda">Agenda ${icon('arrow')}</a></div>
+      <ul class="upcoming">${data.upcoming.map(e => `<li><a href="#/${esc(e.route)}">
+        <span class="up-when"><strong>${esc(date(e.start).slice(0, 5))}</strong><small>${e.kind === 'campaign' ? 'Campanha' : 'Promoção'}</small></span>
+        <span class="up-what"><strong>${esc(e.name)}</strong><small>${esc(countdown(data.today, e.start, e.end))}</small></span></a></li>`).join('')}</ul>
+    </section>` : ''}
 
     <section class="panel" aria-labelledby="ledgerTitle">
       <div class="panel-head"><h2 id="ledgerTitle">Em números</h2></div>

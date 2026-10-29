@@ -1,24 +1,27 @@
-// Fila de publicação: quadro por etapa e ficha completa do item (preço, conteúdo, publicação, histórico).
+// Fila de publicação: quadro por etapa e ficha completa do item (canais e preços, conteúdo, publicação por canal, histórico).
 import { get, post, patch } from '../api.js';
 import {
   esc, icon, tag, money, num, date, dateTime, relative, pageHead, empty, notice, button, field,
   openDrawer, openModal, closeTopLayer, closeLayers, toast, confirmDialog, statusTag
 } from '../ui.js';
-import { QUEUE_STAGES, QUEUE_FLOW, PRIORITIES, PUBLISH_STATUS } from '../../shared/domain.js';
+import { QUEUE_STAGES, QUEUE_FLOW, PRIORITIES, LISTING_STATUS } from '../../shared/domain.js';
+import { pricingEditor, pricingSummary, readPricing, pricingInputs, pricingChanges } from './pricing.js';
 
 const TABS = [['flow', 'Em andamento'], ['blocked', 'Bloqueados'], ['archived', 'Arquivados']];
 
 const inProgressLabel = n => (n === 1 ? '1 item em andamento' : `${num(n)} itens em andamento`);
-const salePrice = item => (item.priceMode === 'custom' ? item.sitePrice : item.productSnapshot.basePrice);
+const listingsOf = item => (item.channels || []).map(c => ({ channel: c, listing: item.listings?.[c.id] || { status: 'idle' } }));
 
 function card(item) {
   const urgent = ['Alta', 'Urgente'].includes(item.priority);
-  const failed = item.publish?.status === 'failed';
+  const failed = listingsOf(item).some(l => l.listing.status === 'failed');
+  const first = item.channels?.[0];
   return `<li><button class="q-card${failed ? ' has-error' : ''}" data-action="open" data-id="${esc(item.id)}">
     <span class="q-card-top">${urgent ? tag(item.priority, item.priority === 'Urgente' ? 'danger' : 'warn') : ''}${failed ? tag('Falha ao publicar', 'danger') : ''}</span>
     <strong class="q-title">${esc(item.productSnapshot.name)}</strong>
     <span class="q-meta mono">SKU ${esc(item.productSnapshot.sku || '—')}</span>
-    <span class="q-price"><span class="mono">${money(salePrice(item))}</span>${item.promoPrice ? `<span class="q-promo mono">promo ${money(item.promoPrice)}</span>` : ''}</span>
+    ${first ? `<span class="q-price"><span class="mono">${money(first.price)}</span>${first.promoPrice ? `<span class="q-promo mono">promo ${money(first.promoPrice)}</span>` : ''}</span>` : ''}
+    <span class="q-channels">${listingsOf(item).map(({ channel, listing }) => `<span class="q-chan${listing.status === 'done' ? ' is-done' : ''}" title="${esc(channel.name)}: ${esc(LISTING_STATUS[listing.status]?.label || '')}">${esc(channel.name.split(' ')[0])}</span>`).join('')}</span>
     <span class="q-foot">${icon('history')}${esc(relative(item.updatedAt))}</span>
   </button></li>`;
 }
@@ -44,8 +47,8 @@ const view = {
     const lead = {
       owner: 'Você aprova o que o site preparou. A publicação só acontece depois da sua aprovação.',
       manager: 'Acompanhe a preparação e aprove quando estiver autorizado.',
-      site: 'Prepare foto, descrição e SEO; envie para aprovação; publique o que for aprovado.',
-      marketing: 'Veja quais produtos estão indo para o site para planejar as artes.'
+      site: 'Prepare foto, descrição e SEO; envie para aprovação; publique em cada canal o que for aprovado.',
+      marketing: 'Veja quais produtos estão indo à venda para planejar as artes.'
     }[user.role];
     const tabs = `<div class="tabs" role="tablist">${TABS.map(([key, label]) => {
       const n = key === 'flow' ? items.filter(i => QUEUE_FLOW.includes(i.stage)).length : count(key);
@@ -56,7 +59,7 @@ const view = {
     if (!items.length) {
       content = `<section class="panel">${empty({
         title: 'A fila está vazia',
-        text: user.role === 'owner' ? 'Abra um produto em Produtos e estoque e envie para o site.' : 'Quando o dono escolher produtos para o site, eles aparecem aqui.',
+        text: user.role === 'owner' ? 'Em Produtos e estoque, clique em “Colocar à venda” e escolha os canais.' : 'Quando o dono escolher produtos para vender, eles aparecem aqui.',
         action: user.role === 'owner' ? `<a class="btn primary" href="#/produtos">${icon('box')}<span>Escolher produtos</span></a>` : '',
         ic: 'queue'
       })}</section>`;
@@ -84,24 +87,19 @@ const view = {
       get('/audit', { entity: 'queue', entityId: id, limit: 50 }).catch(() => ({ entries: [] }))
     ]);
     ctx.state.current = item;
-    const campaigns = await ctx.lookup('campaigns').catch(() => []);
+    const [campaigns, channels] = await Promise.all([ctx.lookup('campaigns').catch(() => []), ctx.lookup('channels')]);
     openDrawer({
       eyebrow: `${statusTag(QUEUE_STAGES, item.stage)}`,
       title: item.productSnapshot.name,
-      body: renderItem(ctx, item, entries, campaigns),
+      body: renderItem(ctx, item, entries, campaigns, channels),
       footer: renderFooter(item)
     });
   },
 
-  changes: {
-    priceMode(ctx, el) {
-      const box = el.closest('form').querySelector('[data-custom-price]');
-      box.hidden = el.value !== 'custom';
-      box.querySelector('input').required = el.value === 'custom';
-    }
-  },
+  changes: { ...pricingChanges },
 
   inputs: {
+    ...pricingInputs,
     counter(ctx, el) {
       const out = el.closest('.field').querySelector('.counter');
       if (out) out.textContent = `${el.value.length}/${el.maxLength}`;
@@ -133,22 +131,40 @@ const view = {
       await afterChange(ctx, item.id);
     },
 
-    async publish(ctx) {
+    async publish(ctx, el) {
       const item = ctx.state.current;
+      const channel = item.channels.find(c => c.id === el.dataset.channel);
       const ok = await confirmDialog({
-        title: 'Publicar na Nuvemshop?',
-        text: `O produto será cadastrado na loja virtual com preço ${money(salePrice(item))}${item.promoPrice ? ` e promoção ${money(item.promoPrice)}` : ''}. As fotos de <span class="mono">media/</span> são enviadas pelo servidor da loja.`,
+        title: `Publicar em ${channel.name}?`,
+        text: `O anúncio será criado com preço ${money(channel.price)}${channel.promoPrice ? ` e promoção ${money(channel.promoPrice)}` : ''}.${channel.integration === 'nuvemshop' ? ' As fotos de <span class="mono">media/</span> são enviadas pelo servidor da loja.' : ''}`,
         confirmLabel: 'Publicar agora'
       });
       if (ok === null) return;
       try {
-        const result = await post(`/queue/${item.id}/publish`);
-        toast('Publicado na Nuvemshop.');
+        const result = await post(`/queue/${item.id}/publish`, { channel: channel.id });
+        toast(`Publicado em ${channel.name}.`);
         if (result.warnings?.length) toast('Publicado, mas houve aviso nas imagens: ' + result.warnings[0], 'warn');
       } catch (error) {
-        toast(error.message, error.details?.code === 'NOT_CONFIGURED' ? 'warn' : 'danger');
+        toast(error.message, ['NOT_CONFIGURED', 'NOT_IMPLEMENTED'].includes(error.details?.code) ? 'warn' : 'danger');
       }
       await afterChange(ctx, item.id);
+    },
+
+    // Canal sem integração automática: a pessoa anuncia no painel do canal e registra o link aqui.
+    'manual-listing'(ctx, el) {
+      const item = ctx.state.current;
+      const channel = item.channels.find(c => c.id === el.dataset.channel);
+      openModal({
+        title: `Registrar anúncio em ${channel.name}`,
+        body: `<form data-form="manualListing" id="manualForm" class="form-grid" data-channel="${esc(channel.id)}">
+          <p class="full lead">Use quando o anúncio foi criado direto no painel do canal. Fica registrado que foi feito à mão, por você.</p>
+          ${field('url', 'Link do anúncio', { type: 'url', full: true, placeholder: 'https://…' })}
+          ${field('externalId', 'Código do anúncio (opcional)', { full: true, max: 120 })}
+          ${field('note', 'Observação (opcional)', { full: true, max: 500 })}
+          <div class="form-error full"></div>
+        </form>`,
+        footer: `<button type="button" class="btn ghost" data-action="close-layer">Cancelar</button><button type="submit" class="btn primary" form="manualForm">Registrar anúncio</button>`
+      });
     },
 
     'pick-media'(ctx) {
@@ -171,10 +187,17 @@ const view = {
   },
 
   forms: {
-    async pricing(ctx, data) {
+    async pricing(ctx, data, form) {
       const item = ctx.state.current;
-      await patch(`/queue/${item.id}/pricing`, data);
-      toast('Preço e prioridade salvos.');
+      await patch(`/queue/${item.id}/pricing`, { ...data, ...readPricing(form) });
+      toast('Canais e preços salvos.');
+      await afterChange(ctx, item.id);
+    },
+    async manualListing(ctx, data, form) {
+      const item = ctx.state.current;
+      await post(`/queue/${item.id}/listings/${form.dataset.channel}`, data);
+      closeTopLayer();
+      toast('Anúncio registrado.');
       await afterChange(ctx, item.id);
     },
     async content(ctx, data) {
@@ -223,11 +246,10 @@ function renderFooter(item) {
     variant: t.to === 'approved' ? 'primary' : ['blocked', 'archived'].includes(t.to) ? 'ghost danger-text' : t.to === 'review' ? 'primary' : 'ghost',
     data: { to: t.to, requires: t.requires || '', label: t.label }
   }));
-  if (item.can.publish) buttons.push(button(item.publish?.status === 'failed' ? 'Tentar publicar de novo' : 'Publicar na Nuvemshop', { action: 'publish', icon: 'send', variant: 'primary' }));
   return buttons.join('');
 }
 
-function renderItem(ctx, item, entries, campaigns) {
+function renderItem(ctx, item, entries, campaigns, channels) {
   const p = item.productSnapshot;
   const c = item.content || {};
   const campaign = campaigns.find(x => x.id === item.campaignId);
@@ -238,32 +260,25 @@ function renderItem(ctx, item, entries, campaigns) {
   const facts = `<dl class="facts">
     <div><dt>SKU</dt><dd class="mono">${esc(p.sku || '—')}</dd></div>
     <div><dt>Estoque (UniPlus)</dt><dd class="mono">${num(p.stock)}</dd></div>
-    <div><dt>Preço-base</dt><dd class="mono">${money(p.basePrice)}</dd></div>
-    <div><dt>Preço no site</dt><dd class="mono">${money(salePrice(item))}${item.priceMode === 'custom' ? ' <small>definido pelo dono</small>' : ''}</dd></div>
-    <div><dt>Promoção</dt><dd>${item.promoPrice ? `<span class="mono">${money(item.promoPrice)}</span> <small>${date(item.promoStart)} a ${date(item.promoEnd)}</small>` : '—'}</dd></div>
+    <div><dt>Preço no UniPlus</dt><dd class="mono">${money(p.basePrice)}</dd></div>
+    <div><dt>Período da promoção</dt><dd>${item.promoStart ? `${date(item.promoStart)} a ${date(item.promoEnd)}` : '—'}</dd></div>
     <div><dt>Prioridade</dt><dd>${esc(item.priority)}</dd></div>
     <div><dt>Campanha</dt><dd>${campaign ? `<a href="#/campanhas/${esc(campaign.id)}">${esc(campaign.name)}</a>` : '—'}</dd></div>
     <div><dt>Selecionado por</dt><dd>${esc(item.requestedBy?.name || '—')} <small>${date(item.createdAt)}</small></dd></div>
   </dl>
-  ${item.notes ? `<blockquote class="note-quote"><span>Observação do dono</span>${esc(item.notes)}</blockquote>` : ''}`;
+  ${item.notes ? `<blockquote class="note-quote"><span>Observação do dono</span>${esc(item.notes)}</blockquote>` : ''}
+  <section class="section"><h3>Canais e preços</h3>${pricingSummary(item, { showCost: ['owner', 'manager'].includes(ctx.user.role) })}</section>`;
 
-  const pricing = item.can.editPricing && item.stage !== 'published' ? `
-    <details class="section"${item.stage === 'selected' ? '' : ''}>
-      <summary><h3>Preço, promoção e prioridade</h3></summary>
+  const pricing = item.can.editPricing ? `
+    <details class="section">
+      <summary><h3>Alterar canais, preços e prioridade</h3></summary>
       <form data-form="pricing" class="form-grid">
-        <fieldset class="field full"><legend>Preço no site</legend><div class="segmented">
-          <label><input type="radio" name="priceMode" value="erp" data-change="priceMode"${item.priceMode !== 'custom' ? ' checked' : ''}><span>Preço do UniPlus (${money(p.basePrice)})</span></label>
-          <label><input type="radio" name="priceMode" value="custom" data-change="priceMode"${item.priceMode === 'custom' ? ' checked' : ''}><span>Preço do site</span></label>
-        </div></fieldset>
-        <div class="full" data-custom-price${item.priceMode === 'custom' ? '' : ' hidden'}>${field('sitePrice', 'Preço do site (R$)', { type: 'number', min: 0, step: '0.01', value: item.sitePrice ?? '' })}</div>
-        ${field('promoPrice', 'Preço promocional (R$)', { type: 'number', min: 0, step: '0.01', value: item.promoPrice ?? '' })}
+        <div class="full">${pricingEditor({ channels, product: p, selected: item.channels, promoStart: item.promoStart, promoEnd: item.promoEnd, showCost: ['owner', 'manager'].includes(ctx.user.role) })}</div>
         ${field('priority', 'Prioridade', { type: 'select', options: PRIORITIES, value: item.priority })}
-        ${field('promoStart', 'Promoção a partir de', { type: 'date', value: item.promoStart })}
-        ${field('promoEnd', 'Promoção até', { type: 'date', value: item.promoEnd })}
-        ${field('campaignId', 'Campanha', { type: 'select', full: true, value: item.campaignId, options: [['', 'Nenhuma'], ...campaigns.map(x => [x.id, x.name])] })}
-        ${field('notes', 'Observação para o site', { type: 'textarea', full: true, rows: 2, value: item.notes, max: 2000 })}
+        ${field('campaignId', 'Campanha', { type: 'select', value: item.campaignId, options: [['', 'Nenhuma'], ...campaigns.map(x => [x.id, x.name])] })}
+        ${field('notes', 'Observação para quem prepara o anúncio', { type: 'textarea', full: true, rows: 2, value: item.notes, max: 2000 })}
         <div class="form-error full" aria-live="polite"></div>
-        <div class="full form-actions"><button class="btn" type="submit">${icon('check')}<span>Salvar preço</span></button></div>
+        <div class="full form-actions"><button class="btn" type="submit">${icon('check')}<span>Salvar canais e preços</span></button></div>
       </form>
     </details>` : '';
 
@@ -300,19 +315,28 @@ function renderItem(ctx, item, entries, campaigns) {
       ${mediaRows ? `<ul class="media-check">${mediaRows}</ul>` : '<p class="muted">Nenhuma foto indicada.</p>'}
     </section>`;
 
-  const pub = item.publish || {};
-  const publication = ['approved', 'published'].includes(item.stage) || pub.attempts ? `
+  const publication = ['approved', 'published'].includes(item.stage) || listingsOf(item).some(l => l.listing.attempts) ? `
     <section class="section">
-      <h3>Publicação na Nuvemshop</h3>
-      <dl class="facts">
-        <div><dt>Situação</dt><dd>${item.stage === 'published' ? tag('Publicado', 'done') : pub.status === 'failed' ? tag(PUBLISH_STATUS.failed, 'danger') : tag(PUBLISH_STATUS[pub.status] || PUBLISH_STATUS.idle, 'warn')}</dd></div>
-        <div><dt>Tentativas</dt><dd class="mono">${num(pub.attempts || 0)}</dd></div>
-        <div><dt>Última tentativa</dt><dd>${dateTime(pub.lastAttemptAt)}</dd></div>
-        <div><dt>ID na Nuvemshop</dt><dd class="mono">${esc(pub.externalId || '—')}</dd></div>
-      </dl>
-      ${pub.lastError ? notice(`<strong>Último erro:</strong> ${esc(pub.lastError)}`, pub.status === 'failed' ? 'danger' : 'warn') : ''}
-      ${pub.imageWarnings?.length ? notice(`<strong>Imagens:</strong> ${pub.imageWarnings.map(esc).join('<br>')}`, 'warn') : ''}
-      ${pub.url ? `<a class="link" href="${esc(pub.url)}" target="_blank" rel="noopener noreferrer">Ver na loja ${icon('external')}</a>` : ''}
+      <h3>Publicação por canal</h3>
+      <ul class="listing-list">${listingsOf(item).map(({ channel, listing }) => {
+        const status = LISTING_STATUS[listing.status] || LISTING_STATUS.idle;
+        const auto = channel.integration === 'nuvemshop';
+        const actions = item.can.publish && listing.status !== 'done' ? [
+          button(listing.status === 'failed' ? 'Tentar de novo' : 'Publicar', { action: 'publish', icon: 'send', variant: auto ? 'primary small' : 'ghost small', data: { channel: channel.id } }),
+          auto ? '' : button('Registrar anúncio feito à mão', { action: 'manual-listing', icon: 'check', variant: 'small', data: { channel: channel.id } })
+        ].join('') : '';
+        return `<li class="listing">
+          <div class="listing-head"><strong>${esc(channel.name)}</strong>${tag(status.label, status.tone)}${listing.manual ? tag('registrado à mão', 'neutral') : ''}</div>
+          <p class="listing-meta">
+            ${listing.publishedAt ? `Publicado ${dateTime(listing.publishedAt)}${listing.by ? ` por ${esc(listing.by)}` : ''}` : listing.attempts ? `${num(listing.attempts)} tentativa(s) · última ${dateTime(listing.lastAttemptAt)}` : 'Ainda não publicado'}
+            ${listing.externalId ? ` · código <span class="mono">${esc(listing.externalId)}</span>` : ''}
+            ${listing.url ? ` · <a href="${esc(listing.url)}" target="_blank" rel="noopener noreferrer">ver anúncio ${icon('external')}</a>` : ''}
+          </p>
+          ${listing.lastError ? notice(esc(listing.lastError), listing.status === 'failed' ? 'danger' : 'warn') : ''}
+          ${listing.imageWarnings?.length ? notice(`<strong>Imagens:</strong> ${listing.imageWarnings.map(esc).join('<br>')}`, 'warn') : ''}
+          ${actions ? `<div class="listing-actions">${actions}</div>` : ''}
+        </li>`;
+      }).join('')}</ul>
     </section>` : '';
 
   const stageHistory = (item.stageHistory || []).slice().reverse();

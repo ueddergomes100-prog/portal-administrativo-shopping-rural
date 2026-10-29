@@ -63,7 +63,7 @@ a:hover { color: var(--pasto-900); }
 [hidden] { display: none !important; }
 h1, h2, h3 { margin: 0; }
 p { margin: 0 0 .75em; }
-code { font: 500 .85em var(--f-mono); background: var(--galv-2); padding: 1px 6px; border-radius: 4px; }
+code { font: 500 .85em var(--f-mono); background: var(--galv-2); padding: 1px 6px; border-radius: 4px; overflow-wrap: anywhere; }
 q { quotes: '“' '”'; font-style: italic; margin-left: .35em; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .mono { font-family: var(--f-mono); font-size: .92em; font-variant-numeric: tabular-nums; }
@@ -256,7 +256,7 @@ main { padding: 32px clamp(16px, 3vw, 44px) 64px; max-width: 1480px; outline: no
 .table th { text-align: left; font: 600 12px/1.3 var(--f-body); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 12px 16px; background: #f6f7f4; border-bottom: 1px solid var(--linha); white-space: nowrap; }
 .table td { padding: 12px 16px; border-bottom: 1px solid var(--galv-2); vertical-align: middle; }
 .table tbody tr:last-child td { border-bottom: 0; }
-.table .num { text-align: right; }
+.table .num { text-align: right; white-space: nowrap; }
 .table td:first-child { min-width: 180px; }
 .table.compact th, .table.compact td { padding: 8px 10px; }
 .row-link { cursor: pointer; }
@@ -506,6 +506,113 @@ details.section[open] > summary { margin-bottom: 14px; }
 .diff-new { color: var(--ok-fg); overflow-wrap: anywhere; }
 
 /* --------------------------------------------------------------------------
+   Calculadora de preço por canal
+   -------------------------------------------------------------------------- */
+.calc { border: 1px solid var(--linha); border-radius: var(--r); overflow: hidden; background: #fbfcfa; }
+.calc-head { display: flex; flex-wrap: wrap; gap: 8px 28px; padding: 12px 14px; border-bottom: 1px solid var(--linha); background: var(--papel); }
+.calc-label { display: block; font: 500 11px/1.3 var(--f-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.calc-head strong { font-size: 17px; }
+.calc-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.calc-table th { text-align: left; font: 600 11.5px/1.3 var(--f-body); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 10px 12px; border-bottom: 1px solid var(--linha); white-space: nowrap; }
+.calc-table td { padding: 10px 12px; border-bottom: 1px solid var(--galv-2); vertical-align: middle; }
+.calc-table tr:last-child td { border-bottom: 0; }
+.calc-row.is-off td:not(:first-child) { opacity: .4; }
+.calc-toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; min-width: 140px; }
+.calc-dates .hint { grid-column: 1 / -1; }
+.calc-toggle input { width: 20px; height: 20px; accent-color: var(--pasto-700); flex: none; }
+.calc-toggle small { display: block; color: var(--muted); font: 12px var(--f-mono); }
+.calc-money { display: inline-flex; align-items: center; gap: 6px; font: 13px var(--f-mono); color: var(--muted); }
+.calc-money input { width: 100px; min-height: 42px; padding: 6px 10px; border: 1px solid var(--linha-forte); border-radius: var(--r-sm); font: 500 15px var(--f-mono); color: var(--terra); background: var(--papel); }
+.calc-money input:focus { border-color: var(--pasto-600); box-shadow: 0 0 0 3px rgb(44 107 78 / .18); outline: none; }
+.calc-money.big { display: flex; margin-bottom: 14px; font-size: 18px; }
+.calc-money.big input { width: 100%; font-size: 22px; min-height: 52px; }
+.calc-out { min-width: 128px; }
+.calc-out > * { display: block; }
+.calc-fee { font: 12px var(--f-mono); color: var(--danger-fg); }
+.calc-net { font: 700 17px var(--f-mono); color: var(--pasto-900); }
+.calc-margin { font: 12px var(--f-mono); color: var(--ok-fg); }
+.calc-margin.is-neg { color: var(--danger-fg); font-weight: 600; }
+.calc-dates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; padding: 12px 14px; border-top: 1px solid var(--linha); background: var(--papel); }
+
+.q-channels { display: flex; flex-wrap: wrap; gap: 4px; }
+.q-chan { font: 500 11px/1.6 var(--f-mono); padding: 0 6px; border-radius: 4px; border: 1px dashed var(--linha-forte); color: var(--muted); }
+.q-chan.is-done { border-style: solid; border-color: var(--pasto-700); color: var(--pasto-700); }
+
+.listing-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.listing { border: 1px solid var(--linha); border-radius: var(--r); padding: 12px 14px; }
+.listing-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.listing-head strong { margin-right: auto; font: 700 15px var(--f-display); font-stretch: 105%; }
+.listing-meta { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+.listing .notice { margin: 10px 0 0; }
+.listing-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+.choice-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.choice { display: flex; align-items: flex-start; gap: 12px; width: 100%; text-align: left; padding: 14px; border: 1px solid var(--linha); border-radius: var(--r); background: var(--papel); }
+.choice:hover { border-color: var(--pasto-600); background: #f6f9f6; }
+.choice > .icon { color: var(--pasto-700); margin-top: 2px; }
+.choice strong { display: block; font-weight: 600; }
+.choice small { color: var(--muted); font-size: 13px; }
+
+.art-inline { border-top: 1px dashed var(--linha-forte); padding-top: 14px; }
+.art-inline > .check { align-items: flex-start; }
+.art-inline [data-art-fields] { margin-top: 14px; padding: 14px; border-radius: var(--r); background: var(--brinco-soft); }
+.picker-row { flex-wrap: wrap; }
+.picker-net { flex-basis: 100%; font: 12px var(--f-mono); color: var(--pasto-700); }
+.picker-net:empty { display: none; }
+
+/* --------------------------------------------------------------------------
+   Agenda
+   -------------------------------------------------------------------------- */
+.grid-agenda { display: grid; grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr); gap: 20px; align-items: start; }
+.cal-nav { display: flex; gap: 4px; flex-wrap: wrap; }
+.cal-legend { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.cal-legend .cal-event { pointer-events: none; }
+.cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-top: 1px solid var(--linha); border-left: 1px solid var(--linha); }
+.cal-dow { padding: 6px 8px; font: 500 11px var(--f-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); border-right: 1px solid var(--linha); border-bottom: 1px solid var(--linha); background: #f6f7f4; }
+.cal-cell { min-height: 92px; padding: 4px; border-right: 1px solid var(--linha); border-bottom: 1px solid var(--linha); display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cal-cell.is-out { background: repeating-linear-gradient(135deg, transparent 0 6px, var(--galv) 6px 7px); }
+.cal-cell.is-today { box-shadow: inset 0 0 0 2px var(--brinco); }
+.cal-day { font: 600 12px var(--f-mono); color: var(--terra-2); padding: 2px 4px; }
+.cal-cell.is-today .cal-day { color: var(--pasto-900); }
+.cal-event { display: block; font-size: 11.5px; line-height: 1.35; padding: 2px 6px; border-radius: 4px; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 3px solid; }
+.cal-event.kind-campaign { background: var(--ok-bg); color: var(--ok-fg); border-color: var(--pasto-700); }
+.cal-event.kind-promotion { background: var(--brinco-soft); color: var(--warn-fg); border-color: var(--brinco); }
+.cal-event.kind-art { background: var(--info-bg); color: var(--info-fg); border-color: var(--info-fg); }
+.cal-event:hover { filter: brightness(.96); }
+.cal-more { font: 11px var(--f-mono); color: var(--muted); padding: 0 6px; }
+
+.upcoming { list-style: none; margin: 0; padding: 0; }
+.upcoming li + li { border-top: 1px solid var(--galv-2); }
+.upcoming a { display: flex; align-items: center; gap: 14px; padding: 10px 6px; margin: 0 -6px; text-decoration: none; color: var(--terra); border-radius: var(--r-sm); }
+.upcoming a:hover { background: var(--galv); color: var(--terra); }
+.up-when { flex: none; width: 64px; text-align: center; padding: 4px; border-radius: var(--r-sm); background: var(--galv-2); }
+.up-when strong { display: block; font: 800 17px/1.1 var(--f-display); font-stretch: 115%; color: var(--pasto-900); }
+.up-when small { display: block; font-size: 10.5px; color: var(--muted); }
+.up-what { flex: 1; min-width: 0; }
+.up-what strong { display: block; font-weight: 600; }
+.up-what small { color: var(--muted); font-size: 13px; }
+.up-tag { flex: none; }
+
+/* --------------------------------------------------------------------------
+   Canais e taxas
+   -------------------------------------------------------------------------- */
+.grid-channels { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; }
+.grid-channels > .panel:last-child { max-width: 560px; }
+.grid-channels td:first-child { min-width: 220px; }
+.grid-channels .panel { margin-bottom: 0; }
+.cell-input { width: 100%; min-height: 40px; padding: 6px 8px; border: 1px solid var(--linha-forte); border-radius: var(--r-sm); background: var(--papel); }
+.cell-input.small { margin-top: 6px; min-height: 34px; font-size: 13px; }
+.cell-money { display: flex; align-items: center; gap: 4px; font: 13px var(--f-mono); color: var(--muted); }
+.cell-money .cell-input { width: 92px; font-family: var(--f-mono); }
+.panel-foot { padding: 12px 16px; border-top: 1px solid var(--linha); }
+.sim-list { list-style: none; margin: 0; padding: 0; }
+.sim-list li { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: baseline; padding: 10px 0; border-top: 1px solid var(--galv-2); }
+.sim-list li:first-child { border-top: 0; }
+.sim-list .mono { color: var(--danger-fg); font-size: 13px; }
+.sim-list strong { font-size: 17px; color: var(--pasto-900); }
+.sim-list li.is-best strong { background: var(--brinco-soft); padding: 0 6px; border-radius: 4px; }
+
+/* --------------------------------------------------------------------------
    Login
    -------------------------------------------------------------------------- */
 .login-wrap { min-height: 100dvh; display: grid; grid-template-columns: minmax(320px, 5fr) 6fr; }
@@ -545,6 +652,7 @@ details.section[open] > summary { margin-bottom: 14px; }
   .topbar-brand { font: 800 16px var(--f-display); font-stretch: 116%; }
   main { padding-top: 22px; }
   .grid-2 { grid-template-columns: 1fr; gap: 0; }
+  .grid-agenda, .grid-channels { grid-template-columns: 1fr; }
   .login-wrap { grid-template-columns: 1fr; }
   .login-brand { padding: 24px 16px; }
   .login-trail { display: none; }
@@ -568,6 +676,17 @@ details.section[open] > summary { margin-bottom: 14px; }
   .table th, .table td { padding: 10px 12px; }
   .page-actions { width: 100%; }
   .page-actions .btn { flex: 1; }
+  .calc-dates { grid-template-columns: 1fr; }
+  /* Calculadora: cada canal vira um cartão com rótulos. */
+  .calc-table thead { display: none; }
+  .calc-table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; padding: 12px 14px; border-bottom: 1px solid var(--galv-2); }
+  .calc-table td { padding: 0; border: 0; min-width: 0; }
+  .calc-table td:first-child { grid-column: 1 / -1; }
+  .calc-table td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 4px; font: 500 10.5px var(--f-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .calc-money input { width: 100%; }
+  .calc .table-wrap { overflow: visible; }
+  .cal-cell { min-height: 64px; }
+  .cal-event { font-size: 0; height: 6px; padding: 0; border-left: 0; }
   /* Quadros empilham no celular; colunas vazias ficam só com o título. */
   .board, .board.six { grid-template-columns: 1fr; overflow: visible; gap: 10px; }
   .board-col { min-height: 0; }

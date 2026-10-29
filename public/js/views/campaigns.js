@@ -2,7 +2,7 @@
 import { get, post, patch, del } from '../api.js';
 import { esc, icon, money, date, num, pageHead, empty, button, field, openDrawer, openModal, closeLayers, toast, confirmDialog, statusTag } from '../ui.js';
 import { CAMPAIGN_STATUS, CAMPAIGN_CHANNELS, CAMPAIGN_OBJECTIVES, ART_STATUS, PROMOTION_STATUS, QUEUE_STAGES, LEAD_STATUS } from '../../shared/domain.js';
-import { productPicker, pickerActions, pickerInputs, transitionButtons, runTransition, notesSection, personName, peopleOptions } from './common.js';
+import { productPicker, pickerActions, pickerInputs, transitionButtons, runTransition, notesSection, personName, peopleOptions, artRequestSection, artChanges, readArtRequest } from './common.js';
 
 const view = {
   id: 'campanhas',
@@ -78,6 +78,7 @@ const view = {
 
   inputs: { ...pickerInputs },
   changes: {
+    ...artChanges,
     status(ctx, el) { ctx.state.status = el.value; return ctx.refresh(); }
   },
 
@@ -113,8 +114,9 @@ const view = {
       const id = form.dataset.id;
       data.channels = [].concat(data.channels || []);
       data.productIds = [].concat(data.productIds || []);
+      if (!id) data.art = readArtRequest(data);
       const { record } = id ? await patch(`/campaigns/${id}`, data) : await post('/campaigns', data);
-      toast(id ? 'Campanha atualizada.' : 'Campanha criada como rascunho.');
+      toast(id ? 'Campanha atualizada.' : record.createdArtId ? 'Campanha criada e arte pedida ao marketing.' : 'Campanha criada como rascunho.');
       ctx.invalidate('campaigns');
       await ctx.refresh();
       await reopen(ctx, record.id);
@@ -158,6 +160,7 @@ async function openForm(ctx, record) {
       ${field('channels', 'Canais', { type: 'checkboxes', full: true, options: CAMPAIGN_CHANNELS, value: r.channels })}
       ${productPicker({ name: 'productIds', label: 'Produtos da campanha', selected: r.products || [] })}
       ${field('description', 'Descrição e mensagem principal', { type: 'textarea', full: true, rows: 4, max: 5000, value: r.description })}
+      ${record ? '' : artRequestSection(users, { title: 'Pedir as artes desta campanha' })}
       <div class="form-error full" aria-live="polite"></div>
     </form>`,
     footer: `<button type="button" class="btn ghost" data-action="close-layer">Cancelar</button><button class="btn primary" type="submit" form="campaignForm">${icon('check')}<span>${record ? 'Salvar alterações' : 'Criar campanha'}</span></button>`

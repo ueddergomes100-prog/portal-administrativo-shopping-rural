@@ -2,7 +2,7 @@
 // seletor de produtos, mudança de etapa com observação, comentários e histórico.
 import { get, post } from '../api.js';
 import { esc, icon, money, dateTime, field, confirmDialog, toast, openModal, closeTopLayer, statusTag } from '../ui.js';
-import { PUBLICATION_CHANNELS } from '../../shared/domain.js';
+import { PUBLICATION_CHANNELS, ART_FORMATS, PRIORITIES } from '../../shared/domain.js';
 
 // ---------------------------------------------------------------------------
 // Seletor de produtos (busca no catálogo sincronizado)
@@ -24,7 +24,8 @@ function pickerRow(name, mode, p) {
   const remove = `<button type="button" class="btn-icon" data-action="picker-remove" aria-label="Remover ${esc(p.name)}">${icon('close')}</button>`;
   if (mode === 'price') {
     return `<li class="picker-row" data-picker-row data-id="${esc(p.id)}">${base}
-      <label class="picker-price"><span class="sr-only">Preço promocional de ${esc(p.name)}</span><span aria-hidden="true">R$</span><input type="number" min="0" step="0.01" required data-promo value="${esc(p.promoPrice ?? '')}" placeholder="Promo"></label>${remove}</li>`;
+      <label class="picker-price"><span class="sr-only">Preço promocional de ${esc(p.name)}</span><span aria-hidden="true">R$</span><input type="number" min="0" step="0.01" required data-promo data-input="promo-net" value="${esc(p.promoPrice ?? '')}" placeholder="Promo"></label>${remove}
+      <span class="picker-net" data-net aria-live="polite"></span></li>`;
   }
   return `<li class="picker-row" data-picker-row data-id="${esc(p.id)}"><input type="hidden" name="${esc(name)}" value="${esc(p.id)}">${base}${remove}</li>`;
 }
@@ -165,3 +166,38 @@ export function peopleOptions(users, { empty = 'Sem responsável', roles } = {})
 }
 
 export { statusTag };
+
+// ---------------------------------------------------------------------------
+// Pedido de arte junto com a campanha/promoção (um formulário só).
+// ---------------------------------------------------------------------------
+export function artRequestSection(users, { title = 'Pedir arte ao marketing junto' } = {}) {
+  return `<fieldset class="field full art-inline">
+    <legend class="sr-only">Pedido de arte</legend>
+    <label class="check"><input type="checkbox" name="artRequested" value="true" data-change="art-toggle"><span><strong>${esc(title)}</strong> — o marketing recebe o pedido já ligado a este cadastro.</span></label>
+    <div class="form-grid" data-art-fields hidden>
+      ${field('artTitle', 'Título do pedido de arte', { full: true, max: 140, placeholder: 'Se ficar vazio, usamos o nome do cadastro' })}
+      ${field('artFormat', 'Formato', { type: 'select', options: ART_FORMATS, value: 'Post' })}
+      ${field('artDeadline', 'Prazo da arte', { type: 'date' })}
+      ${field('artPriority', 'Prioridade', { type: 'select', options: PRIORITIES, value: 'Normal' })}
+      ${field('artAssigneeId', 'Responsável (marketing)', { type: 'select', options: peopleOptions(users, { empty: 'Definir depois', roles: ['marketing', 'manager', 'owner'] }) })}
+      ${field('artBriefing', 'O que a arte precisa ter', { type: 'textarea', full: true, rows: 4, max: 8000, placeholder: 'Produto, preço normal e promocional, período, texto, onde vai ser usada (Instagram, WhatsApp, site…).' })}
+    </div>
+  </fieldset>`;
+}
+
+export const artChanges = {
+  'art-toggle'(ctx, el) {
+    const box = el.closest('form').querySelector('[data-art-fields]');
+    box.hidden = !el.checked;
+    box.querySelector('[name=artDeadline]').required = el.checked;
+    box.querySelector('[name=artBriefing]').required = el.checked;
+  }
+};
+
+export function readArtRequest(data) {
+  if (![].concat(data.artRequested || []).includes('true')) return undefined;
+  return {
+    requested: true, title: data.artTitle, format: data.artFormat, deadline: data.artDeadline,
+    priority: data.artPriority, assigneeId: data.artAssigneeId, briefing: data.artBriefing
+  };
+}
