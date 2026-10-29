@@ -115,7 +115,7 @@ const view = {
     ${queue ? `<div class="callout">${statusTag(QUEUE_STAGES, queue.stage)}<p>Este produto já está na fila de venda.</p><a class="btn" href="#/fila/${esc(queue.id)}">${icon('queue')}<span>Abrir na fila</span></a></div>` : ''}
     <section class="section"><h3>O que fazer com este produto</h3>
       <ul class="choice-list">
-        ${!queue && canSell(ctx.user) ? `<li><button type="button" class="choice" data-action="sell" data-id="${esc(product.id)}">${icon('tag')}<span><strong>Colocar à venda</strong><small>Escolher canais (site, Shopee, Mercado Livre) e ver o valor líquido de cada um.</small></span></button></li>` : ''}
+        ${!queue && canSell(ctx.user) ? `<li><button type="button" class="choice" data-action="sell" data-id="${esc(product.id)}">${icon('tag')}<span><strong>Colocar à venda</strong><small>Escolher canais (site próprio, Shopee, Mercado Livre) e ver o valor líquido de cada um.</small></span></button></li>` : ''}
         ${['owner', 'manager'].includes(ctx.user.role) ? `<li><button type="button" class="choice" data-action="request-promo" data-id="${esc(product.id)}">${icon('money')}<span><strong>Pedir promoção</strong><small>Preço promocional, período e, se quiser, a arte para divulgar.</small></span></button></li>` : ''}
         <li><button type="button" class="choice" data-action="request-art" data-id="${esc(product.id)}">${icon('art')}<span><strong>Pedir arte</strong><small>O marketing recebe o pedido com o briefing.</small></span></button></li>
       </ul>
@@ -187,7 +187,7 @@ async function openSellForm(ctx, productId) {
       ${field('priority', 'Prioridade', { type: 'select', options: PRIORITIES, value: 'Normal' })}
       ${field('campaignId', 'Campanha associada', { type: 'select', options: [['', 'Nenhuma'], ...campaigns.filter(c => !['cancelled', 'done'].includes(c.status)).map(c => [c.id, c.name])] })}
       ${field('notes', 'Observação para quem prepara o anúncio', { type: 'textarea', full: true, rows: 2, max: 2000, placeholder: 'Ex.: destacar que acompanha brinde; usar foto da embalagem nova.' })}
-      <p class="full hint">Taxas configuradas em <a href="#/canais">Canais e taxas</a>. O produto vai para a fila: o site prepara foto e descrição, você aprova e então ele é publicado em cada canal.</p>
+      <p class="full hint">Taxas configuradas em <a href="#/canais">Canais e taxas</a>. O produto vai para a fila: o responsável prepara foto e descrição, você aprova, ele publica no site e anuncia nos marketplaces.</p>
       <div class="form-error full" aria-live="polite"></div>
     </form>`,
     footer: `<button type="button" class="btn ghost" data-action="close-layer">Cancelar</button><button class="btn primary" type="submit" form="sellForm">${icon('send')}<span>Enviar para a fila de venda</span></button>`

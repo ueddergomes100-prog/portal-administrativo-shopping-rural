@@ -1,10 +1,10 @@
 // Fila de publicação: quadro por etapa e ficha completa do item (canais e preços, conteúdo, publicação por canal, histórico).
-import { get, post, patch } from '../api.js';
+import { get, post, patch, del } from '../api.js';
 import {
   esc, icon, tag, money, num, date, dateTime, relative, pageHead, empty, notice, button, field,
   openDrawer, openModal, closeTopLayer, closeLayers, toast, confirmDialog, statusTag
 } from '../ui.js';
-import { QUEUE_STAGES, QUEUE_FLOW, PRIORITIES, LISTING_STATUS } from '../../shared/domain.js';
+import { QUEUE_STAGES, QUEUE_FLOW, PRIORITIES, LISTING_STATUS, SITE_CATEGORIES, SITE_PETS, SITE_UNITS, SITE_TAGS } from '../../shared/domain.js';
 import { pricingEditor, pricingSummary, readPricing, pricingInputs, pricingChanges } from './pricing.js';
 
 const TABS = [['flow', 'Em andamento'], ['blocked', 'Bloqueados'], ['archived', 'Arquivados']];
@@ -131,39 +131,55 @@ const view = {
       await afterChange(ctx, item.id);
     },
 
-    async publish(ctx, el) {
+    async 'publish-site'(ctx) {
       const item = ctx.state.current;
-      const channel = item.channels.find(c => c.id === el.dataset.channel);
+      const channel = item.channels.find(c => c.integration === 'site');
       const ok = await confirmDialog({
-        title: `Publicar em ${channel.name}?`,
-        text: `O anúncio será criado com preço ${money(channel.price)}${channel.promoPrice ? ` e promoção ${money(channel.promoPrice)}` : ''}.${channel.integration === 'nuvemshop' ? ' As fotos de <span class="mono">media/</span> são enviadas pelo servidor da loja.' : ''}`,
-        confirmLabel: 'Publicar agora'
+        title: 'Publicar no site?',
+        text: `O produto entra no catálogo do site com preço ${money(channel.price)}${channel.promoPrice ? ` (promoção ${money(channel.promoPrice)} de ${date(item.promoStart)} a ${date(item.promoEnd)})` : ''}. Estoque e preço continuam atualizados pelo portal.`,
+        confirmLabel: 'Publicar no site'
       });
       if (ok === null) return;
-      try {
-        const result = await post(`/queue/${item.id}/publish`, { channel: channel.id });
-        toast(`Publicado em ${channel.name}.`);
-        if (result.warnings?.length) toast('Publicado, mas houve aviso nas imagens: ' + result.warnings[0], 'warn');
-      } catch (error) {
-        toast(error.message, ['NOT_CONFIGURED', 'NOT_IMPLEMENTED'].includes(error.details?.code) ? 'warn' : 'danger');
-      }
+      await post(`/queue/${item.id}/site`);
+      toast('Publicado no site.');
       await afterChange(ctx, item.id);
     },
 
-    // Canal sem integração automática: a pessoa anuncia no painel do canal e registra o link aqui.
-    'manual-listing'(ctx, el) {
+    async 'remove-listing'(ctx, el) {
       const item = ctx.state.current;
       const channel = item.channels.find(c => c.id === el.dataset.channel);
+      const site = channel.integration === 'site';
+      const ok = await confirmDialog({
+        title: site ? 'Tirar do site?' : `Desfazer registro em ${channel.name}?`,
+        text: site ? 'O produto sai do catálogo do site na hora. Você pode publicar de novo depois.' : `O canal volta para “falta publicar”. Lembre de pausar o anúncio no painel ${esc(channel.name)}, se for o caso.`,
+        confirmLabel: site ? 'Tirar do site' : 'Desfazer',
+        tone: 'danger'
+      });
+      if (ok === null) return;
+      await del(`/queue/${item.id}/listings/${channel.id}`);
+      toast(site ? 'Produto tirado do site.' : 'Registro desfeito.');
+      await afterChange(ctx, item.id);
+    },
+
+    // Marketplace: a pessoa anunciou no painel do canal e registra aqui o link.
+    'record-listing'(ctx, el) {
+      const item = ctx.state.current;
+      const channel = item.channels.find(c => c.id === el.dataset.channel);
+      const listing = item.listings?.[channel.id] || {};
       openModal({
-        title: `Registrar anúncio em ${channel.name}`,
-        body: `<form data-form="manualListing" id="manualForm" class="form-grid" data-channel="${esc(channel.id)}">
-          <p class="full lead">Use quando o anúncio foi criado direto no painel do canal. Fica registrado que foi feito à mão, por você.</p>
-          ${field('url', 'Link do anúncio', { type: 'url', full: true, placeholder: 'https://…' })}
-          ${field('externalId', 'Código do anúncio (opcional)', { full: true, max: 120 })}
+        title: `${listing.status === 'done' ? 'Atualizar' : 'Registrar'} anúncio em ${channel.name}`,
+        body: `<form data-form="recordListing" id="listingForm" class="form-grid" data-channel="${esc(channel.id)}">
+          <div class="full callout-plain">
+            <p><strong>Anuncie com estes valores:</strong></p>
+            <p class="mono">Preço ${money(channel.price)}${channel.promoPrice ? ` · promoção ${money(channel.promoPrice)} de ${date(item.promoStart)} a ${date(item.promoEnd)}` : ''}</p>
+            <p class="hint">Título, descrição e fotos estão em “Conteúdo do anúncio”, nesta ficha.</p>
+          </div>
+          ${field('url', 'Link do anúncio', { type: 'url', full: true, placeholder: 'https://…', value: listing.url || '' })}
+          ${field('externalId', 'Código do anúncio (opcional)', { full: true, max: 120, value: listing.externalId || '' })}
           ${field('note', 'Observação (opcional)', { full: true, max: 500 })}
           <div class="form-error full"></div>
         </form>`,
-        footer: `<button type="button" class="btn ghost" data-action="close-layer">Cancelar</button><button type="submit" class="btn primary" form="manualForm">Registrar anúncio</button>`
+        footer: `<button type="button" class="btn ghost" data-action="close-layer">Cancelar</button><button type="submit" class="btn primary" form="listingForm">Registrar anúncio</button>`
       });
     },
 
@@ -193,7 +209,7 @@ const view = {
       toast('Canais e preços salvos.');
       await afterChange(ctx, item.id);
     },
-    async manualListing(ctx, data, form) {
+    async recordListing(ctx, data, form) {
       const item = ctx.state.current;
       await post(`/queue/${item.id}/listings/${form.dataset.channel}`, data);
       closeTopLayer();
@@ -204,7 +220,7 @@ const view = {
       const item = ctx.state.current;
       data.imageRefs = String(data.imageRefs || '').split('\n').map(s => s.trim()).filter(Boolean);
       await patch(`/queue/${item.id}/content`, data);
-      toast('Conteúdo do site salvo.');
+      toast('Conteúdo do anúncio salvo.');
       await afterChange(ctx, item.id);
     }
   }
@@ -285,14 +301,26 @@ function renderItem(ctx, item, entries, campaigns, channels) {
   const mediaRows = (item.mediaCheck || []).map(m => `<li>${icon('image')}<span class="mono">${esc(m.ref)}</span>${m.exists === true ? tag('Encontrado', 'ok') : m.exists === false ? tag('Não encontrado em media/', 'danger') : tag('Verificar no servidor da loja', 'muted')}</li>`).join('');
   const content = item.can.editContent ? `
     <section class="section">
-      <h3>Conteúdo do site</h3>
+      <h3>Conteúdo do anúncio</h3>
       <form data-form="content" class="form-grid" id="contentForm">
-        ${field('title', 'Título do produto na loja', { full: true, value: c.title, max: 160, required: true })}
+        ${field('title', 'Título do produto', { full: true, value: c.title, max: 160, required: true })}
         ${field('description', 'Descrição', { type: 'textarea', full: true, rows: 7, value: c.description, max: 20000, hint: 'Mínimo de 30 caracteres para enviar à aprovação. Conte para que serve, medidas, composição e indicação.' })}
         <div class="field full"><label for="seoTitle">Título SEO</label><input id="seoTitle" name="seoTitle" maxlength="70" value="${esc(c.seoTitle)}" data-input="counter"><small class="hint counter">${(c.seoTitle || '').length}/70</small></div>
         <div class="field full"><label for="seoDescription">Descrição SEO</label><textarea id="seoDescription" name="seoDescription" maxlength="320" rows="2" data-input="counter">${esc(c.seoDescription)}</textarea><small class="hint counter">${(c.seoDescription || '').length}/320</small></div>
-        ${field('category', 'Categoria na loja', { full: true, value: c.category, max: 120 })}
-        <div class="field full"><label for="imageRefs">Fotos (uma por linha, caminho dentro de media/)</label>
+        <fieldset class="field full site-fields"><legend>Dados que aparecem no site</legend>
+          <div class="form-grid">
+            ${field('siteCategory', 'Categoria do site', { type: 'select', value: c.siteCategory, options: [['', 'Escolha…'], ...Object.entries(SITE_CATEGORIES)] })}
+            ${field('pet', 'Pet', { type: 'select', value: c.pet, options: [['', 'Escolha…'], ...Object.entries(SITE_PETS)] })}
+            ${field('brand', 'Marca', { value: c.brand, max: 80 })}
+            ${field('tag', 'Selo no card', { type: 'select', value: c.tag, options: SITE_TAGS.map(t => [t, t || 'Nenhum (promoção vira “Oferta”)']) })}
+            ${field('measureValue', 'Medida', { type: 'number', min: 0, step: '0.001', value: c.measureValue ?? '', hint: 'Ex.: 15 para 15 kg; 1 para 1 unidade.' })}
+            ${field('measureUnit', 'Unidade', { type: 'select', value: c.measureUnit || 'un', options: Object.entries(SITE_UNITS) })}
+            ${field('weightKg', 'Peso para frete (kg)', { type: 'number', min: 0, step: '0.001', value: c.weightKg ?? '', hint: 'Obrigatório quando a medida não é em kg.' })}
+            ${field('short', 'Resumo (aparece no card)', { full: true, value: c.short, max: 160, placeholder: 'Ex.: Mix de carnes, sem corantes, 4 fontes de proteína animal.' })}
+            ${field('specs', 'Especificações (uma por linha: Rótulo: valor)', { type: 'textarea', full: true, rows: 4, value: (c.specs || []).map(x => `${x.label}: ${x.value}`).join('\n'), placeholder: 'Porte: Médio e grande\nFase: Adulto' })}
+          </div>
+        </fieldset>
+        <div class="field full"><label for="imageRefs">Fotos (uma por linha, caminho dentro de media/ — a primeira é a principal)</label>
           <textarea id="imageRefs" name="imageRefs" class="mono" rows="3" placeholder="produtos/racao-premium-15kg-frente.jpg">${esc((c.imageRefs || []).join('\n'))}</textarea>
           <div class="inline-actions">${button('Escolher de media/', { action: 'pick-media', icon: 'folder', variant: 'ghost small' })}</div>
         </div>
@@ -303,37 +331,43 @@ function renderItem(ctx, item, entries, campaigns, channels) {
       </form>
     </section>` : `
     <section class="section">
-      <h3>Conteúdo do site</h3>
+      <h3>Conteúdo do anúncio</h3>
       <dl class="facts one-col">
         <div><dt>Título</dt><dd>${esc(c.title || '—')}</dd></div>
         <div><dt>Descrição</dt><dd class="prose">${c.description ? esc(c.description).replaceAll('\n', '<br>') : '<span class="muted">Ainda não preenchida</span>'}</dd></div>
         <div><dt>Título SEO</dt><dd>${esc(c.seoTitle || '—')}</dd></div>
         <div><dt>Descrição SEO</dt><dd>${esc(c.seoDescription || '—')}</dd></div>
-        <div><dt>Categoria</dt><dd>${esc(c.category || '—')}</dd></div>
+        <div><dt>No site</dt><dd>${esc([SITE_CATEGORIES[c.siteCategory], SITE_PETS[c.pet], c.brand, c.measureValue ? `${c.measureValue} ${c.measureUnit}` : '', c.weightKg ? `${c.weightKg} kg p/ frete` : '', c.tag].filter(Boolean).join(' · ') || '—')}</dd></div>
+        <div><dt>Resumo</dt><dd>${esc(c.short || '—')}</dd></div>
+        ${(c.specs || []).length ? `<div><dt>Especificações</dt><dd>${c.specs.map(x => `${esc(x.label)}: ${esc(x.value)}`).join('<br>')}</dd></div>` : ''}
         <div><dt>Observações do site</dt><dd>${esc(c.siteNotes || '—')}</dd></div>
       </dl>
       ${mediaRows ? `<ul class="media-check">${mediaRows}</ul>` : '<p class="muted">Nenhuma foto indicada.</p>'}
     </section>`;
 
-  const publication = ['approved', 'published'].includes(item.stage) || listingsOf(item).some(l => l.listing.attempts) ? `
+  const publication = ['approved', 'published'].includes(item.stage) || listingsOf(item).some(l => l.listing.status === 'done') ? `
     <section class="section">
-      <h3>Publicação por canal</h3>
+      <h3>Onde está à venda</h3>
       <ul class="listing-list">${listingsOf(item).map(({ channel, listing }) => {
+        const site = channel.integration === 'site';
+        const done = listing.status === 'done';
         const status = LISTING_STATUS[listing.status] || LISTING_STATUS.idle;
-        const auto = channel.integration === 'nuvemshop';
-        const actions = item.can.publish && listing.status !== 'done' ? [
-          button(listing.status === 'failed' ? 'Tentar de novo' : 'Publicar', { action: 'publish', icon: 'send', variant: auto ? 'primary small' : 'ghost small', data: { channel: channel.id } }),
-          auto ? '' : button('Registrar anúncio feito à mão', { action: 'manual-listing', icon: 'check', variant: 'small', data: { channel: channel.id } })
-        ].join('') : '';
+        const can = item.can.publish;
+        const actions = !can ? '' : site
+          ? (done ? button('Tirar do site', { action: 'remove-listing', icon: 'pause', variant: 'ghost small danger-text', data: { channel: channel.id } })
+                  : button('Publicar no site', { action: 'publish-site', icon: 'send', variant: 'primary small' }))
+          : (done ? [
+              listing.needsUpdate ? button('Já atualizei o anúncio', { action: 'record-listing', icon: 'check', variant: 'primary small', data: { channel: channel.id } }) : '',
+              button('Desfazer registro', { action: 'remove-listing', icon: 'close', variant: 'ghost small', data: { channel: channel.id } })
+            ].join('')
+                  : button('Registrar anúncio', { action: 'record-listing', icon: 'check', variant: 'primary small', data: { channel: channel.id } }));
         return `<li class="listing">
-          <div class="listing-head"><strong>${esc(channel.name)}</strong>${tag(status.label, status.tone)}${listing.manual ? tag('registrado à mão', 'neutral') : ''}</div>
+          <div class="listing-head"><strong>${esc(channel.name)}</strong>${tag(status.label, status.tone)}${listing.needsUpdate ? tag('preço mudou — atualizar anúncio', 'warn') : ''}</div>
           <p class="listing-meta">
-            ${listing.publishedAt ? `Publicado ${dateTime(listing.publishedAt)}${listing.by ? ` por ${esc(listing.by)}` : ''}` : listing.attempts ? `${num(listing.attempts)} tentativa(s) · última ${dateTime(listing.lastAttemptAt)}` : 'Ainda não publicado'}
-            ${listing.externalId ? ` · código <span class="mono">${esc(listing.externalId)}</span>` : ''}
-            ${listing.url ? ` · <a href="${esc(listing.url)}" target="_blank" rel="noopener noreferrer">ver anúncio ${icon('external')}</a>` : ''}
+            ${done ? `${site ? 'No catálogo do site' : 'Anunciado'} desde ${dateTime(listing.publishedAt)}${listing.by ? ` · ${esc(listing.by)}` : ''}` : site ? 'Fora do site.' : `Anuncie no painel ${esc(channel.name)} e registre o link aqui.`}
+            ${listing.externalId && !site ? ` · código <span class="mono">${esc(listing.externalId)}</span>` : ''}
+            ${listing.url ? ` · <a href="${esc(listing.url)}" target="_blank" rel="noopener noreferrer">ver ${site ? 'no site' : 'anúncio'} ${icon('external')}</a>` : ''}
           </p>
-          ${listing.lastError ? notice(esc(listing.lastError), listing.status === 'failed' ? 'danger' : 'warn') : ''}
-          ${listing.imageWarnings?.length ? notice(`<strong>Imagens:</strong> ${listing.imageWarnings.map(esc).join('<br>')}`, 'warn') : ''}
           ${actions ? `<div class="listing-actions">${actions}</div>` : ''}
         </li>`;
       }).join('')}</ul>

@@ -12,7 +12,7 @@ export function renderLogin(root, { config, message, onSignedIn }) {
         <li><span class="tag tone-neutral"><span class="tag-hole"></span>UniPlus</span><small>catálogo e estoque</small></li>
         <li><span class="tag tone-info"><span class="tag-hole"></span>Preparação</span><small>foto, descrição, SEO</small></li>
         <li><span class="tag tone-warn"><span class="tag-hole"></span>Aprovação</span><small>dono ou gerente</small></li>
-        <li><span class="tag tone-done"><span class="tag-hole"></span>Nuvemshop</span><small>publicado no site</small></li>
+        <li><span class="tag tone-done"><span class="tag-hole"></span>À venda</span><small>site próprio, Shopee, Mercado Livre</small></li>
       </ol>
     </section>
     <section class="login-panel">

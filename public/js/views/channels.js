@@ -4,7 +4,7 @@ import { esc, icon, money, num, pageHead, button, toast, notice } from '../ui.js
 import { channelFees } from '../../shared/domain.js';
 import { feeRuleText } from './pricing.js';
 
-const INTEGRATION_LABEL = { nuvemshop: 'Nuvemshop (automático)', shopee: 'Shopee', mercadolivre: 'Mercado Livre', '': 'Nenhuma (registro manual)' };
+const INTEGRATION_LABEL = { site: 'Site próprio (catálogo do portal)', '': 'Anúncio feito à mão' };
 
 function row(c, editable) {
   if (!editable) {
@@ -64,8 +64,8 @@ export default {
       <section class="panel flush">
         <div class="table-wrap"><table class="table">
           <thead><tr>${editable
-            ? '<th scope="col">Canal</th><th scope="col">Comissão</th><th scope="col">Tarifa fixa</th><th scope="col">Tarifa só abaixo de</th><th scope="col">Integração</th><th scope="col">Ativo</th><th scope="col"><span class="sr-only">Ações</span></th>'
-            : '<th scope="col">Canal</th><th scope="col">Taxa</th><th scope="col">Integração</th><th scope="col">Ativo</th>'}</tr></thead>
+            ? '<th scope="col">Canal</th><th scope="col">Comissão</th><th scope="col">Tarifa fixa</th><th scope="col">Tarifa só abaixo de</th><th scope="col">Como publica</th><th scope="col">Ativo</th><th scope="col"><span class="sr-only">Ações</span></th>'
+            : '<th scope="col">Canal</th><th scope="col">Taxa</th><th scope="col">Como publica</th><th scope="col">Ativo</th>'}</tr></thead>
           <tbody id="channelRows">${data.channels.map(c => row(c, editable)).join('')}</tbody>
         </table></div>
         ${editable ? `<div class="panel-foot">${button('Adicionar canal', { action: 'add-row', icon: 'plus', variant: 'ghost' })}</div>` : ''}

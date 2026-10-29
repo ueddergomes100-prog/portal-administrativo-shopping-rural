@@ -5,12 +5,10 @@ import { INTEGRATION_STATUS } from '../../shared/domain.js';
 
 const HELP = {
   uniplus: 'O servidor da loja lê a API local do UniPlus e atualiza o catálogo no intervalo de UNIPLUS_SYNC_SECONDS. Com o portal na Vercel, rode `npm run connector` na máquina do UniPlus.',
-  nuvemshop: 'Crie um app na Nuvemshop (Parceiros) e autorize a loja para obter o token. A publicação e a importação de pedidos usam essas credenciais apenas no servidor.',
+  site: 'O site próprio lê o catálogo publicado em /api/store/catalog e envia os pedidos (com a situação do pagamento) para /api/store/orders usando STORE_API_TOKEN. Contrato completo em docs/SITE.md.',
   ga4: 'Crie uma conta de serviço no Google Cloud, dê acesso de leitor à propriedade GA4 e informe o JSON no servidor.',
-  googleads: 'Requer developer token aprovado, ID do cliente e refresh token OAuth da conta de anúncios.',
+  googleads: 'Requer developer token aprovado, ID do cliente, app OAuth (client id/secret) e refresh token da conta de anúncios.',
   metaads: 'Gere um token de usuário do sistema no Gerenciador de Negócios com acesso à conta de anúncios (permissão ads_read). Para leads, um token da página com leads_retrieval.',
-  shopee: 'Cadastre a loja na Shopee Open Platform (partner_id e partner_key) e autorize a loja para obter shop_id e access_token. Até a criação automática ser ligada, anuncie no painel e registre o link na fila.',
-  mercadolivre: 'Crie um app em developers.mercadolivre.com.br, autorize a conta da loja e informe o access token e o user_id. Até a criação automática ser ligada, anuncie no painel e registre o link na fila.',
   leads: 'Defina LEADS_WEBHOOK_TOKEN no servidor. Ferramentas externas enviam leads para /api/leads/inbound com esse token (detalhes em Indicadores e leads).'
 };
 
@@ -42,7 +40,6 @@ export default {
         <details class="int-help"><summary>Como conectar</summary><p>${esc(HELP[i.id])}</p></details>
         <div class="int-actions">
           ${i.id === 'uniplus' && manage && !i.missingEnv.length && config.mediaAvailable ? button('Sincronizar agora', { action: 'sync-uniplus', icon: 'sync' }) : ''}
-          ${i.id === 'nuvemshop' && manage && !i.missingEnv.length ? button('Importar pedidos', { action: 'sync-orders', icon: 'orders' }) : ''}
           ${manage ? button('Preferências', { action: 'settings', icon: 'settings', variant: 'ghost', data: { id: i.id } }) : ''}
         </div>
       </section>`).join('')}
@@ -56,17 +53,11 @@ export default {
       toast(r.skipped ? 'Já havia uma sincronização em andamento.' : `${num(r.received)} produtos sincronizados.`);
       await ctx.refresh();
     },
-    async 'sync-orders'(ctx) {
-      const r = await post('/orders/sync');
-      toast(`${num(r.count)} pedidos importados.`);
-      await ctx.refresh();
-    },
     settings(ctx, el) {
       const i = ctx.data.integrations.find(x => x.id === el.dataset.id);
       openModal({
         title: `Preferências · ${i.name}`,
         body: `<form data-form="settings" id="intForm" class="form-grid" data-id="${esc(i.id)}">
-          ${i.id === 'nuvemshop' ? field('storeUrl', 'Endereço público da loja', { type: 'url', full: true, value: i.settings.storeUrl, placeholder: 'https://www.shoppingrural.com.br' }) : ''}
           ${field('notes', 'Anotações da equipe', { type: 'textarea', full: true, rows: 3, value: i.settings.notes, max: 500 })}
           <p class="full hint">Não escreva senhas ou tokens aqui. Credenciais vão apenas nas variáveis de ambiente do servidor.</p>
           <div class="form-error full"></div>

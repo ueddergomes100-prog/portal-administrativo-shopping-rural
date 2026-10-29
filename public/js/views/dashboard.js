@@ -3,7 +3,7 @@ import { get } from '../api.js';
 import { esc, icon, tag, num, date, relative, pageHead, empty, statusTag } from '../ui.js';
 import { QUEUE_STAGES, QUEUE_FLOW, INTEGRATION_STATUS, ROLES } from '../../shared/domain.js';
 
-const KIND_ICON = { queue: 'queue', arts: 'art', campaigns: 'campaign', promotions: 'tag' };
+const KIND_ICON = { queue: 'queue', arts: 'art', campaigns: 'campaign', promotions: 'tag', orders: 'orders' };
 
 function greeting(name) {
   const hour = Number(new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: 'numeric', hour12: false }).format(new Date()));
