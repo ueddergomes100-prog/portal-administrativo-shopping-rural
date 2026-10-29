@@ -1,0 +1,20 @@
+{
+  "name": "portal-shopping-rural",
+  "version": "0.3.0",
+  "private": true,
+  "description": "Portal administrativo do Shopping Rural: catálogo UniPlus, fila de publicação Nuvemshop, campanhas, promoções, artes e leads.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "connector": "node connector/uniplus-sync.js",
+    "check": "node scripts/check.js",
+    "test": "node --test \"tests/**/*.test.js\""
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}

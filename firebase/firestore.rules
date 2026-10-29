@@ -1,57 +1,38 @@
 rules_version = '2';
+
+// Portal Shopping Rural — regras do Cloud Firestore.
+//
+// Arquitetura: TODA escrita passa pela API do portal (servidor local ou função da Vercel),
+// que usa o Firebase Admin SDK. O Admin SDK ignora estas regras. Por isso o navegador
+// não escreve em nenhuma coleção — isso garante que papel, preço-base, estoque,
+// aprovações e histórico só mudem pelas regras de negócio do servidor (server/services).
+//
+// Leitura direta pelo navegador fica liberada apenas para pessoas ativas, caso no futuro
+// a interface use listeners em tempo real. Hoje a interface lê tudo pela API.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
-    function role() {
-      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
-        : '';
-    }
-    function managesOperation() { return role() in ['owner', 'manager']; }
-    function createsContent() { return role() in ['owner', 'manager', 'marketing', 'site']; }
+    function me() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
+    function active() { return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && me().active == true; }
+    function managesOperation() { return active() && me().role in ['owner', 'manager']; }
 
+    // Cada pessoa lê o próprio cadastro; dono e gerente leem a equipe.
     match /users/{userId} {
       allow read: if signedIn() && (request.auth.uid == userId || managesOperation());
-      allow create: if signedIn() && request.auth.uid == userId;
-      allow update: if signedIn() && request.auth.uid == userId
-        && request.resource.data.role == resource.data.role;
-      allow delete: if false;
-    }
-
-    // Catálogo vindo do UniPlus: escrita é somente pelo conector local usando Admin SDK.
-    match /products/{productId} {
-      allow read: if signedIn();
       allow write: if false;
     }
 
-    // Ações de aprovação e publicação passam por Cloud Functions; evita alteração indevida no navegador.
-    match /publicationQueue/{itemId} {
-      allow read: if signedIn();
-      allow write: if false;
-    }
+    match /products/{id} { allow read: if active(); allow write: if false; }
+    match /publicationQueue/{id} { allow read: if active(); allow write: if false; }
+    match /campaigns/{id} { allow read: if active(); allow write: if false; }
+    match /promotions/{id} { allow read: if active(); allow write: if false; }
+    match /artRequests/{id} { allow read: if active(); allow write: if false; }
+    match /leads/{id} { allow read: if active(); allow write: if false; }
+    match /orders/{id} { allow read: if active(); allow write: if false; }
+    match /integrations/{id} { allow read: if managesOperation(); allow write: if false; }
+    match /audit/{id} { allow read: if managesOperation(); allow write: if false; }
 
-    match /campaigns/{campaignId} {
-      allow read: if signedIn();
-      allow create, update: if managesOperation() || role() == 'marketing';
-      allow delete: if managesOperation();
-    }
-
-    match /artRequests/{requestId} {
-      allow read: if signedIn();
-      allow create: if createsContent();
-      allow update: if createsContent();
-      allow delete: if managesOperation();
-    }
-
-    match /leads/{leadId} {
-      allow read: if signedIn();
-      allow create, update: if createsContent();
-      allow delete: if managesOperation();
-    }
-
-    match /audit/{entryId} {
-      allow read: if managesOperation();
-      allow write: if false;
-    }
+    // Qualquer coleção não listada acima fica fechada.
+    match /{document=**} { allow read, write: if false; }
   }
 }

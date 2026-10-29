@@ -1,25 +1,75 @@
-const http=require('http');
-const fs=require('fs');
-const path=require('path');
-const root=__dirname,port=Number(process.env.PORT||4173),uniplusUrl=process.env.UNIPLUS_API_URL||'http://127.0.0.1:3001';
-const workflowPath=path.join(root,'portal-workflow.json');
-const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml'};
-const roles={owner:'Dono',manager:'Gerente',marketing:'Marketing',site:'Site'};
-const stages=['selected','content_pending','ready_for_review','approved','published','blocked'];
-let erpCache={items:[],updatedAt:0};
-const safeText=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-const now=()=>new Date().toISOString();
-const makeId=()=>crypto.randomUUID();
-function defaults(){return {version:1,users:[{id:'owner',name:'Dono da loja',role:'owner',active:true},{id:'manager',name:'Gerente',role:'manager',active:true},{id:'marketing',name:'Marketing',role:'marketing',active:true},{id:'site',name:'Responsável pelo site',role:'site',active:true}],publications:[],audit:[]};}
-function readWorkflow(){try{const saved=JSON.parse(fs.readFileSync(workflowPath,'utf8'));const base=defaults();return {...base,...saved,users:Array.isArray(saved.users)?saved.users:base.users,publications:Array.isArray(saved.publications)?saved.publications:[],audit:Array.isArray(saved.audit)?saved.audit:[]};}catch{return defaults();}}
-function saveWorkflow(value){const temp=workflowPath+'.tmp';fs.writeFileSync(temp,JSON.stringify(value,null,2),'utf8');fs.renameSync(temp,workflowPath);}
-function send(res,status,body){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(body));}
-async function readBody(req){let raw='';for await(const chunk of req){raw+=chunk;if(raw.length>1e6)throw new Error('Requisição muito grande.');}try{return raw?JSON.parse(raw):{};}catch{throw new Error('JSON inválido.');}}
-function currentUser(workflow,req,payload={}){const user=workflow.users.find(x=>x.id===String(payload.actorId||req.headers['x-portal-user']||'owner')&&x.active);if(!user)throw new Error('Usuário do portal não encontrado.');return user;}
-function allow(user,allowed){if(!allowed.includes(user.role)){const error=new Error('Este usuário não tem permissão para esta etapa.');error.status=403;throw error;}}
-function log(workflow,user,action,record){workflow.audit.unshift({id:makeId(),at:now(),actorId:user.id,actorName:user.name,action,publicationId:record.id,productId:record.productId});workflow.audit=workflow.audit.slice(0,1000);}
-async function products(){if(erpCache.items.length&&Date.now()-erpCache.updatedAt<30000)return erpCache.items;const response=await fetch(uniplusUrl+'/api/erp/products',{signal:AbortSignal.timeout(20000)});if(!response.ok)throw new Error('A API Uniplus respondeu com status '+response.status);const payload=await response.json();if(!Array.isArray(payload.data))throw new Error('Resposta de produtos inválida.');erpCache={items:payload.data.map(item=>({id:String(item.id_produto),sku:String(item.sku||''),name:String(item.nome_produto||''),category:String(item.nome_categoria||'Sem categoria'),price:Number(item.preco||0),stock:Number(item.estoque||0),sitePrice:item.nuvemshop_price===null?null:Number(item.nuvemshop_price),promotionalPrice:item.promotional_price===null?null:Number(item.promotional_price),marked:!!item.is_marked,synced:!!item.is_synced,syncStatus:String(item.sync_status||'not_synced')})),updatedAt:Date.now()};return erpCache.items;}
-function withProduct(record,list){return {...record,product:list.find(x=>x.id===record.productId)||record.productSnapshot||null};}
-async function uniplusApi(res,url){try{const list=await products(),search=safeText(url.searchParams.get('search')),status=url.searchParams.get('status')||'',page=Math.max(1,Number(url.searchParams.get('page'))||1),pageSize=Math.min(100,Math.max(1,Number(url.searchParams.get('pageSize'))||25));const filtered=list.filter(item=>{if(search&&!safeText([item.sku,item.name,item.category].join(' ')).includes(search))return false;if(status==='stockout'&&item.stock>0)return false;if(status==='available'&&item.stock<=0)return false;if(status==='synced'&&!item.synced)return false;if(status==='pending'&&!item.marked)return false;return true;});send(res,200,{source:'uniplus-local',updatedAt:new Date(erpCache.updatedAt).toISOString(),total:list.length,filteredTotal:filtered.length,summary:{stockout:list.filter(x=>x.stock<=0).length,synced:list.filter(x=>x.synced).length,marked:list.filter(x=>x.marked).length},page,pageSize,totalPages:Math.max(1,Math.ceil(filtered.length/pageSize)),data:filtered.slice((page-1)*pageSize,page*pageSize)});}catch(error){send(res,503,{error:'Não foi possível consultar a API local do Uniplus.',details:error.message});}}
-async function workflowApi(req,res,url){const parts=url.pathname.split('/').filter(Boolean),workflow=readWorkflow();try{if(req.method==='GET'&&parts[2]==='bootstrap')return send(res,200,{users:workflow.users,roles,stages,serverTime:now()});const list=await products();if(req.method==='GET'&&parts[2]==='publications'){const user=currentUser(workflow,req);const stage=url.searchParams.get('stage');const records=(stage?workflow.publications.filter(x=>x.stage===stage):workflow.publications).map(x=>withProduct(x,list));return send(res,200,{actor:user,records,updatedAt:now()});}if(req.method==='POST'&&parts[2]==='publications'){const payload=await readBody(req),user=currentUser(workflow,req,payload);allow(user,['owner','manager']);const product=list.find(x=>x.id===String(payload.productId||''));if(!product){const error=new Error('Produto não encontrado no Uniplus.');error.status=404;throw error;}const priceMode=payload.priceMode==='custom'?'custom':'erp',customPrice=priceMode==='custom'?Number(payload.customPrice):null;if(priceMode==='custom'&&!(customPrice>0))throw new Error('Informe um preço válido para o site.');let record=workflow.publications.find(x=>x.productId===product.id&&x.stage!=='published');if(record){record={...record,priceMode,customPrice,priority:String(payload.priority||record.priority||'Normal'),notes:String(payload.notes||record.notes||''),updatedAt:now(),updatedBy:user.id};workflow.publications[workflow.publications.findIndex(x=>x.id===record.id)]=record;log(workflow,user,'Atualizou seleção para o site',record);}else{record={id:makeId(),productId:product.id,productSnapshot:product,stage:'selected',priceMode,customPrice,priority:String(payload.priority||'Normal'),notes:String(payload.notes||''),content:{description:'',images:[],seoTitle:'',category:''},requestedBy:user.id,requestedAt:now(),updatedAt:now(),updatedBy:user.id};workflow.publications.unshift(record);log(workflow,user,'Selecionou produto para o site',record);}saveWorkflow(workflow);return send(res,201,{record:withProduct(record,list)});}if(req.method==='PATCH'&&parts[2]==='publications'&&parts[3]){const payload=await readBody(req),user=currentUser(workflow,req,payload),record=workflow.publications.find(x=>x.id===parts[3]);if(!record){const error=new Error('Item da fila não encontrado.');error.status=404;throw error;}if(payload.content){allow(user,['site']);record.content={...record.content,...payload.content};if(record.stage==='selected')record.stage='content_pending';}if(payload.stage){if(!stages.includes(payload.stage))throw new Error('Etapa inválida.');const allowed={selected:['owner','manager'],content_pending:['site'],ready_for_review:['site'],approved:['owner','manager'],published:['site'],blocked:['owner','manager','site']};allow(user,allowed[payload.stage]);if(payload.stage==='published'&&record.stage!=='approved')throw new Error('A publicação precisa ser aprovada antes de ser enviada ao site.');record.stage=payload.stage;}if(['owner','manager'].includes(user.role)){if(payload.priceMode)record.priceMode=payload.priceMode==='custom'?'custom':'erp';if(payload.customPrice!==undefined)record.customPrice=record.priceMode==='custom'?Number(payload.customPrice):null;if(payload.priority)record.priority=String(payload.priority);if(payload.notes!==undefined)record.notes=String(payload.notes);}record.updatedAt=now();record.updatedBy=user.id;log(workflow,user,'Atualizou fila de publicação',record);saveWorkflow(workflow);return send(res,200,{record:withProduct(record,list)});}send(res,404,{error:'Rota de fluxo não encontrada.'});}catch(error){send(res,error.status||400,{error:error.message||'Não foi possível concluir esta ação.'});}}
-http.createServer((req,res)=>{const url=new URL(req.url,'http://localhost'),pathname=decodeURIComponent(url.pathname);if(pathname==='/api/uniplus/products')return void uniplusApi(res,url);if(pathname.startsWith('/api/workflow/'))return void workflowApi(req,res,url);if(req.method!=='GET'){res.writeHead(405);res.end('Method not allowed');return;}const file=path.resolve(root,pathname==='/'?'index.html':`.${pathname}`);if(!file.startsWith(root+path.sep)&&file!==path.join(root,'index.html')){res.writeHead(403);res.end('Forbidden');return;}fs.readFile(file,(error,data)=>{if(error){res.writeHead(404);res.end('Not found');return;}res.writeHead(200,{'Content-Type':types[path.extname(file)]||'application/octet-stream','Cache-Control':'no-store'});res.end(data);});}).listen(port,'127.0.0.1',()=>console.log(`Portal Shopping Rural em http://localhost:${port}`));
+// Servidor local do portal: serve a interface (public/) e a API (/api/*).
+// Uso: `npm start` (ou `node server.js`). Configuração em `.env` — ver `.env.example`.
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { config, ROOT } from './server/config.js';
+import { handleApi } from './server/router.js';
+import { getStore } from './server/store/index.js';
+import { startUniplusLoop } from './server/integrations/uniplus.js';
+
+const PUBLIC_DIR = path.join(ROOT, 'public');
+const TYPES = {
+  '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
+  '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json; charset=utf-8',
+  '.webmanifest': 'application/manifest+json'
+};
+const SECURITY_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'same-origin',
+  'X-Frame-Options': 'DENY'
+};
+
+function serveStatic(req, res, pathname) {
+  if (!['GET', 'HEAD'].includes(req.method)) {
+    res.writeHead(405, SECURITY_HEADERS);
+    return res.end('Método não permitido');
+  }
+  let file = path.resolve(PUBLIC_DIR, '.' + pathname);
+  if (!file.startsWith(PUBLIC_DIR)) {
+    res.writeHead(403, SECURITY_HEADERS);
+    return res.end('Proibido');
+  }
+  // Rotas da interface (sem extensão) caem no index.html.
+  if (!path.extname(file) || !fs.existsSync(file)) {
+    if (path.extname(file) && path.extname(file) !== '.html') {
+      res.writeHead(404, SECURITY_HEADERS);
+      return res.end('Não encontrado');
+    }
+    file = path.join(PUBLIC_DIR, 'index.html');
+  }
+  fs.readFile(file, (error, data) => {
+    if (error) {
+      res.writeHead(404, SECURITY_HEADERS);
+      return res.end('Não encontrado');
+    }
+    res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
+    res.end(req.method === 'HEAD' ? undefined : data);
+  });
+}
+
+const server = http.createServer((req, res) => {
+  const url = new URL(req.url, 'http://localhost');
+  let pathname;
+  try {
+    pathname = decodeURIComponent(url.pathname);
+  } catch {
+    res.writeHead(400);
+    return res.end('URL inválida');
+  }
+  if (pathname.startsWith('/api/')) return void handleApi(req, res, pathname, url.searchParams);
+  serveStatic(req, res, pathname);
+});
+
+try {
+  getStore();
+} catch (error) {
+  console.error('[config]', error.message);
+  process.exit(1);
+}
+
+server.listen(config.port, config.host, () => {
+  console.log(`Portal Shopping Rural em http://${config.host === '0.0.0.0' ? 'localhost' : config.host}:${config.port}`);
+  console.log(`Dados: ${config.backend === 'local' ? 'arquivo local (data/portal-db.json)' : 'Firestore ' + config.firebase.projectId}`);
+  if (config.uniplus.autoSync) startUniplusLoop(console);
+});
