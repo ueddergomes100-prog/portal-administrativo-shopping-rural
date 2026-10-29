@@ -6,6 +6,7 @@ import {
 } from '../ui.js';
 import { QUEUE_STAGES, QUEUE_FLOW, PRIORITIES, LISTING_STATUS, SITE_CATEGORIES, SITE_PETS, SITE_UNITS, SITE_TAGS } from '../../shared/domain.js';
 import { pricingEditor, pricingSummary, readPricing, pricingInputs, pricingChanges } from './pricing.js';
+import { uploadFile } from '../upload.js';
 
 const TABS = [['flow', 'Em andamento'], ['blocked', 'Bloqueados'], ['archived', 'Arquivados']];
 
@@ -96,7 +97,21 @@ const view = {
     });
   },
 
-  changes: { ...pricingChanges },
+  changes: {
+    ...pricingChanges,
+    // Fotos escolhidas no computador: reduz, envia e já entra na lista (salvar grava no anúncio).
+    async 'upload-photos'(ctx, el) {
+      const files = [...el.files];
+      el.value = '';
+      if (!files.length) return;
+      toast(`Enviando ${files.length} foto(s)…`, 'info');
+      for (const file of files) {
+        const saved = await uploadFile(file, 'product');
+        addPhoto(saved.ref);
+      }
+      toast('Fotos enviadas. Salve o conteúdo para gravar.', 'info');
+    }
+  },
 
   inputs: {
     ...pricingInputs,
@@ -192,13 +207,16 @@ const view = {
       loadMedia('');
     },
     'add-media'(ctx, el) {
-      const textarea = document.querySelector('#contentForm textarea[name=imageRefs]');
-      if (!textarea) return;
-      const refs = textarea.value.split('\n').map(s => s.trim()).filter(Boolean);
-      if (!refs.includes(el.dataset.ref)) refs.push(el.dataset.ref);
-      textarea.value = refs.join('\n');
+      addPhoto(el.dataset.ref);
       closeTopLayer();
-      toast('Referência adicionada. Salve o conteúdo para gravar.', 'info');
+      toast('Foto adicionada. Salve o conteúdo para gravar.', 'info');
+    },
+    'photo-first'(ctx, el) {
+      const li = el.closest('[data-photo]');
+      li.parentElement.prepend(li);
+    },
+    'photo-remove'(ctx, el) {
+      el.closest('[data-photo]').remove();
     }
   },
 
@@ -218,7 +236,7 @@ const view = {
     },
     async content(ctx, data) {
       const item = ctx.state.current;
-      data.imageRefs = String(data.imageRefs || '').split('\n').map(s => s.trim()).filter(Boolean);
+      data.imageRefs = [].concat(data.imageRefs || []).filter(Boolean);
       await patch(`/queue/${item.id}/content`, data);
       toast('Conteúdo do anúncio salvo.');
       await afterChange(ctx, item.id);
@@ -226,6 +244,26 @@ const view = {
   }
 };
 export default view;
+
+// Foto enviada para a nuvem tem URL (mostra a miniatura); foto em media/ mostra o nome do arquivo.
+function photoItem(ref, { readonly = false } = {}) {
+  const remote = /^https:\/\//.test(ref);
+  const name = ref.split('/').pop();
+  return `<li class="photo" data-photo>
+    ${readonly ? '' : `<input type="hidden" name="imageRefs" value="${esc(ref)}">`}
+    ${remote ? `<img src="${esc(ref)}" alt="" loading="lazy">` : `<span class="photo-file">${icon('image')}<span class="mono">${esc(name)}</span></span>`}
+    ${readonly ? '' : `<span class="photo-actions">
+      <button type="button" class="btn-icon" data-action="photo-first" aria-label="Usar como foto principal" title="Usar como principal">${icon('arrow')}</button>
+      <button type="button" class="btn-icon" data-action="photo-remove" aria-label="Remover foto" title="Remover">${icon('close')}</button>
+    </span>`}
+  </li>`;
+}
+
+function addPhoto(ref) {
+  const grid = document.querySelector('#contentForm [data-photos]');
+  if (!grid || grid.querySelector(`input[value="${CSS.escape(ref)}"]`)) return;
+  grid.insertAdjacentHTML('beforeend', photoItem(ref));
+}
 
 let mediaTimer;
 async function loadMedia(search) {
@@ -320,11 +358,15 @@ function renderItem(ctx, item, entries, campaigns, channels) {
             ${field('specs', 'Especificações (uma por linha: Rótulo: valor)', { type: 'textarea', full: true, rows: 4, value: (c.specs || []).map(x => `${x.label}: ${x.value}`).join('\n'), placeholder: 'Porte: Médio e grande\nFase: Adulto' })}
           </div>
         </fieldset>
-        <div class="field full"><label for="imageRefs">Fotos (uma por linha, caminho dentro de media/ — a primeira é a principal)</label>
-          <textarea id="imageRefs" name="imageRefs" class="mono" rows="3" placeholder="produtos/racao-premium-15kg-frente.jpg">${esc((c.imageRefs || []).join('\n'))}</textarea>
-          <div class="inline-actions">${button('Escolher de media/', { action: 'pick-media', icon: 'folder', variant: 'ghost small' })}</div>
+        <div class="field full"><span class="field-label">Fotos — a primeira é a principal no site</span>
+          <ul class="photo-grid" data-photos>${(c.imageRefs || []).map(photoItem).join('')}</ul>
+          <div class="inline-actions">
+            <label class="btn small">${icon('upload')}<span>Enviar fotos</span><input type="file" accept="image/*" multiple hidden data-change="upload-photos"></label>
+            ${ctx.config.mediaAvailable ? button('Escolher de media/', { action: 'pick-media', icon: 'folder', variant: 'ghost small' }) : ''}
+          </div>
+          <small class="hint">As fotos são reduzidas automaticamente para o site (WebP, até 1600 px).</small>
         </div>
-        ${mediaRows ? `<ul class="media-check full">${mediaRows}</ul>` : ''}
+        ${mediaRows.includes('Não encontrado') ? `<ul class="media-check full">${mediaRows}</ul>` : ''}
         ${field('siteNotes', 'Observações do site', { type: 'textarea', full: true, rows: 2, value: c.siteNotes, max: 2000 })}
         <div class="form-error full" aria-live="polite"></div>
         <div class="full form-actions"><button class="btn" type="submit">${icon('check')}<span>Salvar conteúdo</span></button></div>
@@ -342,7 +384,7 @@ function renderItem(ctx, item, entries, campaigns, channels) {
         ${(c.specs || []).length ? `<div><dt>Especificações</dt><dd>${c.specs.map(x => `${esc(x.label)}: ${esc(x.value)}`).join('<br>')}</dd></div>` : ''}
         <div><dt>Observações do site</dt><dd>${esc(c.siteNotes || '—')}</dd></div>
       </dl>
-      ${mediaRows ? `<ul class="media-check">${mediaRows}</ul>` : '<p class="muted">Nenhuma foto indicada.</p>'}
+      ${(c.imageRefs || []).length ? `<ul class="photo-grid readonly">${c.imageRefs.map(ref => photoItem(ref, { readonly: true })).join('')}</ul>` : '<p class="muted">Nenhuma foto ainda.</p>'}
     </section>`;
 
   const publication = ['approved', 'published'].includes(item.stage) || listingsOf(item).some(l => l.listing.status === 'done') ? `

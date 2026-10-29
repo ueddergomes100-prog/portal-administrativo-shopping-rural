@@ -3,6 +3,7 @@ import { get, post, patch } from '../api.js';
 import { esc, icon, date, dateTime, num, relative, pageHead, empty, button, field, openDrawer, openModal, closeLayers, toast, statusTag, tag, notice } from '../ui.js';
 import { ART_STATUS, ART_FORMATS, ART_ORIGINS, PRIORITIES, todayInSaoPaulo } from '../../shared/domain.js';
 import { productPicker, pickerActions, pickerInputs, transitionButtons, runTransition, notesSection, personName, peopleOptions } from './common.js';
+import { uploadFile } from '../upload.js';
 
 const COLUMNS = ['requested', 'in_progress', 'changes', 'awaiting_approval', 'approved', 'published'];
 const ORIGIN_ROUTE = { campaign: 'campanhas', promotion: 'promocoes', product: 'produtos' };
@@ -62,13 +63,11 @@ const view = {
       </dl>
       <section class="section"><h3>Briefing</h3><p class="prose">${esc(record.briefing).replaceAll('\n', '<br>')}</p></section>
       <section class="section"><h3>Arquivo da arte</h3>
-        ${editableFile ? `<form data-form="file" class="inline-form">
-          <label for="fileRef" class="sr-only">Caminho dentro de media/</label>
-          <input id="fileRef" name="fileRef" class="mono" value="${esc(record.fileRef)}" placeholder="artes/2026-11/semana-pet-stories.png">
-          <button class="btn small" type="submit">Salvar</button>
-          <div class="form-error"></div></form>
-          <p class="hint">Salve o arquivo na pasta <span class="mono">media/</span> do servidor da loja e indique o caminho. Usuários remotos veem só a referência.</p>`
-          : record.fileRef ? `<p class="mono">${esc(record.fileRef)}</p>` : '<p class="muted">Nenhum arquivo indicado ainda.</p>'}
+        ${fileView(record.fileRef)}
+        ${editableFile ? `<div class="inline-actions">
+            <label class="btn small">${icon('upload')}<span>${record.fileRef ? 'Trocar arquivo' : 'Enviar arquivo'}</span><input type="file" accept="image/*,application/pdf" hidden data-change="upload-art"></label>
+          </div>
+          <p class="hint">Imagem (JPG, PNG, WebP, GIF) ou PDF de até 3 MB. Vídeos e arquivos grandes: envie por link (Drive) e cole o link nos comentários.</p>` : ''}
         ${record.deliveredAt ? `<p class="hint">Entregue ${dateTime(record.deliveredAt)}</p>` : ''}
       </section>
       ${record.publications?.length ? `<section class="section"><h3>Onde foi publicada</h3><ul class="timeline">${record.publications.map(p => `<li><span class="tl-when">${dateTime(p.at)}</span><span class="tl-what">${tag(p.channel, 'done')} por <strong>${esc(p.by)}</strong>${p.note ? ` — ${esc(p.note)}` : ''}</span></li>`).join('')}</ul></section>` : ''}
@@ -80,6 +79,16 @@ const view = {
 
   inputs: { ...pickerInputs },
   changes: {
+    async 'upload-art'(ctx, el) {
+      const file = el.files[0];
+      el.value = '';
+      if (!file) return;
+      toast('Enviando arquivo…', 'info');
+      const saved = await uploadFile(file, 'art');
+      await patch(`/arts/${ctx.state.current.id}/file`, { fileRef: saved.ref });
+      toast('Arquivo da arte salvo.');
+      await reopen(ctx, ctx.state.current.id);
+    },
     async originType(ctx, el) {
       const box = el.closest('form').querySelector('[data-origin]');
       box.innerHTML = await originField(ctx, el.value, '');
@@ -106,11 +115,6 @@ const view = {
       toast(id ? 'Pedido de arte atualizado.' : 'Arte solicitada ao marketing.');
       await reopen(ctx, record.id);
     },
-    async file(ctx, data) {
-      await patch(`/arts/${ctx.state.current.id}/file`, data);
-      toast('Referência do arquivo salva.');
-      await reopen(ctx, ctx.state.current.id);
-    },
     async note(ctx, data) {
       await post(`/arts/${ctx.state.current.id}/notes`, data);
       await reopen(ctx, ctx.state.current.id);
@@ -119,6 +123,14 @@ const view = {
 };
 
 export default view;
+
+// Arquivo na nuvem: miniatura (imagem) ou link (PDF). Arquivo antigo em media/: só o caminho.
+function fileView(ref) {
+  if (!ref) return '<p class="muted">Nenhum arquivo enviado ainda.</p>';
+  if (!/^https:\/\//.test(ref)) return `<p class="mono">${esc(ref)}</p>`;
+  const isPdf = /\.pdf($|\?)/i.test(ref);
+  return `<a class="art-file" href="${esc(ref)}" target="_blank" rel="noopener noreferrer">${isPdf ? `${icon('file')}<span>Abrir PDF</span>` : `<img src="${esc(ref)}" alt="Arte enviada" loading="lazy">`}</a>`;
+}
 
 async function reopen(ctx, id) {
   closeLayers({ restoreFocus: false });
