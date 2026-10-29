@@ -59,20 +59,19 @@ export const config = {
     autoSync: env('UNIPLUS_AUTO_SYNC', 'true') !== 'false'
   },
 
-  nuvemshop: {
-    storeId: env('NUVEMSHOP_STORE_ID'),
-    accessToken: env('NUVEMSHOP_ACCESS_TOKEN'),
-    userAgent: env('NUVEMSHOP_USER_AGENT', 'Portal Shopping Rural'),
-    apiBase: env('NUVEMSHOP_API_BASE', 'https://api.nuvemshop.com.br/v1'),
-    // Segredo do app (client secret) — valida a assinatura dos webhooks de pedidos.
-    appSecret: env('NUVEMSHOP_APP_SECRET')
+  // Site próprio da loja: lê o catálogo publicado pelo portal e devolve os pedidos.
+  store: {
+    // Token que o servidor do site usa para enviar pedidos (POST /api/store/orders).
+    apiToken: env('STORE_API_TOKEN'),
+    // Endereço público do site, usado para montar o link do produto (ex.: https://www.shoppingrural.com.br).
+    publicUrl: env('STORE_PUBLIC_URL').replace(/\/$/, ''),
+    // Caminho do produto no site; {slug} é trocado pelo identificador do produto.
+    productPath: env('STORE_PRODUCT_PATH', '/produto/{slug}'),
+    // Origens que podem ler o catálogo direto do navegador (CORS). Vazio = só servidor a servidor.
+    allowedOrigins: env('STORE_ALLOWED_ORIGINS').split(',').map(s => s.trim()).filter(Boolean),
+    // Endereço público deste portal, usado nas URLs das imagens do catálogo.
+    portalPublicUrl: env('PORTAL_PUBLIC_URL').replace(/\/$/, '')
   },
-
-  shopee: {
-    partnerId: env('SHOPEE_PARTNER_ID'), partnerKey: env('SHOPEE_PARTNER_KEY'),
-    shopId: env('SHOPEE_SHOP_ID'), accessToken: env('SHOPEE_ACCESS_TOKEN')
-  },
-  mercadoLivre: { accessToken: env('MELI_ACCESS_TOKEN'), userId: env('MELI_USER_ID') },
 
   // Indicadores sincronizados automaticamente a cada N horas (0 = só manual).
   metricsSyncHours: Number(process.env.METRICS_SYNC_HOURS ?? 6) || 0,

@@ -8,6 +8,7 @@ import { handleApi } from './server/router.js';
 import { getStore } from './server/store/index.js';
 import { startUniplusLoop } from './server/integrations/uniplus.js';
 import { startMetricsLoop } from './server/services/metrics.js';
+import { runMigrations } from './server/migrations.js';
 
 const PUBLIC_DIR = path.join(ROOT, 'public');
 const TYPES = {
@@ -72,6 +73,7 @@ try {
 server.listen(config.port, config.host, () => {
   console.log(`Portal Shopping Rural em http://${config.host === '0.0.0.0' ? 'localhost' : config.host}:${config.port}`);
   console.log(`Dados: ${config.backend === 'local' ? 'arquivo local (data/portal-db.json)' : 'Firestore ' + config.firebase.projectId}`);
+  runMigrations(console).catch(error => console.error('[migração]', error.message));
   if (config.uniplus.autoSync) startUniplusLoop(console);
   startMetricsLoop(console);
 });

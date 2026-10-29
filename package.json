@@ -2,7 +2,7 @@
   "name": "portal-shopping-rural",
   "version": "0.3.0",
   "private": true,
-  "description": "Portal administrativo do Shopping Rural: catálogo UniPlus, fila de publicação Nuvemshop, campanhas, promoções, artes e leads.",
+  "description": "Portal administrativo do Shopping Rural: catálogo UniPlus, venda multicanal, catálogo do site próprio, campanhas, promoções, artes e leads.",
   "type": "module",
   "engines": {
     "node": ">=22"

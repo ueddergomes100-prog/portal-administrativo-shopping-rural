@@ -9,9 +9,7 @@ import { badRequest } from '../http.js';
 
 const configured = {
   uniplus: () => !!config.uniplus.apiUrl,
-  nuvemshop: () => !!(config.nuvemshop.storeId && config.nuvemshop.accessToken),
-  shopee: () => !!(config.shopee.partnerId && config.shopee.partnerKey && config.shopee.shopId && config.shopee.accessToken),
-  mercadolivre: () => !!(config.mercadoLivre.accessToken && config.mercadoLivre.userId),
+  site: () => !!(config.store.apiToken && config.store.publicUrl && config.store.portalPublicUrl),
   ga4: () => !!(config.ga4.propertyId && config.ga4.credentials),
   googleads: () => !!(config.googleAds.customerId && config.googleAds.developerToken && config.googleAds.clientId && config.googleAds.clientSecret && config.googleAds.refreshToken),
   metaads: () => !!(config.metaAds.accountId && config.metaAds.accessToken),
@@ -19,18 +17,15 @@ const configured = {
 };
 const partially = {
   uniplus: () => false,
-  nuvemshop: () => !!(config.nuvemshop.storeId || config.nuvemshop.accessToken),
-  shopee: () => !!(config.shopee.partnerId || config.shopee.shopId),
-  mercadolivre: () => !!(config.mercadoLivre.accessToken || config.mercadoLivre.userId),
+  site: () => !!(config.store.apiToken || config.store.publicUrl),
   ga4: () => !!config.ga4.propertyId,
   googleads: () => !!config.googleAds.customerId,
   metaads: () => !!config.metaAds.accountId,
   leads: () => false
 };
 
-// Integrações que já têm código de comunicação. Shopee e Mercado Livre: autenticação pronta,
-// criação de anúncio ainda manual (ver server/integrations/marketplaces.js).
-const IMPLEMENTED = new Set(['uniplus', 'nuvemshop', 'ga4', 'googleads', 'metaads', 'leads']);
+// Integrações com código de comunicação pronto.
+const IMPLEMENTED = new Set(['uniplus', 'site', 'ga4', 'googleads', 'metaads', 'leads']);
 
 export async function setIntegrationState(id, patch) {
   const store = getStore();
@@ -68,9 +63,7 @@ export async function listIntegrations() {
 // Preferências não secretas editáveis pelo portal (ex.: intervalo desejado, observações).
 const EDITABLE = {
   uniplus: ['notes'],
-  nuvemshop: ['storeUrl', 'notes'],
-  shopee: ['storeUrl', 'notes'],
-  mercadolivre: ['storeUrl', 'notes'],
+  site: ['notes'],
   ga4: ['notes'],
   googleads: ['notes'],
   metaads: ['notes'],

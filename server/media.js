@@ -1,6 +1,7 @@
 // Arquivos locais (fotos e artes) na pasta media/ desta máquina.
 // Nada aqui é enviado ao GitHub nem ao Firebase Storage. O portal guarda só a REFERÊNCIA
-// (caminho relativo). O arquivo é lido apenas quando o servidor local publica na Nuvemshop.
+// (caminho relativo). Fotos de produtos publicados no site próprio são servidas por
+// GET /api/store/images/... (somente as que pertencem a um produto publicado).
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from './config.js';
@@ -47,11 +48,12 @@ export function checkMediaRefs(refs) {
   return refs.map(ref => ({ ref, exists: fs.existsSync(resolveMedia(ref)) }));
 }
 
-export function readImageBase64(ref) {
+export const IMAGE_TYPES = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif' };
+
+// Caminho completo de uma imagem existente em media/ (ou null).
+export function imageFile(ref) {
   const full = resolveMedia(ref);
-  if (!IMAGE_EXT.has(path.extname(full).toLowerCase())) throw badRequest(`"${ref}" não é uma imagem aceita pela Nuvemshop.`);
-  if (!fs.existsSync(full)) throw badRequest(`Arquivo não encontrado em media/: ${ref}`);
-  const size = fs.statSync(full).size;
-  if (size > 10 * 1024 * 1024) throw badRequest(`A imagem ${ref} passa de 10 MB.`);
-  return { filename: path.basename(full), attachment: fs.readFileSync(full).toString('base64') };
+  const type = IMAGE_TYPES[path.extname(full).toLowerCase()];
+  if (!type || !fs.existsSync(full)) return null;
+  return { full, type };
 }

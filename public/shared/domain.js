@@ -6,7 +6,7 @@ export const ROLES = {
   owner: { label: 'Dono', description: 'Visão completa, define preços e aprova publicações, promoções, campanhas e artes.' },
   manager: { label: 'Gerente', description: 'Cria campanhas e promoções, solicita artes e aprova quando autorizado.' },
   marketing: { label: 'Marketing', description: 'Produz e entrega artes, acompanha campanhas e indicadores de mídia.' },
-  site: { label: 'Site', description: 'Prepara conteúdo dos produtos e publica na Nuvemshop o que foi aprovado.' }
+  site: { label: 'Site e marketplaces', description: 'Prepara foto e descrição, publica no site próprio e anuncia na Shopee e no Mercado Livre o que foi aprovado.' }
 };
 export const ROLE_KEYS = Object.keys(ROLES);
 
@@ -23,8 +23,8 @@ export const QUEUE_STAGES = {
   selected: { label: 'Selecionado', hint: 'O dono escolheu o produto para o site.', tone: 'neutral' },
   preparing: { label: 'Em preparação', hint: 'O site está preparando foto, descrição e SEO.', tone: 'info' },
   review: { label: 'Pronto para aprovação', hint: 'Conteúdo pronto aguardando o dono ou gerente.', tone: 'warn' },
-  approved: { label: 'Aprovado', hint: 'Liberado para publicar nos canais escolhidos.', tone: 'ok' },
-  published: { label: 'Publicado', hint: 'Anunciado em todos os canais escolhidos.', tone: 'done' },
+  approved: { label: 'Aprovado', hint: 'Liberado para publicar no site e anunciar nos marketplaces.', tone: 'ok' },
+  published: { label: 'Publicado', hint: 'À venda em todos os canais escolhidos.', tone: 'done' },
   blocked: { label: 'Bloqueado', hint: 'Pausado por decisão do dono ou gerente.', tone: 'danger' },
   archived: { label: 'Arquivado', hint: 'Fora da operação, mantido no histórico.', tone: 'muted' }
 };
@@ -32,13 +32,15 @@ export const QUEUE_FLOW = ['selected', 'preparing', 'review', 'approved', 'publi
 
 // Quem pode mover de qual etapa para qual. `approver` = canApprove(user).
 // A ida para `published` NÃO está aqui: acontece sozinha quando TODOS os canais escolhidos
-// estão publicados (Nuvemshop confirmada pela API; demais canais registrados por uma pessoa).
+// estão publicados (site próprio: publicado no catálogo; marketplaces: anúncio registrado por uma pessoa).
 export const QUEUE_TRANSITIONS = [
   { from: 'selected', to: 'preparing', who: ['site', 'owner', 'manager'], label: 'Começar preparação' },
   { from: 'preparing', to: 'review', who: ['site'], label: 'Enviar para aprovação', requires: 'content' },
   { from: 'review', to: 'approved', who: ['approver'], label: 'Aprovar publicação' },
   { from: 'review', to: 'preparing', who: ['approver'], label: 'Pedir ajustes', requires: 'note' },
   { from: 'approved', to: 'preparing', who: ['approver'], label: 'Voltar para preparação', requires: 'note' },
+  // Produto já à venda precisa de ajuste no texto/fotos: continua no site enquanto é revisado.
+  { from: 'published', to: 'preparing', who: ['approver'], label: 'Revisar anúncio', requires: 'note' },
   { from: ['selected', 'preparing', 'review', 'approved'], to: 'blocked', who: ['owner', 'manager'], label: 'Bloquear', requires: 'note' },
   { from: 'blocked', to: 'selected', who: ['owner', 'manager'], label: 'Desbloquear' },
   { from: ['selected', 'preparing', 'review', 'approved', 'blocked', 'published'], to: 'archived', who: ['owner'], label: 'Arquivar' },
@@ -52,9 +54,7 @@ export const PUBLISH_STATUS = {
   done: 'Publicado'
 };
 export const LISTING_STATUS = {
-  idle: { label: 'Aguardando publicação', tone: 'warn' },
-  publishing: { label: 'Enviando…', tone: 'info' },
-  failed: { label: 'Falhou — tente de novo', tone: 'danger' },
+  idle: { label: 'Falta publicar', tone: 'warn' },
   done: { label: 'Publicado', tone: 'done' }
 };
 
@@ -63,14 +63,15 @@ export const LISTING_STATUS = {
 // Valores padrão: o dono ajusta em "Canais e taxas" (fica salvo em settings/channels).
 // percent = comissão em %; fixed = tarifa fixa por venda em R$;
 // fixedBelow = se preenchido, a tarifa fixa só vale para preços ABAIXO desse valor.
-// integration = cliente de API em server/integrations (null = publicação registrada à mão).
+// integration: 'site' = site próprio (o portal publica no catálogo que o site lê);
+//              null = marketplace anunciado à mão pela equipe, que registra o link aqui.
 // ---------------------------------------------------------------------------
 export const DEFAULT_CHANNELS = [
-  { id: 'site', name: 'Site (Nuvemshop)', percent: 0, fixed: 0, fixedBelow: null, integration: 'nuvemshop', active: true,
-    note: 'Some a taxa do meio de pagamento, se houver (ex.: Nuvem Pago).' },
-  { id: 'shopee', name: 'Shopee', percent: 20, fixed: 6, fixedBelow: null, integration: 'shopee', active: true,
+  { id: 'site', name: 'Site próprio', percent: 0, fixed: 0, fixedBelow: null, integration: 'site', active: true,
+    note: 'Coloque a taxa do gateway de pagamento quando ele for escolhido (ex.: 4,99% no cartão).' },
+  { id: 'shopee', name: 'Shopee', percent: 20, fixed: 6, fixedBelow: null, integration: null, active: true,
     note: 'Comissão + tarifa por item vendido. Confira a tabela vigente da Shopee.' },
-  { id: 'mercadolivre', name: 'Mercado Livre', percent: 17, fixed: 0, fixedBelow: null, integration: 'mercadolivre', active: true,
+  { id: 'mercadolivre', name: 'Mercado Livre', percent: 17, fixed: 0, fixedBelow: null, integration: null, active: true,
     note: 'Para anúncios baratos o ML cobra tarifa fixa: preencha a tarifa e o limite.' }
 ];
 
@@ -176,13 +177,59 @@ export const LEAD_STATUS = {
 };
 export const LEAD_SOURCES = ['Site', 'WhatsApp', 'Instagram', 'Facebook', 'Meta Ads', 'Google Ads', 'Loja física', 'Indicação', 'Outro'];
 
+// ---------------------------------------------------------------------------
+// Pedidos do site próprio — mesmos códigos do site (src/types/commerce.ts no projeto do site).
+// ---------------------------------------------------------------------------
 export const ORDER_STATUS = {
-  open: { label: 'Aberto', tone: 'info' },
-  paid: { label: 'Pago', tone: 'ok' },
-  shipped: { label: 'Enviado', tone: 'info' },
-  delivered: { label: 'Entregue', tone: 'done' },
-  cancelled: { label: 'Cancelado', tone: 'muted' }
+  aguardando_pagamento: { label: 'Aguardando pagamento', tone: 'warn' },
+  pago: { label: 'Pago', tone: 'ok' },
+  separando: { label: 'Separando na loja', tone: 'info' },
+  pronto_retirada: { label: 'Pronto para retirar', tone: 'info' },
+  enviado: { label: 'Enviado', tone: 'info' },
+  entregue: { label: 'Entregue', tone: 'done' },
+  cancelado: { label: 'Cancelado', tone: 'muted' }
 };
+// A equipe da loja move o pedido no portal; o site lê o andamento (GET /api/store/orders/:id).
+// Pagamento (aguardando -> pago / cancelado) vem do gateway, pelo site.
+export const ORDER_TRANSITIONS = [
+  { from: 'pago', to: 'separando', who: ['owner', 'manager', 'site'], label: 'Começar a separar' },
+  { from: 'separando', to: 'pronto_retirada', who: ['owner', 'manager', 'site'], label: 'Pronto para retirar', delivery: 'retirada' },
+  { from: 'separando', to: 'enviado', who: ['owner', 'manager', 'site'], label: 'Marcar como enviado', requires: 'tracking', delivery: 'entrega' },
+  { from: ['pronto_retirada', 'enviado'], to: 'entregue', who: ['owner', 'manager', 'site'], label: 'Marcar como entregue' },
+  { from: ['aguardando_pagamento', 'pago', 'separando', 'pronto_retirada'], to: 'cancelado', who: ['owner', 'manager'], label: 'Cancelar pedido', requires: 'note' }
+];
+export const PAYMENT_STATUS = { pendente: 'Pendente', aprovado: 'Aprovado', recusado: 'Recusado', expirado: 'Expirado' };
+export const PAYMENT_METHODS = { pix: 'Pix', cartao: 'Cartão', boleto: 'Boleto' };
+export const DELIVERY_METHODS = { retirada: 'Retirada na loja', economica: 'Entrega econômica', expressa: 'Entrega expressa' };
+
+// ---------------------------------------------------------------------------
+// Cadastro do produto no site — mesmas chaves do site (src/data/products.ts).
+// Ao criar categoria nova no site, acrescente aqui também.
+// ---------------------------------------------------------------------------
+export const SITE_CATEGORIES = {
+  'racao-caes': 'Ração para cães',
+  'racao-gatos': 'Ração para gatos',
+  antiparasitario: 'Antipulgas e carrapatos',
+  medicamentos: 'Medicamentos',
+  petiscos: 'Petiscos',
+  brinquedos: 'Brinquedos',
+  'cama-banheiro': 'Cama e banheiro'
+};
+export const SITE_PETS = { cao: 'Cão', gato: 'Gato', ambos: 'Cão e gato' };
+export const SITE_UNITS = { kg: 'kg', un: 'unidade(s)', comp: 'comprimido(s)' };
+export const SITE_TAGS = ['', 'Mais pedido', 'Novo', 'Oferta'];
+
+// Identificador amigável para URL (ex.: "Ração Gatos 10 kg" -> "racao-gatos-10-kg").
+export function slugify(text) {
+  return String(text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'produto';
+}
+
+// Preço que vale hoje no canal (promoção só dentro do período).
+export function currentPrice(channel, promoStart, promoEnd, todayISO) {
+  const promoOn = channel.promoPrice && promoStart && promoEnd && todayISO >= promoStart && todayISO <= promoEnd;
+  return { price: channel.price, promoPrice: promoOn ? channel.promoPrice : null, promoEnds: promoOn ? promoEnd : null };
+}
 
 // ---------------------------------------------------------------------------
 // Integrações
@@ -195,9 +242,7 @@ export const INTEGRATION_STATUS = {
 };
 export const INTEGRATIONS = {
   uniplus: { name: 'UniPlus ERP', role: 'Catálogo, SKU, estoque e preço-base', env: ['UNIPLUS_API_URL'] },
-  nuvemshop: { name: 'Nuvemshop', role: 'Publicação de produtos e pedidos do site', env: ['NUVEMSHOP_STORE_ID', 'NUVEMSHOP_ACCESS_TOKEN'] },
-  shopee: { name: 'Shopee', role: 'Anúncios e pedidos na Shopee', env: ['SHOPEE_PARTNER_ID', 'SHOPEE_PARTNER_KEY', 'SHOPEE_SHOP_ID', 'SHOPEE_ACCESS_TOKEN'] },
-  mercadolivre: { name: 'Mercado Livre', role: 'Anúncios e pedidos no Mercado Livre', env: ['MELI_ACCESS_TOKEN', 'MELI_USER_ID'] },
+  site: { name: 'Site próprio', role: 'Catálogo publicado pelo portal e pedidos com pagamento', env: ['STORE_API_TOKEN', 'STORE_PUBLIC_URL', 'PORTAL_PUBLIC_URL'] },
   ga4: { name: 'Google Analytics 4', role: 'Visitas, fontes de tráfego e conversões', env: ['GA4_PROPERTY_ID', 'GOOGLE_SERVICE_ACCOUNT_JSON'] },
   googleads: { name: 'Google Ads', role: 'Investimento, cliques, campanhas e conversões', env: ['GOOGLE_ADS_CUSTOMER_ID', 'GOOGLE_ADS_DEVELOPER_TOKEN', 'GOOGLE_ADS_CLIENT_ID', 'GOOGLE_ADS_CLIENT_SECRET', 'GOOGLE_ADS_REFRESH_TOKEN'] },
   metaads: { name: 'Meta Ads', role: 'Alcance, gasto, leads e conversões', env: ['META_AD_ACCOUNT_ID', 'META_ACCESS_TOKEN'] },

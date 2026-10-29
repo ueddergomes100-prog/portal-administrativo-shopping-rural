@@ -9,9 +9,9 @@ const br = iso => (iso ? iso.split('-').reverse().join('/') : '—');
 
 export async function dashboard(user) {
   const store = getStore();
-  const [queue, campaigns, promotions, arts, leads, integrations, productCount] = await Promise.all([
+  const [queue, campaigns, promotions, arts, leads, integrations, productCount, orders] = await Promise.all([
     store.list(C.queue), store.list(C.campaigns), store.list(C.promotions), store.list(C.arts), store.list(C.leads),
-    listIntegrations(), store.count(C.products)
+    listIntegrations(), store.count(C.products), store.list(C.orders)
   ]);
   const today = todayInSaoPaulo();
   const approver = canApprove(user);
@@ -28,23 +28,23 @@ export async function dashboard(user) {
   }
   if (user.role === 'site') {
     queue.filter(i => ['selected', 'preparing'].includes(i.stage)).forEach(i => push('queue', i.id, `Preparar: ${i.productSnapshot.name}`, QUEUE_STAGES[i.stage].label, `fila/${i.id}`));
-    queue.filter(i => i.stage === 'approved').forEach(i => {
-      const pending = (i.channels || []).filter(c => i.listings?.[c.id]?.status !== 'done').map(c => c.name);
-      const failed = Object.values(i.listings || {}).some(l => l.status === 'failed');
-      push('queue', i.id, `Publicar: ${i.productSnapshot.name}`, failed ? 'Última tentativa falhou' : `Falta: ${pending.join(', ')}`, `fila/${i.id}`);
+    // Aprovados (ou publicados com marketplace a atualizar) que ainda têm canal pendente.
+    queue.filter(i => ['approved', 'published'].includes(i.stage)).forEach(i => {
+      const pending = (i.channels || []).filter(c => i.listings?.[c.id]?.status !== 'done' || i.listings[c.id].needsUpdate);
+      if (!pending.length) return;
+      const outdated = pending.some(c => i.listings?.[c.id]?.needsUpdate);
+      push('queue', i.id, `${outdated ? 'Atualizar anúncio' : 'Publicar'}: ${i.productSnapshot.name}`, `Falta: ${pending.map(c => c.name).join(', ')}`, `fila/${i.id}`);
     });
+  }
+  // Pedidos do site esperando a equipe da loja.
+  if (['owner', 'manager', 'site'].includes(user.role)) {
+    orders.filter(o => o.status === 'pago').forEach(o => push('orders', o.id, `Separar pedido ${o.number}`, `${o.customer?.name || 'Cliente'} · ${o.items?.length || 0} item(ns)`, `pedidos/${o.id}`));
+    orders.filter(o => o.status === 'separando').forEach(o => push('orders', o.id, `${o.delivery?.method === 'retirada' ? 'Avisar retirada' : 'Despachar'}: pedido ${o.number}`, o.customer?.name || '', `pedidos/${o.id}`));
   }
   if (user.role === 'marketing') {
     arts.filter(a => ['requested', 'in_progress', 'changes'].includes(a.status)).forEach(a => push('arts', a.id, `Criar arte: ${a.title}`, `Prazo ${br(a.deadline)}`, `artes/${a.id}`));
     arts.filter(a => a.status === 'approved').forEach(a => push('arts', a.id, `Registrar publicação: ${a.title}`, 'Arte aprovada', `artes/${a.id}`));
   }
-  if (user.role === 'owner') {
-    queue.filter(i => i.stage === 'approved' && Object.values(i.listings || {}).some(l => l.status === 'failed')).forEach(i => {
-      const failed = Object.entries(i.listings).find(([, l]) => l.status === 'failed');
-      push('queue', i.id, `Falha na publicação: ${i.productSnapshot.name}`, failed[1].lastError, `fila/${i.id}`);
-    });
-  }
-
   // Próximos 60 dias: campanhas e promoções que começam ou estão rolando.
   const horizon = new Date(Date.parse(today + 'T12:00:00Z') + 60 * 86400_000).toISOString().slice(0, 10);
   const upcoming = [

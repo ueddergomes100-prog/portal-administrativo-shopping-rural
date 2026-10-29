@@ -14,11 +14,12 @@ export const forbidden = (message = 'Seu papel não permite esta ação.') => ne
 export const notFound = (message = 'Registro não encontrado.') => new HttpError(404, message);
 export const conflict = message => new HttpError(409, message);
 
-export function sendJson(res, status, body) {
+export function sendJson(res, status, body, extraHeaders = {}) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
-    'X-Content-Type-Options': 'nosniff'
+    'X-Content-Type-Options': 'nosniff',
+    ...extraHeaders
   });
   res.end(JSON.stringify(body));
 }
@@ -32,20 +33,6 @@ export async function readJsonBody(req, limit = 1_000_000) {
     raw += chunk;
     if (raw.length > limit) throw new HttpError(413, 'Requisição muito grande.');
   }
-  return parse(raw);
-}
-
-// Corpo cru (webhooks assinados). Não toca em req.body para a Vercel não consumir o fluxo antes.
-export async function readRawBody(req, limit = 1_000_000) {
-  let raw = '';
-  for await (const chunk of req) {
-    raw += chunk;
-    if (raw.length > limit) throw new HttpError(413, 'Requisição muito grande.');
-  }
-  return raw;
-}
-
-export function parseJson(raw) {
   return parse(raw);
 }
 

@@ -14,7 +14,8 @@ export async function getChannel(id) {
   return (await getChannels()).find(c => c.id === id) || null;
 }
 
-const INTEGRATIONS = ['nuvemshop', 'shopee', 'mercadolivre'];
+// Só o site próprio publica pelo portal; os demais canais são anunciados à mão.
+const INTEGRATIONS = ['site'];
 
 export async function updateChannels(user, input) {
   if (user.role !== 'owner') throw forbidden('Só o dono altera canais e taxas.');

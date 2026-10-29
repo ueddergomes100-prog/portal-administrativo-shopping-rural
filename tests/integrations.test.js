@@ -10,8 +10,7 @@ Object.assign(process.env, {
   GA4_PROPERTY_ID: '123456',
   GOOGLE_SERVICE_ACCOUNT_JSON: JSON.stringify({ client_email: 'portal@teste.iam.gserviceaccount.com', private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }) }),
   GOOGLE_ADS_CUSTOMER_ID: '123-456-7890', GOOGLE_ADS_DEVELOPER_TOKEN: 'dev', GOOGLE_ADS_CLIENT_ID: 'cid', GOOGLE_ADS_CLIENT_SECRET: 'sec', GOOGLE_ADS_REFRESH_TOKEN: 'ref',
-  META_AD_ACCOUNT_ID: 'act_999', META_ACCESS_TOKEN: 'meta-token', META_LEAD_FORM_IDS: 'form1', META_PAGE_ACCESS_TOKEN: 'page-token',
-  NUVEMSHOP_APP_SECRET: 'segredo-app'
+  META_AD_ACCOUNT_ID: 'act_999', META_ACCESS_TOKEN: 'meta-token', META_LEAD_FORM_IDS: 'form1', META_PAGE_ACCESS_TOKEN: 'page-token'
 });
 
 const calls = [];
@@ -42,8 +41,6 @@ globalThis.fetch = async (url, options = {}) => {
 };
 
 const analytics = await import('../server/integrations/analytics.js');
-const { verifyWebhookSignature } = await import('../server/integrations/nuvemshop.js');
-const { shopeeSign } = await import('../server/integrations/marketplaces.js');
 
 test('GA4: troca a conta de serviço por token e monta o resumo', async () => {
   const report = await analytics.fetchGa4();
@@ -81,20 +78,4 @@ test('Meta Lead Ads: converte os campos do formulário', async () => {
   assert.equal(lead.name, 'Carlos Lima');
   assert.equal(lead.phone, '+5534988887777');
   assert.equal(lead.externalId, 'L1');
-});
-
-test('webhook da Nuvemshop: aceita só assinatura correta', () => {
-  const body = JSON.stringify({ event: 'order/created', id: 1 });
-  const good = crypto.createHmac('sha256', 'segredo-app').update(body).digest('hex');
-  assert.equal(verifyWebhookSignature(body, good), true);
-  assert.equal(verifyWebhookSignature(body, good.replace(/.$/, '0')), false);
-  assert.equal(verifyWebhookSignature(body, ''), false);
-});
-
-test('Shopee: assinatura determinística no formato da v2', () => {
-  process.env.SHOPEE_PARTNER_ID = '1';
-  const a = shopeeSign('/api/v2/product/add_item', 1700000000);
-  const b = shopeeSign('/api/v2/product/add_item', 1700000000);
-  assert.equal(a.sign, b.sign);
-  assert.match(a.sign, /^[0-9a-f]{64}$/);
 });
