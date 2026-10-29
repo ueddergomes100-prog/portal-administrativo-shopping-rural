@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#123528">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Shopping Rural · Portal</title>
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,500..800&family=IBM+Plex+Mono:wght@400;500&family=Public+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/assets/styles.css">
+  <script type="module" src="/js/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Ir para o conteúdo</a>
+
+  <div id="boot" class="boot" role="status"><span class="spinner" aria-hidden="true"></span><span>Abrindo o portal…</span></div>
+
+  <div id="login" hidden></div>
+
+  <div id="shell" class="shell" hidden>
+    <aside class="sidebar" id="sidebar" aria-label="Navegação principal">
+      <a class="brand-lockup" href="#/inicio">
+        <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="10" fill="currentColor"/><path d="M9 12v17M31 12v17M9 15h22M9 21h22M9 27h22M9 27l22-12" stroke="var(--brinco)" stroke-width="2.6" stroke-linecap="round" fill="none"/></svg>
+        <span><strong>Shopping Rural</strong><small id="envLabel">Portal da operação</small></span>
+      </a>
+      <nav id="nav"></nav>
+      <div class="sidebar-foot">
+        <a href="#/conta" class="user-chip" id="userChip" aria-label="Minha conta"></a>
+        <button type="button" class="nav-link logout" data-action="logout"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg><span>Sair</span></button>
+      </div>
+    </aside>
+    <div class="scrim" id="scrim" aria-hidden="true"></div>
+
+    <div class="main-col">
+      <header class="topbar">
+        <button type="button" class="btn-icon menu-btn" id="menuButton" aria-label="Abrir menu" aria-expanded="false" aria-controls="sidebar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+        <span class="topbar-brand">Shopping Rural</span>
+      </header>
+      <main id="main" tabindex="-1"></main>
+    </div>
+  </div>
+
+  <dialog id="drawer" class="drawer"></dialog>
+  <dialog id="modal" class="modal"></dialog>
+  <dialog id="confirm" class="confirm"></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
