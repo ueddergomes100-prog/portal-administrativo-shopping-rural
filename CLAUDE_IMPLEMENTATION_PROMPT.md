@@ -1,6 +1,6 @@
 # Prompt para Claude — Portal Administrativo Shopping Rural
 
-Você está trabalhando em um portal administrativo já iniciado em `C:\Users\USER\Desktop\Portal Administrativo Shopping Rural`. Preserve o que já existe, melhore a arquitetura sem apagar funcionalidades prontas e faça alterações pequenas, testáveis e documentadas.
+Você está trabalhando em um portal administrativo já iniciado (repositório `portal-administrativo-shopping-rural`; regras atuais e mapa do código em `AGENTS.md`). Preserve o que já existe, melhore a arquitetura sem apagar funcionalidades prontas e faça alterações pequenas, testáveis e documentadas.
 
 ## Objetivo do produto
 
