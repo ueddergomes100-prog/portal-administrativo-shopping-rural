@@ -15,7 +15,7 @@ instantes em ISO 8601 UTC (a interface converte para São Paulo).
 | `leads` | servidor | `name, email, phone, source, campaignId, assigneeId, value, interest, status, notes[], …` |
 | `orders` | servidor (pedidos do site próprio) | ID `site-<id do site>`: `externalId, number, customer{name,email,phone,cpf}, items[{productId,sku,slug,name,brand,image,measure,unitPrice,qty}], delivery{method,label,price,days,address}, payment{method,status,brand,last4,installments,gateway,gatewayId}, totals{subtotal,couponDiscount,pixDiscount,shipping,total,coupon}, status, timeline[{status,at,by?,note?}], trackingCode, channel, createdAt, syncedAt` (mesmo formato do `Order` do site) |
 | `integrations` | servidor | por ID (`uniplus`, `site`, `ga4`, `googleads`, `metaads`, `leads`, `metaleads`): `status, lastSyncAt, lastError, lastErrorAt, itemCount, settings{storeUrl,notes}` |
-| `settings` | servidor (dono) | `channels` = `{ items: [{id,name,percent,fixed,fixedBelow,integration,active,note}] }`. Sem documento, vale `DEFAULT_CHANNELS` |
+| `settings` | servidor | `channels` (dono) = `{ items: [{id,name,percent,fixed,fixedBelow,integration,active,note}] }` — sem documento, vale `DEFAULT_CHANNELS`. `catalog` (automático) = `{ generatedAt, items[...] }`: catálogo do site pronto, refeito quando algo do site muda (`services/catalog.js`) |
 | `metrics` | servidor | por fonte (`ga4`, `googleads`, `metaads`): `{ period, syncedAt, summary[{key,label,value,format}], table{title,columns,rows} }` |
 | `audit` | servidor | `at, actorId, actorName, actorRole, action, entity, entityId, summary, changes{campo:{before,after}}` — nunca editado |
 

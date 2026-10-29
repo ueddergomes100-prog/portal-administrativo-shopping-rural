@@ -11,6 +11,13 @@ fila de publicação → **catálogo do site próprio** (o site lê do portal e 
 campanhas, promoções, pedidos de arte, leads e indicadores de mídia. Interface 100% em pt-BR,
 datas no fuso `America/Sao_Paulo`, moeda BRL.
 
+## Onde roda (decisão da loja, out/2026)
+
+Portal na **nuvem** (Vercel + Firestore + Vercel Blob) em `portal.shoppingrural.com`. Na máquina da loja
+roda só o **conector** do UniPlus (tarefa do Windows). Site em `shoppingrural.com`. Passo a passo em
+`docs/DEPLOY.md`. Cuidado com custo do Firestore: leituras do site passam pelo documento único do
+catálogo; o conector grava só diferenças. Não volte a ler coleções inteiras por visita do site.
+
 ## Como a loja usa o portal (visão do dono)
 
 - **Dono**: vê todo o estoque com preço (e custo, se o UniPlus mandar). Em cada produto clica
@@ -49,8 +56,9 @@ Se o site mudar um campo, ajuste `server/services/store.js`, `SITE_*`/`ORDER_*` 
    escreve no Firestore (regras em `firebase/firestore.rules` bloqueiam tudo).
 5. **Papel vem do banco**, nunca do navegador. Permissões são checadas no servidor.
 6. **Toda ação importante gera auditoria** (`server/audit.js`) com quem, quando, o quê e antes/depois.
-7. **Sem Firebase Storage.** Fotos e artes ficam em `media/` na máquina da loja; o portal guarda só
-   o caminho relativo. `media/`, `data/`, `.env` e chaves de serviço **nunca** vão para o Git.
+7. **Sem Firebase Storage.** Fotos e artes são enviadas pelo portal (`server/files.js`): na nuvem vão
+   para o **Vercel Blob** (URL pública); no modo local, para `media/uploads/`. Caminhos antigos em
+   `media/` continuam aceitos. `media/`, `data/`, `.env` e chaves de serviço **nunca** vão para o Git.
 8. **Segredos só no servidor** (`.env` ou variáveis da Vercel). Nunca no `public/`, nunca no Git.
 9. Publicações em canais (WhatsApp, Instagram…) são **registro operacional**: o portal
    não envia nada automaticamente.
@@ -84,6 +92,7 @@ server/
   audit.js                    histórico imutável com diff antes/depois
   router.js                   TODAS as rotas /api (lista em docs/API.md)
   media.js                    pasta media/: listar, validar caminho, servir fotos do catálogo do site
+  files.js                    envio de fotos/artes: Vercel Blob (nuvem) ou media/uploads (local)
   store/                      armazenamento plugável: json-store.js (local) | firestore-store.js
   services/                   regras de negócio: queue (venda por canal), marketing (campanhas/promoções/
                               artes/leads), settings (canais e taxas), metrics (indicadores),
@@ -92,7 +101,9 @@ server/
   services/store.js           API do site próprio no formato do projeto do site: catálogo, estoque, fotos,
                               pedidos com andamento, avisos -> leads (docs/SITE.md)
   migrations.js               ajustes automáticos de dados antigos na inicialização
-connector/uniplus-sync.js     conector para a máquina da loja quando o portal está na Vercel
+  services/catalog.js         catálogo do site em documento único (1 leitura por consulta, cache 30 s)
+connector/uniplus-sync.js     conector da máquina da loja: envia ao portal só os produtos que mudaram
+scripts/instalar-conector.ps1 instala o conector como tarefa do Windows (liga com o computador)
 public/
   index.html                  casca da aplicação
   assets/styles.css           identidade visual completa (tokens no topo)

@@ -74,9 +74,10 @@ No front do site: `VITE_USE_MOCKS=false`.
 ### `POST /api/catalog/stock-check` (também `/api/store/catalog/stock-check`)
 `{ "items": [{ "productId": "…", "qty": 2 }] }` → `[{ "productId": "…", "requested": 2, "available": 18 }]`
 
-### `GET /api/store/catalog/:slug` → `{ "product": Product }` · `GET /api/store/images/<caminho>` → foto
-As fotos ficam em `media/` na máquina onde o portal roda; o portal só serve as de produtos publicados.
-Para o site exibir, o portal precisa estar acessível na internet (ou um CDN na frente).
+### `GET /api/store/catalog/:slug` → `{ "product": Product }`
+Fotos: enviadas pelo portal ficam no Vercel Blob e `image`/`images` já trazem a URL pública.
+(`GET /api/store/images/<caminho>` só existe para fotos antigas em `media/`, com o portal rodando na loja.)
+O catálogo tem cache de 30 s na CDN — mudança de preço/estoque aparece no site em até ~1 minuto.
 
 ## Pedidos — servidor do site → portal (`Authorization: Bearer <STORE_API_TOKEN>`)
 

@@ -15,14 +15,16 @@ npm start                   # http://localhost:4173
 No primeiro acesso, crie a conta do dono. Sem o UniPlus por perto, use o simulador de
 desenvolvimento: `node scripts/mock-uniplus.js` e `UNIPLUS_API_URL=http://127.0.0.1:3999`.
 
-Na máquina da loja, `iniciar-portal.cmd` instala o que falta e liga o portal.
+O portal roda na nuvem em `portal.shoppingrural.com`; na máquina da loja fica só o conector do
+UniPlus (`iniciar-conector.cmd` para testar, `scripts/instalar-conector.ps1` para deixar ligado).
+Passo a passo completo em [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Documentação
 
 | Arquivo | Conteúdo |
 |---|---|
 | [AGENTS.md](AGENTS.md) | Regras do projeto e mapa do código (leia primeiro) |
-| [docs/DEPLOY.md](docs/DEPLOY.md) | Instalação na loja e publicação na Vercel |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | Implantação: Vercel, Firebase, domínio e conector na loja |
 | [docs/SITE.md](docs/SITE.md) | Como o site próprio se liga ao portal (catálogo, fotos, pedidos, gateway) |
 | [docs/INTEGRACOES.md](docs/INTEGRACOES.md) | Passo a passo de cada integração (UniPlus, site, Google, Meta, leads) |
 | [docs/API.md](docs/API.md) | Todas as rotas da API |

@@ -13,8 +13,8 @@ Contrato com o site em `docs/SITE.md`; contas externas em `docs/INTEGRACOES.md`.
 - Falta o **servidor do site** (lista em `docs/SITE.md`, "O que falta construir"): checkout com gateway
   (Mercado Pago, Pagar.me ou Asaas), webhook, frete, cupons, conta do cliente, e repassar ao portal.
 - Colocar a taxa do gateway em **Canais e taxas → Site próprio**.
-- Fotos: o portal precisa estar acessível na internet para o site exibir `/api/store/images/...`
-  (ou colocar um CDN/cache na frente, ou copiar as fotos publicadas para o armazenamento do site).
+- Fotos: enviadas pelo portal vão para o Vercel Blob (URL pública). Fotos antigas digitadas como
+  caminho de `media/` só aparecem no site se o portal rodar na loja — reenviar pelo portal.
 - Pronto quando: produto publicado no portal aparece no site, uma compra de teste paga aparece em
   Pedidos como "Pago".
 
@@ -39,6 +39,8 @@ Contrato com o site em `docs/SITE.md`; contas externas em `docs/INTEGRACOES.md`.
 - Notificações (e-mail/WhatsApp) quando algo entra em "Sua vez".
 - Tema escuro (tokens já centralizados em `:root`).
 - Paginação/consulta no servidor para `audit`, `leads` e `orders` quando o volume crescer.
-- Catálogo grande no Firestore: a lista de produtos lê a coleção inteira com cache de 60 s
+- Catálogo grande no Firestore: a tela de produtos do portal lê a coleção inteira com cache de 60 s
   (`services/products.js`). Acima de ~5 mil produtos, mover busca para índice dedicado.
+- Catálogo do site em documento único (`settings/catalog`): até ~600 produtos publicados (limite de
+  1 MB do Firestore). Acima disso, dividir em páginas (`catalog-1`, `catalog-2`…).
 - Testes de interface (Playwright) para os fluxos por papel.
