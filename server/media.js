@@ -44,8 +44,11 @@ export function listMedia({ search = '', limit = 300 } = {}) {
 }
 
 export function checkMediaRefs(refs) {
-  if (!mediaAvailable()) return refs.map(ref => ({ ref, exists: null }));
-  return refs.map(ref => ({ ref, exists: fs.existsSync(resolveMedia(ref)) }));
+  return refs.map(ref => {
+    if (/^https:\/\//.test(ref)) return { ref, exists: true, url: ref }; // enviado para a nuvem
+    if (!mediaAvailable()) return { ref, exists: null };
+    return { ref, exists: fs.existsSync(resolveMedia(ref)) };
+  });
 }
 
 export const IMAGE_TYPES = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif' };

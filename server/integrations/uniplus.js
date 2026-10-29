@@ -8,6 +8,7 @@ import { config } from '../config.js';
 import { getStore, C } from '../store/index.js';
 import { setIntegrationState } from '../services/integrations.js';
 import { invalidateProductCache } from '../services/products.js';
+import { touchCatalogProducts } from '../services/catalog.js';
 
 const numberOrNull = value => (value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? null : Number(value));
 
@@ -38,31 +39,71 @@ export async function fetchUniplusCatalog() {
   return rows.map(mapProduct).filter(Boolean);
 }
 
-// Grava o catálogo recebido. Produtos que sumiram do UniPlus não são apagados:
-// ficam marcados como `missingFromUniplus` para o dono decidir.
-export async function saveCatalog(items, source = 'uniplus') {
-  const store = getStore();
-  const at = new Date().toISOString();
-  const incoming = new Set(items.map(i => i.id));
-  const existing = await store.list(C.products);
-  const missing = existing.filter(p => !incoming.has(p.id) && !p.missingFromUniplus)
-    .map(p => ({ id: p.id, missingFromUniplus: true, syncedAt: at }));
-  const docs = items.map(item => ({ ...item, missingFromUniplus: false, syncedAt: at, source }));
-  await store.bulkSet(C.products, [...docs, ...missing]);
-  invalidateProductCache();
-  return { received: items.length, missing: missing.length, at };
+// Campos que vêm do UniPlus. Só grava no banco o produto em que algum deles mudou.
+const FIELDS = ['sku', 'name', 'category', 'basePrice', 'cost', 'stock', 'unit'];
+export const productKey = p => FIELDS.map(f => p[f] ?? '').join('|');
+
+// Compara com a última leitura (Map id -> chave) e devolve só o que mudou.
+export function diffCatalog(previous, items) {
+  return items.filter(item => previous.get(item.id) !== productKey(item));
 }
 
+// Grava o catálogo recebido.
+// - mode 'partial': grava só os itens enviados (o conector já filtrou o que mudou).
+// - mode 'full': compara com o banco, grava só o que mudou e marca como `missingFromUniplus`
+//   o que sumiu do UniPlus (nada é apagado — o dono decide).
+// Se mudou estoque/preço de produto que está no site, o catálogo do site é refeito.
+export async function saveCatalog(items, { mode = 'full', source = 'uniplus' } = {}) {
+  const store = getStore();
+  const at = new Date().toISOString();
+  let changed = items;
+  let missing = [];
+  if (mode === 'full') {
+    const existing = await store.list(C.products);
+    const byId = new Map(existing.map(p => [p.id, p]));
+    const incoming = new Set(items.map(i => i.id));
+    changed = items.filter(item => {
+      const current = byId.get(item.id);
+      return !current || current.missingFromUniplus || productKey(current) !== productKey(item);
+    });
+    missing = existing.filter(p => !incoming.has(p.id) && !p.missingFromUniplus)
+      .map(p => ({ id: p.id, missingFromUniplus: true, syncedAt: at }));
+  }
+  const docs = changed.map(item => ({ ...item, missingFromUniplus: false, syncedAt: at, source }));
+  if (docs.length || missing.length) {
+    await store.bulkSet(C.products, [...docs, ...missing]);
+    invalidateProductCache();
+    await touchCatalogProducts([...docs, ...missing].map(d => d.id));
+  }
+  return { received: items.length, written: docs.length, missing: missing.length, at, mode };
+}
+
+// Estado da integração: grava no máximo a cada 5 min (ou quando algo muda), para poupar escritas.
+let lastStateAt = 0;
+export async function recordUniplusHeartbeat(result, { force = false } = {}) {
+  if (!force && !result.written && !result.missing && Date.now() - lastStateAt < 5 * 60_000) return;
+  lastStateAt = Date.now();
+  await setIntegrationState('uniplus', {
+    status: 'connected', lastSyncAt: result.at, lastError: '',
+    ...(result.mode === 'full' ? { itemCount: result.received, missingCount: result.missing } : {})
+  });
+}
+
+// Sincronização dentro do servidor local: só manda ao banco o que mudou desde a última leitura;
+// a cada UNIPLUS_FULL_SYNC_HOURS faz a conferência completa (inclui produtos que sumiram).
 let running = false;
-export async function syncUniplusOnce() {
+let lastSeen = new Map();
+let lastFullAt = 0;
+export async function syncUniplusOnce({ full = false } = {}) {
   if (running) return { skipped: true };
   running = true;
   try {
     const items = await fetchUniplusCatalog();
-    const result = await saveCatalog(items);
-    await setIntegrationState('uniplus', {
-      status: 'connected', lastSyncAt: result.at, lastError: '', itemCount: items.length, missingCount: result.missing
-    });
+    const doFull = full || !lastFullAt || Date.now() - lastFullAt > config.uniplus.fullSyncHours * 3600_000;
+    const result = doFull ? await saveCatalog(items, { mode: 'full' }) : await saveCatalog(diffCatalog(lastSeen, items), { mode: 'partial' });
+    if (doFull) { lastFullAt = Date.now(); result.received = items.length; }
+    lastSeen = new Map(items.map(i => [i.id, productKey(i)]));
+    await recordUniplusHeartbeat(result, { force: doFull });
     return result;
   } catch (error) {
     await setIntegrationState('uniplus', { status: 'error', lastError: error.message, lastErrorAt: new Date().toISOString() });
@@ -78,7 +119,7 @@ export function startUniplusLoop(log = console) {
     return () => {};
   }
   const tick = () => syncUniplusOnce()
-    .then(r => !r.skipped && log.info?.(`[uniplus] ${r.received} produtos sincronizados (${r.missing} ausentes).`))
+    .then(r => !r.skipped && (r.written || r.missing || r.mode === 'full') && log.info?.(`[uniplus] ${r.mode === 'full' ? 'conferência completa' : 'atualização'}: ${r.written} produto(s) alterado(s), ${r.missing} ausente(s).`))
     .catch(error => log.error?.('[uniplus] falha na sincronização:', error.message));
   tick();
   const timer = setInterval(tick, config.uniplus.syncSeconds * 1000);

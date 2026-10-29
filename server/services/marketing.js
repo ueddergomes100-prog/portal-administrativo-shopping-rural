@@ -251,7 +251,7 @@ export async function setArtFile(user, id, fileRef) {
   const store = getStore();
   const current = await store.get(C.arts, id);
   if (!current) throw notFound();
-  const ref = clean.mediaRef(fileRef);
+  const ref = clean.fileRef(fileRef);
   const saved = await store.update(C.arts, id, { fileRef: ref, updatedAt: now(), updatedBy: user.id });
   await audit(user, { action: 'arts.file', entity: 'arts', entityId: id, summary: `Arquivo da arte "${current.title}": ${ref || '(removido)'}`, before: { fileRef: current.fileRef }, after: { fileRef: ref } });
   return decorate('arts', saved, user);

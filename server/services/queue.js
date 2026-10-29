@@ -9,6 +9,7 @@ import { getProduct, invalidateProductCache, seesCost } from './products.js';
 import { getChannels } from './settings.js';
 import { checkMediaRefs } from '../media.js';
 import { config } from '../config.js';
+import { siteProductUrl, touchCatalog } from './catalog.js';
 import {
   QUEUE_STAGES, QUEUE_TRANSITIONS, PRIORITIES, availableTransitions, findTransition, roleMatches, canApprove, channelFees, marginOf, slugify,
   SITE_CATEGORIES, SITE_PETS, SITE_UNITS, SITE_TAGS
@@ -160,6 +161,7 @@ export async function updatePricing(user, id, input) {
   let saved = await store.update(C.queue, id, patch);
   saved = await settleStage(store, saved, user);
   invalidateProductCache();
+  await touchCatalog(item, saved);
   await audit(user, { action: 'queue.pricing', entity: 'queue', entityId: id, summary: `Atualizou canais e preços de ${item.productSnapshot.name}`, before: item, after: saved });
   return decorate(saved, user);
 }
@@ -171,7 +173,7 @@ export async function updateContent(user, id, input) {
   if (!item) throw notFound('Item da fila não encontrado.');
   if (user.role !== 'site') throw forbidden('O conteúdo é preparado pelo responsável do site.');
   if (!['selected', 'preparing'].includes(item.stage)) throw badRequest('O conteúdo só pode ser editado em "Selecionado" ou "Em preparação".');
-  const imageRefs = clean.ids(input.imageRefs ?? item.content.imageRefs, { label: 'Imagens', max: 10 }).map(clean.mediaRef).filter(Boolean);
+  const imageRefs = clean.ids(input.imageRefs ?? item.content.imageRefs, { label: 'Imagens', max: 10 }).map(ref => clean.fileRef(ref)).filter(Boolean);
   const content = {
     title: clean.text(input.title ?? item.content.title, { max: 160, label: 'Título' }),
     description: clean.text(input.description ?? item.content.description, { max: 20000, label: 'Descrição' }),
@@ -185,6 +187,7 @@ export async function updateContent(user, id, input) {
   const patch = { content, updatedAt: now(), updatedBy: user.id };
   if (item.stage === 'selected') patch.stage = 'preparing';
   const saved = await store.update(C.queue, id, patch);
+  await touchCatalog(item, saved);
   await audit(user, { action: 'queue.content', entity: 'queue', entityId: id, summary: `Atualizou conteúdo de ${item.productSnapshot.name}`, before: item, after: saved });
   return decorate(saved, user);
 }
@@ -269,6 +272,7 @@ export async function transitionQueue(user, id, { to, note }) {
   let saved = await store.update(C.queue, id, patch);
   if (to === 'approved') saved = await settleStage(store, saved, user);
   invalidateProductCache();
+  await touchCatalog(item, saved);
   await audit(user, {
     action: 'queue.stage', entity: 'queue', entityId: id,
     summary: `${item.productSnapshot.name}: ${QUEUE_STAGES[item.stage].label} → ${QUEUE_STAGES[to].label}${cleanNote ? ` (${cleanNote})` : ''}`,
@@ -313,10 +317,6 @@ async function uniqueSlug(store, item) {
   return slug;
 }
 
-export function siteProductUrl(slug) {
-  if (!config.store.publicUrl) return '';
-  return config.store.publicUrl + config.store.productPath.replace('{slug}', encodeURIComponent(slug));
-}
 
 // Site próprio: coloca o produto no catálogo lido pelo site (GET /api/store/catalog).
 export async function publishToSite(user, id) {
@@ -329,6 +329,7 @@ export async function publishToSite(user, id) {
   let saved = await store.update(C.queue, id, { slug, listings: { ...item.listings, site: listing }, updatedAt: now(), updatedBy: user.id });
   saved = await settleStage(store, saved, user);
   invalidateProductCache();
+  await touchCatalog(saved);
   await audit(user, { action: 'queue.publish_site', entity: 'queue', entityId: id, summary: `Publicou ${item.productSnapshot.name} no site (/${slug})` });
   return decorate(saved, user);
 }
@@ -358,6 +359,7 @@ export async function removeListing(user, id, channelId) {
   let saved = await store.update(C.queue, id, { listings: { ...item.listings, [channelId]: listing }, updatedAt: now(), updatedBy: user.id });
   saved = await settleStage(store, saved, user);
   invalidateProductCache();
+  await touchCatalog(item);
   await audit(user, {
     action: 'queue.listing_removed', entity: 'queue', entityId: id,
     summary: channel.integration === 'site' ? `Tirou ${item.productSnapshot.name} do site` : `Desfez o registro de ${item.productSnapshot.name} em ${channel.name}`

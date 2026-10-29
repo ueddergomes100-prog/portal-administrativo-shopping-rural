@@ -20,10 +20,13 @@ import { listMetrics, syncMetrics } from './services/metrics.js';
 import { receiveLead, importMetaLeads } from './services/leads-inbound.js';
 import { listIntegrations, updateIntegrationSettings } from './services/integrations.js';
 import { dashboard } from './services/dashboard.js';
-import { syncUniplusOnce, saveCatalog, mapProduct } from './integrations/uniplus.js';
+import { syncUniplusOnce, saveCatalog, mapProduct, recordUniplusHeartbeat } from './integrations/uniplus.js';
 import { listMedia, mediaAvailable } from './media.js';
+import { saveUpload, storageDriver } from './files.js';
 
 const ENTITY = '(campaigns|promotions|arts|leads)';
+// Catálogo: a CDN da Vercel guarda por 30 s e serve a versão anterior enquanto atualiza.
+const CATALOG_CACHE = 'public, max-age=0, s-maxage=30, stale-while-revalidate=300';
 
 // [método, padrão, handler, opções]. `:nome` vira parâmetro.
 // auth: 'user' (padrão) | 'public' | 'connector' | 'leads' (LEADS_WEBHOOK_TOKEN) | 'store' (STORE_API_TOKEN).
@@ -33,6 +36,7 @@ const routes = [
     backend: config.backend,
     needsSetup: await needsSetup(),
     mediaAvailable: mediaAvailable(),
+    storage: storageDriver(),
     firebase: config.backend === 'firestore' ? config.firebase.web : null
   }), { auth: 'public' }],
 
@@ -53,14 +57,18 @@ const routes = [
   ['POST', '/api/products/sync', async ({ user }) => {
     requireRole(user, ['owner', 'manager']);
     if (config.isVercel) throw badRequest('A sincronização roda na máquina da loja (npm run connector). Aqui só mostramos o último resultado.');
-    const result = await syncUniplusOnce();
+    const result = await syncUniplusOnce({ full: true });
     await audit(user, { action: 'products.sync', entity: 'products', summary: `Sincronização manual do UniPlus: ${result.received ?? 0} produtos` });
     return result;
   }],
   ['POST', '/api/connector/uniplus/catalog', async ({ body }) => {
+    // { items, mode: 'partial' | 'full' } — o conector envia só o que mudou; lista vazia = sinal de vida.
     const items = Array.isArray(body.items) ? body.items.map(i => (i.basePrice !== undefined ? i : mapProduct(i))).filter(Boolean) : null;
     if (!items) throw badRequest('Envie { items: [...] }.');
-    return saveCatalog(items, 'connector');
+    const mode = body.mode === 'partial' ? 'partial' : 'full';
+    const result = await saveCatalog(items, { mode, source: 'connector' });
+    await recordUniplusHeartbeat(result, { force: mode === 'full' });
+    return result;
   }, { auth: 'connector' }],
 
   // Fila de publicação
@@ -76,9 +84,9 @@ const routes = [
 
   // API do site próprio (contrato em docs/SITE.md) — mesmos formatos do projeto do site.
   // Catálogo: leitura pública (também em /api/catalog, o caminho que o site já usa).
-  ['GET', '/api/store/catalog', () => listCatalog(), { auth: 'public', cors: true }],
-  ['GET', '/api/catalog', () => listCatalog(), { auth: 'public', cors: true }],
-  ['GET', '/api/store/catalog/:slug', async ({ params }) => ({ product: await getCatalogItem(params.slug) }), { auth: 'public', cors: true }],
+  ['GET', '/api/store/catalog', () => listCatalog(), { auth: 'public', cors: true, cache: CATALOG_CACHE }],
+  ['GET', '/api/catalog', () => listCatalog(), { auth: 'public', cors: true, cache: CATALOG_CACHE }],
+  ['GET', '/api/store/catalog/:slug', async ({ params }) => ({ product: await getCatalogItem(params.slug) }), { auth: 'public', cors: true, cache: CATALOG_CACHE }],
   ['POST', '/api/store/catalog/stock-check', ({ body }) => stockCheck(body), { auth: 'public', cors: true }],
   ['POST', '/api/catalog/stock-check', ({ body }) => stockCheck(body), { auth: 'public', cors: true }],
   ['GET', '/api/store/images/:ref(.+)', async ({ params }) => ({ __file: await siteImage(params.ref) }), { auth: 'public', cors: true }],
@@ -129,6 +137,11 @@ const routes = [
 
   // Arquivos locais (somente no servidor da loja)
   ['GET', '/api/media', ({ query }) => listMedia({ search: query.search })],
+  // Envio de fotos de produto e arquivos de arte (nuvem ou media/uploads, conforme STORAGE_DRIVER)
+  ['POST', '/api/uploads', async ({ user, body }) => {
+    requireRole(user, ['owner', 'manager', 'marketing', 'site']);
+    return { file: await saveUpload(body) };
+  }, { bodyLimit: 5_000_000 }],
 
   // Arte: referência do arquivo local
   ['PATCH', '/api/arts/:id/file', async ({ user, params, body }) => ({ record: await setArtFile(user, params.id, body.fileRef) })],
@@ -146,7 +159,7 @@ const routes = [
 // Compila "/api/:entity(a|b)/:id" em regex com grupos nomeados.
 const compiled = routes.map(([method, pattern, handler, options = {}]) => {
   const source = pattern.replace(/:(\w+)(\([^)]+\))?/g, (_, name, group) => `(?<${name}>${group ? group.slice(1, -1) : '[^/]+'})`);
-  return { method, regex: new RegExp(`^${source}/?$`), handler, auth: options.auth || 'user', cors: !!options.cors };
+  return { method, regex: new RegExp(`^${source}/?$`), handler, auth: options.auth || 'user', cors: !!options.cors, bodyLimit: options.bodyLimit, cache: options.cache };
 });
 
 // Token de ferramentas externas: cabeçalho Authorization: Bearer <token> (ou ?token=<token> para leads).
@@ -184,14 +197,14 @@ export async function handleApi(req, res, pathname, searchParams) {
     if (route.auth === 'connector') user = authenticateConnector(req);
     if (route.auth === 'leads') checkToken(req, query, config.leadsWebhookToken, 'LEADS_WEBHOOK_TOKEN');
     if (route.auth === 'store') checkToken(req, {}, config.store.apiToken, 'STORE_API_TOKEN');
-    const body = ['POST', 'PATCH', 'PUT'].includes(req.method) ? await readJsonBody(req) : {};
+    const body = ['POST', 'PATCH', 'PUT'].includes(req.method) ? await readJsonBody(req, route.bodyLimit) : {};
     const result = await route.handler({ req, params, query, body, user });
     if (result?.__file) {
       // Imagem do catálogo: cache de 1 h no navegador/CDN do site.
       res.writeHead(200, { ...extraHeaders, 'Content-Type': result.__file.type, 'Cache-Control': 'public, max-age=3600', 'X-Content-Type-Options': 'nosniff' });
       return void fs.createReadStream(result.__file.full).pipe(res);
     }
-    sendJson(res, 200, result ?? { ok: true }, extraHeaders);
+    sendJson(res, 200, result ?? { ok: true }, route.cache ? { ...extraHeaders, 'Cache-Control': route.cache } : extraHeaders);
   } catch (error) {
     const status = error.status && error.status >= 400 && error.status < 600 ? error.status : 500;
     if (status >= 500) console.error('[api]', req.method, pathname, error);

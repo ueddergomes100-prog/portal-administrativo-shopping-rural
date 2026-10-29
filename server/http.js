@@ -101,6 +101,15 @@ export const clean = {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text) || text.length > 200) throw badRequest('Informe um e-mail válido.');
     return text;
   },
+  // Arquivo enviado pelo portal (URL https do armazenamento) ou caminho dentro de media/.
+  fileRef(value) {
+    const text = String(value ?? '').trim();
+    if (/^https:\/\/\S+$/.test(text)) {
+      if (text.length > 600) throw badRequest('Endereço do arquivo longo demais.');
+      return text;
+    }
+    return clean.mediaRef(text);
+  },
   // Caminho relativo dentro de media/. Bloqueia ../ e caminhos absolutos.
   mediaRef(value) {
     const text = String(value ?? '').trim().replaceAll('\\', '/');

@@ -54,9 +54,17 @@ export const config = {
 
   uniplus: {
     apiUrl: env('UNIPLUS_API_URL'),
-    syncSeconds: num('UNIPLUS_SYNC_SECONDS', 300),
+    syncSeconds: num('UNIPLUS_SYNC_SECONDS', 60),
+    // Conferência completa (inclui produtos que sumiram do UniPlus) a cada N horas.
+    fullSyncHours: num('UNIPLUS_FULL_SYNC_HOURS', 6),
     // Liga a sincronização dentro do servidor local. Na Vercel, use `npm run connector` na máquina da loja.
     autoSync: env('UNIPLUS_AUTO_SYNC', 'true') !== 'false'
+  },
+
+  // Arquivos enviados pelo portal: 'auto' usa Vercel Blob se houver token, senão a pasta media/.
+  storage: {
+    driver: env('STORAGE_DRIVER', 'auto'),
+    blobToken: env('BLOB_READ_WRITE_TOKEN')
   },
 
   // Site próprio da loja: lê o catálogo publicado pelo portal e devolve os pedidos.

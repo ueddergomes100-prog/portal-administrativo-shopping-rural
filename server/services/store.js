@@ -12,72 +12,25 @@ import { audit } from '../audit.js';
 import { badRequest, notFound, forbidden, clean } from '../http.js';
 import { imageFile } from '../media.js';
 import { setIntegrationState } from './integrations.js';
-import { siteProductUrl } from './queue.js';
+import { catalogSnapshot, toSiteProduct } from './catalog.js';
 import { receiveLead } from './leads-inbound.js';
 import {
-  currentPrice, todayInSaoPaulo, ORDER_STATUS, ORDER_TRANSITIONS, PAYMENT_STATUS, PAYMENT_METHODS, DELIVERY_METHODS,
+  todayInSaoPaulo, ORDER_STATUS, ORDER_TRANSITIONS, PAYMENT_STATUS, PAYMENT_METHODS, DELIVERY_METHODS,
   findTransition, roleMatches, availableTransitions
 } from '../../public/shared/domain.js';
 
 const SYSTEM = { id: 'site', name: 'Site próprio', role: 'system' };
 const now = () => new Date().toISOString();
 
-const imageUrl = ref => `${config.store.portalPublicUrl || ''}/api/store/images/${ref.split('/').map(encodeURIComponent).join('/')}`;
-
-async function publishedItems() {
-  const [queue, products] = await Promise.all([getStore().list(C.queue), getStore().list(C.products)]);
-  const stock = new Map(products.map(p => [p.id, p]));
-  return queue
-    .filter(i => i.listings?.site?.status === 'done' && !['blocked', 'archived'].includes(i.stage) && i.slug)
-    .map(i => ({ item: i, product: stock.get(i.productId) }));
-}
-
-// Produto no formato `Product` do site.
-function toSiteProduct({ item, product }, today) {
-  const site = item.channels.find(c => c.id === 'site');
-  const price = currentPrice(site, item.promoStart, item.promoEnd, today);
-  const c = item.content || {};
-  const promoOn = price.promoPrice !== null;
-  const images = (c.imageRefs || []).map(imageUrl);
-  const out = {
-    id: item.id,
-    sku: item.productSnapshot.sku,
-    slug: item.slug,
-    name: c.title || item.productSnapshot.name,
-    brand: c.brand || '',
-    category: c.siteCategory || '',
-    pet: c.pet || 'ambos',
-    // Na promoção, o site cobra `price` e mostra `compareAt` riscado.
-    price: promoOn ? price.promoPrice : price.price,
-    measure: { value: c.measureValue || 1, unit: c.measureUnit || 'un' },
-    image: images[0] || '',
-    stock: product && !product.missingFromUniplus ? Math.max(0, Math.floor(product.stock || 0)) : 0,
-    short: c.short || '',
-    description: c.description || '',
-    specs: c.specs || []
-  };
-  if (promoOn) out.compareAt = price.price;
-  if (c.weightKg) out.weightKg = c.weightKg;
-  const tag = c.tag || (promoOn ? 'Oferta' : '');
-  if (tag) out.tag = tag;
-  // Extras que o site pode usar (o tipo do site ignora o que não conhece).
-  out.images = images;
-  out.promoEnds = price.promoEnds;
-  out.seo = { title: c.seoTitle || out.name, description: c.seoDescription || out.short };
-  out.url = siteProductUrl(item.slug);
-  out.updatedAt = item.updatedAt;
-  return out;
-}
-
 export async function listCatalog() {
   const today = todayInSaoPaulo();
-  const products = (await publishedItems()).map(x => toSiteProduct(x, today));
+  const products = (await catalogSnapshot()).items.map(e => toSiteProduct(e, today));
   products.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   return { products };
 }
 
 export async function getCatalogItem(slug) {
-  const found = (await publishedItems()).find(x => x.item.slug === slug);
+  const found = (await catalogSnapshot()).items.find(e => e.slug === slug);
   if (!found) throw notFound('Produto não encontrado ou fora do ar.');
   return toSiteProduct(found, todayInSaoPaulo());
 }
@@ -85,18 +38,18 @@ export async function getCatalogItem(slug) {
 // POST /api/catalog/stock-check  { items: [{ productId, qty }] } -> [{ productId, requested, available }]
 export async function stockCheck(input) {
   const items = Array.isArray(input.items) ? input.items.slice(0, 200) : [];
-  const byId = new Map((await publishedItems()).map(x => [x.item.id, x]));
-  return items.map(({ productId, qty }) => {
-    const found = byId.get(String(productId));
-    const available = found?.product && !found.product.missingFromUniplus ? Math.max(0, Math.floor(found.product.stock || 0)) : 0;
-    return { productId: String(productId), requested: Math.max(0, Math.floor(Number(qty) || 0)), available };
-  });
+  const byId = new Map((await catalogSnapshot()).items.map(e => [e.id, e]));
+  return items.map(({ productId, qty }) => ({
+    productId: String(productId),
+    requested: Math.max(0, Math.floor(Number(qty) || 0)),
+    available: byId.get(String(productId))?.stock ?? 0
+  }));
 }
 
-// Só serve fotos que pertencem a um produto publicado no site (nada mais de media/ fica exposto).
+// Só serve fotos (em media/) que pertencem a um produto publicado no site.
 export async function siteImage(ref) {
   const wanted = String(ref || '');
-  const allowed = (await publishedItems()).some(x => (x.item.content?.imageRefs || []).includes(wanted));
+  const allowed = (await catalogSnapshot()).items.some(e => e.imageRefs.includes(wanted));
   if (!allowed) throw notFound('Imagem não encontrada.');
   const file = imageFile(wanted);
   if (!file) throw notFound('Imagem não encontrada no servidor da loja.');

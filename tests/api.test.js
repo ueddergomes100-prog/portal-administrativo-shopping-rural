@@ -36,7 +36,7 @@ const server = spawn(process.execPath, ['server.js'], {
     ...process.env, DATA_BACKEND: 'local', PORT: String(port), HOST: '127.0.0.1', DATA_DIR: dataDir, MEDIA_DIR: mediaDir,
     UNIPLUS_API_URL: `http://127.0.0.1:${mock.address().port}`, UNIPLUS_SYNC_SECONDS: '3600',
     SESSION_SECRET: 'segredo-de-teste', LEADS_WEBHOOK_TOKEN: 'token-leads-teste', METRICS_SYNC_HOURS: '0',
-    STORE_API_TOKEN: 'token-loja-teste', STORE_PUBLIC_URL: 'https://loja.teste', PORTAL_PUBLIC_URL: 'https://portal.teste'
+    STORE_API_TOKEN: 'token-loja-teste', CONNECTOR_TOKEN: 'token-conector-teste', STORAGE_DRIVER: 'local', STORE_PUBLIC_URL: 'https://loja.teste', PORTAL_PUBLIC_URL: 'https://portal.teste'
   },
   stdio: 'pipe'
 });
@@ -101,6 +101,15 @@ test('fluxo completo da fila no modo local', async () => {
   await call('POST', `/queue/${id}/transition`, { to: 'preparing' }, site);
   assert.equal((await call('POST', `/queue/${id}/transition`, { to: 'review' }, site)).status, 400);
 
+  // Envio de foto pelo portal (modo local grava em media/uploads/).
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const upload = await call('POST', '/uploads', { kind: 'product', filename: 'Foto Nova.png', contentType: 'image/png', data: png }, site);
+  assert.equal(upload.status, 200);
+  assert.match(upload.body.file.ref, /^uploads\/produtos\/\d{4}-\d{2}\/[0-9a-f]{8}-foto-nova\.png$/);
+  assert.equal((await call('POST', '/uploads', { kind: 'product', filename: 'x.exe', contentType: 'application/x-msdownload', data: png }, site)).status, 400);
+  // Endereço https (arquivo na nuvem) é aceito como foto.
+  assert.equal((await call('PATCH', `/queue/${id}/content`, { imageRefs: ['https://exemplo.public.blob.vercel-storage.com/a.webp'] }, site)).status, 200);
+
   // Caminho de imagem fora de media/ é recusado.
   assert.equal((await call('PATCH', `/queue/${id}/content`, { imageRefs: ['../segredo.jpg'] }, site)).status, 400);
   const content = await call('PATCH', `/queue/${id}/content`, {
@@ -163,6 +172,20 @@ test('fluxo completo da fila no modo local', async () => {
   assert.equal(image.status, 200);
   assert.equal(image.headers.get('content-type'), 'image/jpeg');
   assert.equal((await fetch(base + '/api/store/images/produtos/outra.jpg')).status, 404);
+
+  // Conector da loja: manda só o que mudou; estoque de produto publicado vai para o catálogo do site.
+  const connector = (body, token = 'token-conector-teste') => fetch(base + '/api/connector/uniplus/catalog', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify(body) });
+  assert.equal((await connector({ items: [] }, 'token-errado-do-conector-x')).status, 401);
+  const partial = await (await connector({ mode: 'partial', items: [{ id_produto: 1, sku: 'T-1', nome_produto: 'Produto de teste A', nome_categoria: 'Teste', preco: 100, preco_custo: 60, estoque: 3 }] })).json();
+  assert.equal(partial.written, 1);
+  assert.equal((await call('GET', '/catalog')).body.products[0].stock, 3);
+  // Conferência completa com os mesmos dados não regrava nada.
+  const full = await (await connector({ mode: 'full', items: [
+    { id_produto: 1, sku: 'T-1', nome_produto: 'Produto de teste A', nome_categoria: 'Teste', preco: 100, preco_custo: 60, estoque: 3 },
+    { id_produto: 2, sku: 'T-2', nome_produto: 'Produto de teste B', nome_categoria: 'Teste', preco: 50, estoque: 0 }
+  ] })).json();
+  assert.equal(full.written, 0);
+  assert.equal(full.missing, 0);
 
   // Novo preço: o site lê na hora; a Shopee fica marcada para atualizar o anúncio.
   await call('PATCH', `/queue/${id}/pricing`, { channels: [{ id: 'site', price: 95, promoPrice: 80 }, { id: 'shopee', price: 120 }] }, owner);
