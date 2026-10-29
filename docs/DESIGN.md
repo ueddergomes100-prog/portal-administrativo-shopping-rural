@@ -38,6 +38,12 @@ O amarelo-brinco é usado **com parcimônia**: foco do teclado, item ativo da na
 `openDrawer` (ficha lateral, abre por rota `#/area/id`), `openModal` (formulários), `confirmDialog`
 (com observação opcional/obrigatória), `toast`, `empty`, `notice`, `.board` (quadros), `.trail`.
 
+## Calculadora de preço por canal (`views/pricing.js`)
+
+Tabela com uma linha por canal: marcar o canal, preço de venda, taxa (vermelho), **líquido** (destaque)
+e lucro/margem (verde; vermelho se prejuízo), e o mesmo para o preço promocional. Recalcula a cada
+tecla usando `channelFees`/`marginOf` de `shared/domain.js` — o servidor usa as mesmas funções.
+
 ## Regras
 
 - Alvos de toque ≥ 44 px; foco visível sempre (anel amarelo).

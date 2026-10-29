@@ -1,6 +1,18 @@
 # Roteiro — próximas etapas
 
 Ordem sugerida. Cada item diz onde mexer e o que significa "pronto".
+Passo a passo de cada conta em `docs/INTEGRACOES.md`.
+
+## 0. Conectar as contas e validar ao vivo
+- Preencher o `.env` da máquina da loja com UniPlus, Nuvemshop, GA4, Google Ads, Meta e `LEADS_WEBHOOK_TOKEN`.
+- Em Integrações, cada uma deve ficar "Conectado". Em Indicadores, "Buscar dados agora".
+- Se algum provedor responder diferente do simulado em `tests/integrations.test.js`, ajustar o mapeamento.
+
+## 0.1 Criação automática de anúncios na Shopee e no Mercado Livre
+- Onde: `server/integrations/marketplaces.js` → `publishToMarketplace()`.
+- Hoje a equipe anuncia no painel e registra o link na fila. Ligar exige coletar no portal:
+  categoria do marketplace, atributos obrigatórios, peso/dimensões e fotos (ver INTEGRACOES.md).
+- Pronto quando: "Publicar" na ficha cria o anúncio e grava `externalId` e `url`.
 
 ## 1. Validar a Nuvemshop com a loja real (prioridade alta)
 - Onde: `server/integrations/nuvemshop.js`.
@@ -18,15 +30,14 @@ Ordem sugerida. Cada item diz onde mexer e o que significa "pronto".
 - Promoções aprovadas (`promotions`) → aplicar `promotional_price` nas datas (tarefa agendada).
 
 ## 3. Pedidos em tempo real
-- Webhook `order/created` e `order/updated` da Nuvemshop → nova rota pública assinada
-  (validar HMAC) que grava em `orders`.
+- Pronto: rota `/api/webhooks/nuvemshop` com HMAC. Falta cadastrar os webhooks na loja.
+- Próximo: pedidos de Shopee e Mercado Livre na mesma tela (coluna "canal").
 
-## 4. Indicadores de mídia (GA4, Google Ads, Meta Ads)
-- Hoje: só estado e variáveis faltando (`server/services/integrations.js`, tela `media-metrics.js`).
-- GA4: Data API (`runReport`) com conta de serviço. Ads: Google Ads API (GAQL). Meta: Marketing API
-  (`/act_{id}/insights`). Criar `server/integrations/{ga4,googleads,metaads}.js`, gravar resumo
-  diário em uma coleção `metrics` e mostrar na tela. Marcar `IMPLEMENTED` em integrations.js.
-- Leads do Meta (Lead Ads) → `leads` com `source: 'Meta Ads'`.
+## 4. Indicadores de mídia — evolução
+- Pronto: resumo dos últimos 30 dias por fonte (`server/integrations/analytics.js`).
+- Próximo: série diária para gráfico, comparação com o período anterior, filtro de período,
+  ligação campanha do portal ↔ campanha do Google/Meta (pelo nome ou UTM) para ver custo por campanha.
+- Cron na Vercel (`/api/cron/metrics` com `CRON_SECRET`).
 
 ## 5. Imagens com o portal na Vercel
 - O conector local (`connector/uniplus-sync.js`) pode também processar uma fila de "publicar imagens"

@@ -40,12 +40,30 @@ Fonte: `server/router.js`. Regras: `server/services/*`. Papéis: `owner`, `manag
 | Método | Rota | Quem | O que faz |
 |---|---|---|---|
 | GET | `/queue?stage` | todos | itens com `transitions` e `can` calculados para quem pede |
-| POST | `/queue` | aprovador | seleciona produto: `{productId, priceMode:'erp'|'custom', sitePrice?, promoPrice?, promoStart?, promoEnd?, priority, notes, campaignId}` |
+| POST | `/queue` | aprovador | coloca à venda: `{productId, channels:[{id, price, promoPrice?}], promoStart?, promoEnd?, priority, notes, campaignId}` — servidor calcula `fee`, `net`, `margin` por canal |
 | GET | `/queue/:id` | todos | item + `mediaCheck` (fotos existem em media/?) |
-| PATCH | `/queue/:id/pricing` | aprovador | mesmos campos de preço/prioridade/campanha |
+| PATCH | `/queue/:id/pricing` | aprovador | mesmos campos (canais, preços, prioridade, campanha) |
 | PATCH | `/queue/:id/content` | site | `{title, description, seoTitle, seoDescription, category, imageRefs[], siteNotes}` — muda "Selecionado" para "Em preparação" |
 | POST | `/queue/:id/transition` | conforme `QUEUE_TRANSITIONS` | `{to, note?}` — "review" exige título, descrição ≥ 30 e foto; ajustes/bloqueio exigem `note` |
-| POST | `/queue/:id/publish` | site, dono | publica na Nuvemshop. Sem credenciais: 400 com `details.code = NOT_CONFIGURED` |
+| POST | `/queue/:id/publish` | site, dono | `{channel}` publica pela API do canal. Sem integração: 400 com `details.code` `NOT_CONFIGURED`/`NOT_IMPLEMENTED` |
+| POST | `/queue/:id/listings/:channel` | site, dono | registra anúncio feito à mão: `{url (https), externalId?, note?}` (não vale para o site/Nuvemshop) |
+
+## Canais e taxas
+
+| Método | Rota | Quem | O que faz |
+|---|---|---|---|
+| GET | `/settings/channels` | todos | canais com `percent`, `fixed`, `fixedBelow`, `integration`, `active` |
+| PUT | `/settings/channels` | dono | `{items:[...]}` substitui a tabela (auditado) |
+
+## Indicadores e entrada de leads
+
+| Método | Rota | Quem | O que faz |
+|---|---|---|---|
+| GET | `/metrics` | todos | último resumo guardado de `ga4`, `googleads`, `metaads` |
+| POST | `/metrics/:source/sync` | dono, gerente, marketing | busca agora no provedor |
+| POST | `/leads/inbound` | ferramentas (`LEADS_WEBHOOK_TOKEN`) | cria lead ou comenta no existente (mesmo telefone/e-mail) |
+| POST | `/leads/import-meta` | dono, gerente, marketing | importa leads dos formulários do Meta |
+| POST | `/webhooks/nuvemshop` | Nuvemshop (assinatura HMAC) | atualiza pedido em `orders` |
 
 ## Campanhas, promoções, artes, leads
 
@@ -64,7 +82,8 @@ Fonte: `server/router.js`. Regras: `server/services/*`. Papéis: `owner`, `manag
 
 Campos principais:
 - **campaigns**: `name, objective, description, start, end, channels[], budget, ownerId, productIds[]` (+ `products[]` com nome/SKU guardados)
-- **promotions**: `name, description, start, end, campaignId, items[{productId, promoPrice}]` (preço normal vem do UniPlus)
+- **promotions**: `name, description, start, end, campaignId, channels[], items[{productId, promoPrice}]` (preço normal vem do UniPlus)
+- **campaigns/promotions (criação)**: `art: {requested: true, title?, format, deadline, priority, assigneeId, briefing}` cria o pedido de arte ligado; a resposta traz `createdArtId`
 - **arts**: `title, originType ('campaign'|'promotion'|'product'), originId, briefing, format, deadline, priority, assigneeId`
 - **leads**: `name, email, phone, source, campaignId, assigneeId, value, interest, status`
 

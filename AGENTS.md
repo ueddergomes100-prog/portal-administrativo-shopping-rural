@@ -10,12 +10,30 @@ catálogo e estoque do **UniPlus** → fila de publicação de produtos na **Nuv
 campanhas, promoções, pedidos de arte, leads e indicadores de mídia. Interface 100% em pt-BR,
 datas no fuso `America/Sao_Paulo`, moeda BRL.
 
+## Como a loja usa o portal (visão do dono)
+
+- **Dono**: vê todo o estoque com preço (e custo, se o UniPlus mandar). Em cada produto clica
+  **Colocar à venda** e um pop-up mostra os canais (Site/Nuvemshop, Shopee, Mercado Livre…). Para
+  cada canal ele digita o preço e o portal já desconta a taxa do canal e mostra o **valor líquido**
+  e o **lucro** (ex.: Shopee 20% + R$ 6; Mercado Livre 17%). As taxas ficam em **Canais e taxas**.
+- **Gerente** (ou dono): pede **promoção** de um produto — preço normal vem do UniPlus, ele
+  informa o promocional, as datas, os canais, e no mesmo formulário **pede a arte** com o briefing.
+  O marketing recebe o pedido já ligado à promoção e vê quem pediu.
+- **Campanhas** são planejadas com antecedência ("daqui 2 semanas", "daqui 1 mês") e aparecem na
+  **Agenda** junto com promoções e prazos de arte. Campanha também pode pedir arte junto.
+- **Site**: prepara foto/descrição/SEO dos produtos escolhidos, envia para aprovação e publica em cada
+  canal depois de aprovado (Nuvemshop automático; Shopee/ML registrados à mão até a API ser ligada).
+- **Marketing**: cria as artes, indica o arquivo em `media/`, entrega para aprovação e registra onde
+  publicou. Acompanha indicadores (GA4, Google Ads, Meta) e leads.
+- Tudo amarrado: produto ↔ fila de venda ↔ promoção ↔ campanha ↔ arte ↔ leads.
+
 ## Regras que não podem ser quebradas
 
 1. **UniPlus é a fonte** de SKU, estoque e preço-base. O portal nunca edita esses campos;
    só o conector (`server/integrations/uniplus.js`) grava em `products`.
-2. **Nada é publicado de mentira.** "Publicado na Nuvemshop" só depois da resposta de sucesso da
-   API. Sem credenciais → erro claro, item continua "Aprovado", tentativa registrada.
+2. **Nada é publicado de mentira.** Um canal só fica "Publicado" com resposta de sucesso da API ou
+   com registro manual explícito (link/código + quem registrou). Sem credenciais → erro claro, item
+   continua "Aprovado", tentativa registrada. O item só vira "Publicado" quando TODOS os canais estão.
 3. **Sem dados fictícios** em telas que se dizem conectadas. Sem integração → estado vazio
    explicando o que configurar. (O único dado fictício é `scripts/mock-uniplus.js`, só para dev.)
 4. **Toda escrita passa pela API** (`server/router.js` → `server/services/*`). O navegador nunca
@@ -58,18 +76,22 @@ server/
   router.js                   TODAS as rotas /api (lista em docs/API.md)
   media.js                    pasta media/: listar, validar caminho, ler imagem p/ Nuvemshop
   store/                      armazenamento plugável: json-store.js (local) | firestore-store.js
-  services/                   regras de negócio: queue, marketing (campanhas/promoções/artes/leads),
-                              products, users, orders, integrations, dashboard
-  integrations/               uniplus.js (sincronização), nuvemshop.js (publicação e pedidos)
+  services/                   regras de negócio: queue (venda por canal), marketing (campanhas/promoções/
+                              artes/leads), settings (canais e taxas), metrics (indicadores),
+                              leads-inbound (entrada automática), products, users, orders, integrations, dashboard
+  integrations/               uniplus.js, nuvemshop.js (produtos, pedidos, webhook), marketplaces.js
+                              (Shopee/ML), analytics.js (GA4, Google Ads, Meta), google-auth.js
 connector/uniplus-sync.js     conector para a máquina da loja quando o portal está na Vercel
 public/
   index.html                  casca da aplicação
   assets/styles.css           identidade visual completa (tokens no topo)
-  shared/domain.js            papéis, etapas, transições — usado por servidor E navegador
+  shared/domain.js            papéis, etapas, transições, canais padrão e cálculo de taxa/líquido/margem
+                              — usado por servidor E navegador (o mesmo cálculo nos dois lados)
   js/app.js                   rotas (#/area/id), navegação, delegação de eventos
   js/api.js, js/auth.js       cliente da API e sessão
   js/ui.js                    componentes (tag "brinco", botões, campos, gaveta, modal, toast)
-  js/views/*.js               uma tela por arquivo
+  js/views/*.js               uma tela por arquivo; pricing.js = calculadora de preço por canal;
+                              common.js = seletor de produtos, pedido de arte junto, comentários
 firebase/                     regras e índices do Firestore
 tests/                        node:test
 docs/                         arquitetura, API, dados, design, deploy, roteiro
@@ -91,20 +113,24 @@ docs/                         arquitetura, API, dados, design, deploy, roteiro
 ## Estado atual (o que já funciona)
 
 - Login e-mail/senha (local e Firebase), primeiro dono, equipe com papéis, desativação imediata.
-- Catálogo do UniPlus sincronizado (intervalo configurável), busca, filtros, paginação.
-- Fila de publicação completa: seleção pelo dono (preço UniPlus ou do site, promoção com período,
-  prioridade, campanha, observação) → preparação pelo site (título, descrição, SEO, categoria,
-  fotos de `media/`) → aprovação (dono/gerente autorizado) → publicação na Nuvemshop com
-  registro de erro e nova tentativa. Bloquear, arquivar, pedir ajustes com motivo.
-- Campanhas (com produtos), promoções (preço por produto, aprovação, fase pelas datas),
-  pedidos de arte (origem campanha/promoção/produto, entrega com arquivo, aprovação, registro de
-  canais), leads (etapas, valor, comentários), pedidos importados da Nuvemshop.
-- Painel "Sua vez" por papel, trilha de publicação, integrações com estado real, histórico com diff.
+- Catálogo do UniPlus sincronizado (com custo opcional), busca, filtros, paginação; custo e margem só
+  para dono/gerente (o servidor remove para os demais).
+- **Venda multicanal**: pop-up "Colocar à venda" com preço por canal, taxa, líquido e lucro calculados
+  na hora; tabela de taxas editável pelo dono com simulador.
+- Fila de publicação: preparação pelo site → aprovação → publicação **por canal** (Nuvemshop pela API;
+  Shopee/ML registrados à mão com link) → "Publicado" quando todos os canais concluírem.
+- Promoções com canais, líquido por canal e **pedido de arte no mesmo formulário**; campanhas idem.
+- Artes (quem pediu, prazo, arquivo, aprovação, canais onde saiu), **Agenda** mensal + próximos 90 dias.
+- Leads: cadastro manual, **webhook de entrada** com deduplicação, importação do Meta Lead Ads.
+- Indicadores GA4 / Google Ads / Meta Ads: código pronto (testado com respostas simuladas),
+  atualização automática no servidor da loja.
+- Pedidos da Nuvemshop: importação manual e webhook assinado.
+- Painel "Sua vez" por papel, trilha, "Vem por aí", integrações com estado real, histórico com diff.
 
-## O que falta — ver `docs/ROADMAP.md` (ordem sugerida)
+## O que falta — ver `docs/ROADMAP.md` e `docs/INTEGRACOES.md`
 
-Testar Nuvemshop com a loja real; atualizar produto já publicado (preço/estoque); webhooks de
-pedidos; GA4/Google Ads/Meta Ads (só estrutura hoje); anexar promoção à Nuvemshop; deploy Vercel.
+Conectar as contas reais e validar cada integração; ligar a criação automática de anúncios na
+Shopee e no Mercado Livre; atualizar preço/estoque de anúncio já publicado; cron na Vercel.
 
 ## Antes de entregar uma mudança
 

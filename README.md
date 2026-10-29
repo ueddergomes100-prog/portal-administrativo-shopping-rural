@@ -1,8 +1,8 @@
 # Portal Shopping Rural
 
-Centro operacional da loja: catálogo e estoque do **UniPlus**, fila de publicação de produtos na
-**Nuvemshop**, campanhas, promoções, pedidos de arte, leads e indicadores de mídia — com login,
-papéis (dono, gerente, marketing, site) e histórico de tudo que acontece.
+Centro operacional da loja: catálogo e estoque do **UniPlus**, venda em vários canais (site/Nuvemshop,
+Shopee, Mercado Livre) com cálculo de taxa e valor líquido, campanhas, promoções, pedidos de arte,
+agenda, leads e indicadores de mídia — com login, papéis (dono, gerente, marketing, site) e histórico.
 
 ## Começar
 
@@ -23,6 +23,7 @@ Na máquina da loja, `iniciar-portal.cmd` instala o que falta e liga o portal.
 |---|---|
 | [AGENTS.md](AGENTS.md) | Regras do projeto e mapa do código (leia primeiro) |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Instalação na loja e publicação na Vercel |
+| [docs/INTEGRACOES.md](docs/INTEGRACOES.md) | Passo a passo de cada integração (Nuvemshop, Shopee, ML, Google, Meta, leads) |
 | [docs/API.md](docs/API.md) | Todas as rotas da API |
 | [docs/DADOS.md](docs/DADOS.md) | Coleções e estados |
 | [docs/DESIGN.md](docs/DESIGN.md) | Identidade visual e componentes |
