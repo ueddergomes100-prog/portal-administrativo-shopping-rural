@@ -30,6 +30,8 @@ service cloud.firestore {
     match /leads/{id} { allow read: if active(); allow write: if false; }
     match /orders/{id} { allow read: if active(); allow write: if false; }
     match /integrations/{id} { allow read: if managesOperation(); allow write: if false; }
+    match /settings/{id} { allow read: if active(); allow write: if false; }
+    match /metrics/{id} { allow read: if active(); allow write: if false; }
     match /audit/{id} { allow read: if managesOperation(); allow write: if false; }
 
     // Qualquer coleção não listada acima fica fechada.

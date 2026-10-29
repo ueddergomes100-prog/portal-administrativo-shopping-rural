@@ -4,6 +4,7 @@
 //
 // IMPORTANTE: o código abaixo segue a documentação pública, mas ainda NÃO foi testado contra a
 // loja real (sem credenciais neste repositório). Teste primeiro com um produto oculto.
+import crypto from 'node:crypto';
 import { config } from '../config.js';
 import { mediaAvailable, readImageBase64 } from '../media.js';
 
@@ -41,16 +42,15 @@ async function call(method, pathname, body) {
   return data;
 }
 
-// Monta o produto a partir do item aprovado da fila.
-export function buildProductPayload(item) {
+// Monta o produto a partir do item aprovado da fila e do canal "site" (preço definido pelo dono).
+export function buildProductPayload(item, channel) {
   const product = item.productSnapshot || {};
-  const price = item.priceMode === 'custom' ? item.sitePrice : product.basePrice;
+  const price = channel?.price ?? product.basePrice;
   const variant = { price: String(price ?? 0), stock: Math.max(0, Math.floor(product.stock || 0)), sku: product.sku || undefined };
-  if (item.promoPrice) variant.promotional_price = String(item.promoPrice);
+  if (channel?.promoPrice) variant.promotional_price = String(channel.promoPrice);
   return {
     name: { pt: item.content?.title || product.name },
     description: { pt: item.content?.description || '' },
-    handle: undefined,
     published: true,
     seo_title: item.content?.seoTitle || undefined,
     seo_description: item.content?.seoDescription || undefined,
@@ -59,21 +59,23 @@ export function buildProductPayload(item) {
 }
 
 // Cria (ou atualiza, se já tiver externalId) o produto e envia as imagens locais.
-export async function publishProduct(item) {
-  const payload = buildProductPayload(item);
+// `item.listing` = situação atual do canal site (externalId de tentativa anterior, se houver).
+export async function publishProduct(item, channel) {
+  const payload = buildProductPayload(item, channel);
+  const previous = item.listing || {};
   let result;
-  if (item.publish?.externalId) {
-    result = await call('PUT', `/products/${item.publish.externalId}`, {
+  if (previous.externalId) {
+    result = await call('PUT', `/products/${previous.externalId}`, {
       name: payload.name, description: payload.description, published: true,
       seo_title: payload.seo_title, seo_description: payload.seo_description
     });
   } else {
     result = await call('POST', '/products', payload);
   }
-  const externalId = result?.id ?? item.publish?.externalId;
+  const externalId = result?.id ?? previous.externalId;
   const imageWarnings = [];
   const refs = item.content?.imageRefs || [];
-  if (refs.length && !item.publish?.imagesSent) {
+  if (refs.length && !previous.imagesSent) {
     if (!mediaAvailable()) {
       imageWarnings.push('As imagens ficam em media/ na máquina da loja. Publique pelo portal local para enviá-las.');
     } else {
@@ -95,15 +97,15 @@ export async function publishProduct(item) {
   };
 }
 
-// Pedidos recentes (para a tela de pedidos). Converte para o formato interno.
-export async function fetchRecentOrders({ perPage = 50 } = {}) {
-  const orders = await call('GET', `/orders?per_page=${perPage}`);
-  return (orders || []).map(order => ({
+// Converte um pedido da Nuvemshop para o formato interno (coleção `orders`).
+export function mapOrder(order) {
+  return {
     id: `ns-${order.id}`,
     externalId: String(order.id),
     number: String(order.number ?? order.id),
     customer: order.customer?.name || order.contact_name || '',
     email: order.contact_email || order.customer?.email || '',
+    phone: order.contact_phone || order.customer?.phone || '',
     total: Number(order.total) || 0,
     paymentStatus: order.payment_status || '',
     shippingStatus: order.shipping_status || '',
@@ -114,5 +116,25 @@ export async function fetchRecentOrders({ perPage = 50 } = {}) {
     createdAt: order.created_at,
     items: (order.products || []).map(p => ({ name: p.name, sku: p.sku, quantity: Number(p.quantity) || 0, price: Number(p.price) || 0 })),
     source: 'nuvemshop'
-  }));
+  };
+}
+
+// Pedidos recentes (para a tela de pedidos).
+export async function fetchRecentOrders({ perPage = 50 } = {}) {
+  const orders = await call('GET', `/orders?per_page=${perPage}`);
+  return (orders || []).map(mapOrder);
+}
+
+export async function fetchOrder(id) {
+  return mapOrder(await call('GET', `/orders/${encodeURIComponent(id)}`));
+}
+
+// Webhook: a Nuvemshop assina o corpo com HMAC-SHA256 usando o client secret do app
+// (cabeçalho x-linkedstore-hmac-sha256). Compara em tempo constante.
+export function verifyWebhookSignature(rawBody, signature) {
+  if (!config.nuvemshop.appSecret || !signature) return false;
+  const expected = crypto.createHmac('sha256', config.nuvemshop.appSecret).update(rawBody).digest('hex');
+  const a = Buffer.from(expected);
+  const b = Buffer.from(String(signature).trim());
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 }

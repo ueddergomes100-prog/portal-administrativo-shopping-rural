@@ -10,20 +10,27 @@ import { badRequest } from '../http.js';
 const configured = {
   uniplus: () => !!config.uniplus.apiUrl,
   nuvemshop: () => !!(config.nuvemshop.storeId && config.nuvemshop.accessToken),
+  shopee: () => !!(config.shopee.partnerId && config.shopee.partnerKey && config.shopee.shopId && config.shopee.accessToken),
+  mercadolivre: () => !!(config.mercadoLivre.accessToken && config.mercadoLivre.userId),
   ga4: () => !!(config.ga4.propertyId && config.ga4.credentials),
-  googleads: () => !!(config.googleAds.customerId && config.googleAds.developerToken && config.googleAds.refreshToken),
-  metaads: () => !!(config.metaAds.accountId && config.metaAds.accessToken)
+  googleads: () => !!(config.googleAds.customerId && config.googleAds.developerToken && config.googleAds.clientId && config.googleAds.clientSecret && config.googleAds.refreshToken),
+  metaads: () => !!(config.metaAds.accountId && config.metaAds.accessToken),
+  leads: () => !!config.leadsWebhookToken
 };
 const partially = {
   uniplus: () => false,
   nuvemshop: () => !!(config.nuvemshop.storeId || config.nuvemshop.accessToken),
+  shopee: () => !!(config.shopee.partnerId || config.shopee.shopId),
+  mercadolivre: () => !!(config.mercadoLivre.accessToken || config.mercadoLivre.userId),
   ga4: () => !!config.ga4.propertyId,
   googleads: () => !!config.googleAds.customerId,
-  metaads: () => !!config.metaAds.accountId
+  metaads: () => !!config.metaAds.accountId,
+  leads: () => false
 };
 
-// Integrações que já têm código de comunicação real neste projeto.
-const IMPLEMENTED = new Set(['uniplus', 'nuvemshop']);
+// Integrações que já têm código de comunicação. Shopee e Mercado Livre: autenticação pronta,
+// criação de anúncio ainda manual (ver server/integrations/marketplaces.js).
+const IMPLEMENTED = new Set(['uniplus', 'nuvemshop', 'ga4', 'googleads', 'metaads', 'leads']);
 
 export async function setIntegrationState(id, patch) {
   const store = getStore();
@@ -62,9 +69,12 @@ export async function listIntegrations() {
 const EDITABLE = {
   uniplus: ['notes'],
   nuvemshop: ['storeUrl', 'notes'],
+  shopee: ['storeUrl', 'notes'],
+  mercadolivre: ['storeUrl', 'notes'],
   ga4: ['notes'],
   googleads: ['notes'],
-  metaads: ['notes']
+  metaads: ['notes'],
+  leads: ['notes']
 };
 
 export async function updateIntegrationSettings(id, input) {

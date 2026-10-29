@@ -1,14 +1,19 @@
 // Todas as rotas da API em um só lugar. Usado pelo servidor local (server.js)
 // e pela função serverless da Vercel (api/index.js). Lista documentada em docs/API.md.
 import { config } from './config.js';
-import { HttpError, sendJson, readJsonBody, notFound, forbidden, badRequest } from './http.js';
+import crypto from 'node:crypto';
+import { HttpError, sendJson, readJsonBody, readRawBody, parseJson, notFound, forbidden, badRequest, unauthorized } from './http.js';
 import { authenticate, authenticateConnector, loginLocal, setupFirstOwner, needsSetup, publicUser, requireRole } from './auth.js';
 import { listAudit, audit } from './audit.js';
-import { listProducts, getProduct } from './services/products.js';
-import { listQueue, getQueueItem, selectProduct, updatePricing, updateContent, transitionQueue, publishQueueItem } from './services/queue.js';
+import { listProducts, getProduct, forUser } from './services/products.js';
+import { listQueue, getQueueItem, selectProduct, updatePricing, updateContent, transitionQueue, publishQueueItem, recordManualListing } from './services/queue.js';
 import { listRecords, getRecord, createRecord, updateRecord, transitionRecord, addNote, setArtFile, removeRecord } from './services/marketing.js';
 import { listUsers, createUser, updateUser } from './services/users.js';
-import { listOrders, syncOrders } from './services/orders.js';
+import { listOrders, syncOrders, upsertOrderFromWebhook } from './services/orders.js';
+import { getChannels, updateChannels } from './services/settings.js';
+import { listMetrics, syncMetrics } from './services/metrics.js';
+import { receiveLead, importMetaLeads } from './services/leads-inbound.js';
+import { verifyWebhookSignature } from './integrations/nuvemshop.js';
 import { listIntegrations, updateIntegrationSettings } from './services/integrations.js';
 import { dashboard } from './services/dashboard.js';
 import { syncUniplusOnce, saveCatalog, mapProduct } from './integrations/uniplus.js';
@@ -16,7 +21,8 @@ import { listMedia, mediaAvailable } from './media.js';
 
 const ENTITY = '(campaigns|promotions|arts|leads)';
 
-// [método, padrão, handler, opções]. `:nome` vira parâmetro. auth: 'user' (padrão) | 'public' | 'connector'.
+// [método, padrão, handler, opções]. `:nome` vira parâmetro.
+// auth: 'user' (padrão) | 'public' | 'connector' | 'leads' (LEADS_WEBHOOK_TOKEN). raw: true entrega o corpo cru (webhooks assinados).
 const routes = [
   ['GET', '/api/health', () => ({ ok: true, backend: config.backend, time: new Date().toISOString() }), { auth: 'public' }],
   ['GET', '/api/config', async () => ({
@@ -38,8 +44,8 @@ const routes = [
   ['PATCH', '/api/users/:id', async ({ user, params, body }) => ({ user: await updateUser(user, params.id, body) })],
 
   // Catálogo (somente leitura; escrita só pelo conector UniPlus)
-  ['GET', '/api/products', ({ query }) => listProducts(query)],
-  ['GET', '/api/products/:id', async ({ params }) => ({ product: await getProduct(params.id) })],
+  ['GET', '/api/products', ({ query, user }) => listProducts(query, user)],
+  ['GET', '/api/products/:id', async ({ params, user }) => ({ product: forUser(await getProduct(params.id), user) })],
   ['POST', '/api/products/sync', async ({ user }) => {
     requireRole(user, ['owner', 'manager']);
     if (config.isVercel) throw badRequest('A sincronização roda na máquina da loja (npm run connector). Aqui só mostramos o último resultado.');
@@ -60,7 +66,32 @@ const routes = [
   ['PATCH', '/api/queue/:id/pricing', async ({ user, params, body }) => ({ item: await updatePricing(user, params.id, body) })],
   ['PATCH', '/api/queue/:id/content', async ({ user, params, body }) => ({ item: await updateContent(user, params.id, body) })],
   ['POST', '/api/queue/:id/transition', async ({ user, params, body }) => ({ item: await transitionQueue(user, params.id, body) })],
-  ['POST', '/api/queue/:id/publish', ({ user, params }) => publishQueueItem(user, params.id)],
+  ['POST', '/api/queue/:id/publish', ({ user, params, body }) => publishQueueItem(user, params.id, body.channel || 'site')],
+  ['POST', '/api/queue/:id/listings/:channel', async ({ user, params, body }) => ({ item: await recordManualListing(user, params.id, params.channel, body) })],
+
+  // Canais de venda e taxas
+  ['GET', '/api/settings/channels', async () => ({ channels: await getChannels() })],
+  ['PUT', '/api/settings/channels', async ({ user, body }) => ({ channels: await updateChannels(user, body) })],
+
+  // Indicadores de mídia (GA4, Google Ads, Meta Ads)
+  ['GET', '/api/metrics', async () => ({ metrics: await listMetrics() })],
+  ['POST', '/api/metrics/:source/sync', async ({ user, params }) => {
+    requireRole(user, ['owner', 'manager', 'marketing']);
+    return { report: await syncMetrics(params.source, user) };
+  }],
+
+  // Entrada de leads: ferramentas externas e Meta Lead Ads
+  ['POST', '/api/leads/inbound', ({ body }) => receiveLead(body, { source: 'Site' }), { auth: 'leads' }],
+  ['POST', '/api/leads/import-meta', async ({ user }) => {
+    requireRole(user, ['owner', 'manager', 'marketing']);
+    try { return await importMetaLeads(user); } catch (error) { throw badRequest(error.message, { code: error.code }); }
+  }],
+
+  // Webhook de pedidos da Nuvemshop (assinado com o client secret do app)
+  ['POST', '/api/webhooks/nuvemshop', async ({ req, rawBody }) => {
+    if (!verifyWebhookSignature(rawBody, req.headers['x-linkedstore-hmac-sha256'])) throw unauthorized('Assinatura do webhook inválida.');
+    return upsertOrderFromWebhook(parseJson(rawBody));
+  }, { auth: 'public', raw: true }],
 
   // Pedidos (Nuvemshop)
   ['GET', '/api/orders', () => listOrders()],
@@ -100,8 +131,17 @@ const routes = [
 // Compila "/api/:entity(a|b)/:id" em regex com grupos nomeados.
 const compiled = routes.map(([method, pattern, handler, options = {}]) => {
   const source = pattern.replace(/:(\w+)(\([^)]+\))?/g, (_, name, group) => `(?<${name}>${group ? group.slice(1, -1) : '[^/]+'})`);
-  return { method, regex: new RegExp(`^${source}/?$`), handler, auth: options.auth || 'user' };
+  return { method, regex: new RegExp(`^${source}/?$`), handler, auth: options.auth || 'user', raw: !!options.raw };
 });
+
+// Token das ferramentas que enviam leads: cabeçalho Authorization: Bearer <token> ou ?token=<token>.
+function checkLeadsToken(req, query) {
+  const expected = config.leadsWebhookToken;
+  if (!expected) throw forbidden('LEADS_WEBHOOK_TOKEN não configurado no servidor.');
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : String(query.token || '');
+  if (token.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expected))) throw unauthorized('Token de leads inválido.');
+}
 
 export async function handleApi(req, res, pathname, searchParams) {
   try {
@@ -114,8 +154,10 @@ export async function handleApi(req, res, pathname, searchParams) {
     let user = null;
     if (route.auth === 'user') user = await authenticate(req);
     if (route.auth === 'connector') user = authenticateConnector(req);
-    const body = ['POST', 'PATCH', 'PUT'].includes(req.method) ? await readJsonBody(req) : {};
-    const result = await route.handler({ req, params, query, body, user });
+    if (route.auth === 'leads') checkLeadsToken(req, query);
+    const rawBody = route.raw ? await readRawBody(req) : '';
+    const body = route.raw ? {} : ['POST', 'PATCH', 'PUT'].includes(req.method) ? await readJsonBody(req) : {};
+    const result = await route.handler({ req, params, query, body, rawBody, user });
     sendJson(res, 200, result ?? { ok: true });
   } catch (error) {
     const status = error.status && error.status >= 400 && error.status < 600 ? error.status : 500;

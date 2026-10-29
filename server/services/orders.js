@@ -2,7 +2,7 @@
 import { getStore, C } from '../store/index.js';
 import { audit } from '../audit.js';
 import { forbidden } from '../http.js';
-import { fetchRecentOrders, nuvemshopConfigured } from '../integrations/nuvemshop.js';
+import { fetchRecentOrders, fetchOrder, nuvemshopConfigured } from '../integrations/nuvemshop.js';
 import { setIntegrationState } from './integrations.js';
 
 export async function listOrders() {
@@ -17,4 +17,13 @@ export async function syncOrders(user) {
   await setIntegrationState('nuvemshop', { status: 'connected', lastSyncAt: new Date().toISOString(), lastError: '' });
   await audit(user, { action: 'orders.sync', entity: 'orders', summary: `Importou ${orders.length} pedidos da Nuvemshop` });
   return { count: orders.length };
+}
+
+// Webhook da Nuvemshop: { store_id, event: 'order/created' | 'order/paid' | ..., id }.
+export async function upsertOrderFromWebhook(payload) {
+  if (!String(payload.event || '').startsWith('order/') || !payload.id) return { ignored: true };
+  const order = await fetchOrder(payload.id);
+  await getStore().set(C.orders, order.id, { ...order, syncedAt: new Date().toISOString() });
+  await setIntegrationState('nuvemshop', { status: 'connected', lastSyncAt: new Date().toISOString(), lastError: '' });
+  return { ok: true, id: order.id };
 }

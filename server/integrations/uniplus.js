@@ -2,12 +2,14 @@
 // O UniPlus é a fonte de SKU, estoque e preço-base — o portal nunca escreve esses campos por conta própria.
 //
 // Formato esperado de GET {UNIPLUS_API_URL}/api/erp/products:
-//   { data: [{ id_produto, sku, nome_produto, nome_categoria, preco, estoque, ... }] }
+//   { data: [{ id_produto, sku, nome_produto, nome_categoria, preco, estoque, preco_custo?, ... }] }
 // Se a API do UniPlus da loja tiver outro formato, ajuste apenas `mapProduct`.
 import { config } from '../config.js';
 import { getStore, C } from '../store/index.js';
 import { setIntegrationState } from '../services/integrations.js';
 import { invalidateProductCache } from '../services/products.js';
+
+const numberOrNull = value => (value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? null : Number(value));
 
 export function mapProduct(item) {
   const id = String(item.id_produto ?? item.id ?? '').trim();
@@ -18,6 +20,8 @@ export function mapProduct(item) {
     name: String(item.nome_produto ?? item.nome ?? '').trim() || 'Produto sem nome',
     category: String(item.nome_categoria ?? item.categoria ?? '').trim() || 'Sem categoria',
     basePrice: Number(item.preco ?? item.preco_venda ?? 0) || 0,
+    // Custo é opcional: se a API do UniPlus não enviar, o portal só não mostra a margem.
+    cost: numberOrNull(item.preco_custo ?? item.custo ?? item.custo_medio),
     stock: Number(item.estoque ?? item.saldo ?? 0) || 0,
     unit: String(item.unidade ?? '').trim()
   };

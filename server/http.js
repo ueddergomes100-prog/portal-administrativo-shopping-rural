@@ -35,6 +35,20 @@ export async function readJsonBody(req, limit = 1_000_000) {
   return parse(raw);
 }
 
+// Corpo cru (webhooks assinados). Não toca em req.body para a Vercel não consumir o fluxo antes.
+export async function readRawBody(req, limit = 1_000_000) {
+  let raw = '';
+  for await (const chunk of req) {
+    raw += chunk;
+    if (raw.length > limit) throw new HttpError(413, 'Requisição muito grande.');
+  }
+  return raw;
+}
+
+export function parseJson(raw) {
+  return parse(raw);
+}
+
 function parse(raw) {
   if (!raw) return {};
   try {

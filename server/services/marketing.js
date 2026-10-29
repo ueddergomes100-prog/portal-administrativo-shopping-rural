@@ -4,6 +4,7 @@ import { getStore, C } from '../store/index.js';
 import { audit } from '../audit.js';
 import { badRequest, forbidden, notFound, clean } from '../http.js';
 import { getProduct } from './products.js';
+import { getChannels } from './settings.js';
 import {
   CAMPAIGN_STATUS, CAMPAIGN_TRANSITIONS, CAMPAIGN_CHANNELS, CAMPAIGN_OBJECTIVES,
   PROMOTION_STATUS, PROMOTION_TRANSITIONS,
@@ -77,10 +78,13 @@ async function readPromotion(input) {
     if (promoPrice >= product.basePrice) throw badRequest(`${product.name}: o preço promocional precisa ser menor que ${brl(product.basePrice)}.`);
     items.push({ productId: product.id, sku: product.sku, name: product.name, regularPrice: product.basePrice, promoPrice });
   }
+  const channelIds = (await getChannels()).map(c => c.id);
   return {
     name: clean.text(input.name, { required: true, max: 120, label: 'Nome' }),
     description: clean.text(input.description, { max: 3000, label: 'Observações' }),
     start, end, items,
+    // Em quais canais a promoção vale (a tela mostra taxa e líquido de cada um).
+    channels: clean.list(input.channels, channelIds, { label: 'Canais' }),
     campaignId: clean.text(input.campaignId, { max: 120 })
   };
 }
@@ -163,9 +167,25 @@ export async function createRecord(entity, user, input) {
     notes: []
   };
   if (entity === 'arts') Object.assign(record, { fileRef: '', publications: [] });
+  // Pedido de arte junto (campanha/promoção): valida antes de gravar qualquer coisa.
+  const artInput = ['campaigns', 'promotions'].includes(entity) && input.art?.requested ? input.art : null;
+  if (artInput) {
+    clean.date(artInput.deadline, { required: true, label: 'Prazo da arte' });
+    clean.text(artInput.briefing, { required: true, max: 8000, label: 'Briefing da arte' });
+  }
   const saved = await getStore().create(m.collection, record);
   await audit(user, { action: `${entity}.create`, entity, entityId: saved.id, summary: `Criou ${m.label}: ${nameOf(entity, saved)}`, after: record });
-  return decorate(entity, saved, user);
+  const result = decorate(entity, saved, user);
+  if (artInput) {
+    const art = await createRecord('arts', user, {
+      ...artInput,
+      title: artInput.title || `Arte: ${nameOf(entity, saved)}`,
+      originType: entity === 'campaigns' ? 'campaign' : 'promotion',
+      originId: saved.id
+    });
+    result.createdArtId = art.id;
+  }
+  return result;
 }
 
 export async function updateRecord(entity, user, id, input) {

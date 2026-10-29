@@ -15,6 +15,8 @@ export const C = {
   leads: 'leads',
   orders: 'orders',
   integrations: 'integrations',
+  metrics: 'metrics',
+  settings: 'settings',
   audit: 'audit'
 };
 

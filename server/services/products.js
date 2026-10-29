@@ -17,7 +17,15 @@ async function allProducts() {
   return items;
 }
 
-const normalize = value => String(value ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+// Custo de compra só aparece para dono e gerente.
+export const seesCost = user => ['owner', 'manager'].includes(user?.role);
+export function forUser(product, user) {
+  if (!product || seesCost(user)) return product;
+  const { cost, ...rest } = product;
+  return rest;
+}
+
+const normalize = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
 // Situação na fila (por produto) para mostrar na lista do catálogo.
 async function queueIndex() {
@@ -27,7 +35,7 @@ async function queueIndex() {
   return index;
 }
 
-export async function listProducts({ search = '', filter = '', category = '', page = 1, pageSize = 25 } = {}) {
+export async function listProducts({ search = '', filter = '', category = '', page = 1, pageSize = 25 } = {}, user = null) {
   const items = await allProducts();
   const queue = await queueIndex();
   const term = normalize(search);
@@ -60,7 +68,7 @@ export async function listProducts({ search = '', filter = '', category = '', pa
       inQueue: queue.size,
       missing: items.filter(p => p.missingFromUniplus).length
     },
-    data: filtered.slice((current - 1) * size, current * size).map(p => ({ ...p, queue: queue.get(p.id) || null }))
+    data: filtered.slice((current - 1) * size, current * size).map(p => ({ ...forUser(p, user), queue: queue.get(p.id) || null }))
   };
 }
 

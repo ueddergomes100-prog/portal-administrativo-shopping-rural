@@ -16,7 +16,7 @@ const names = [
 ];
 const products = names.map(([name, category, price], i) => ({
   id_produto: 1000 + i, sku: `SR-${String(1000 + i)}`, nome_produto: name, nome_categoria: category,
-  preco: price, estoque: i % 7 === 3 ? 0 : (i * 13) % 80 + 2, unidade: 'UN'
+  preco: price, preco_custo: Math.round(price * 0.62 * 100) / 100, estoque: i % 7 === 3 ? 0 : (i * 13) % 80 + 2, unidade: 'UN'
 }));
 
 http.createServer((req, res) => {

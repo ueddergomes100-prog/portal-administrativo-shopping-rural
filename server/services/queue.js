@@ -1,16 +1,19 @@
-// Fila de publicação: do produto escolhido pelo dono até o cadastro confirmado na Nuvemshop.
+// Fila de publicação: do produto escolhido pelo dono até o anúncio em cada canal de venda
+// (site/Nuvemshop, Shopee, Mercado Livre…). Cada canal tem preço, taxa e líquido próprios.
 import { getStore, C } from '../store/index.js';
 import { audit } from '../audit.js';
 import { badRequest, forbidden, notFound, conflict, clean } from '../http.js';
-import { getProduct } from './products.js';
-import { invalidateProductCache } from './products.js';
+import { getProduct, invalidateProductCache, seesCost } from './products.js';
+import { getChannels } from './settings.js';
 import { publishProduct, NuvemshopNotConfigured } from '../integrations/nuvemshop.js';
+import { publishToMarketplace } from '../integrations/marketplaces.js';
 import { checkMediaRefs } from '../media.js';
 import {
-  QUEUE_STAGES, QUEUE_TRANSITIONS, PRIORITIES, availableTransitions, findTransition, roleMatches, canApprove
+  QUEUE_STAGES, QUEUE_TRANSITIONS, PRIORITIES, availableTransitions, findTransition, roleMatches, canApprove, channelFees, marginOf
 } from '../../public/shared/domain.js';
 
 const now = () => new Date().toISOString();
+const isPricer = user => user.role === 'owner' || (user.role === 'manager' && canApprove(user));
 
 // O responsável pelo site só vê o que é relevante para ele (sem itens arquivados).
 export async function listQueue(user, { stage } = {}) {
@@ -30,84 +33,122 @@ export async function getQueueItem(user, id) {
 }
 
 function decorate(item, user) {
-  return {
+  const out = {
     ...item,
     transitions: availableTransitions(QUEUE_TRANSITIONS, item.stage, user).map(t => ({ to: t.to, label: t.label, requires: t.requires || null })),
     can: {
-      editPricing: ['owner'].includes(user.role) || (user.role === 'manager' && canApprove(user)),
+      editPricing: isPricer(user) && item.stage !== 'published',
       editContent: user.role === 'site' && ['selected', 'preparing'].includes(item.stage),
-      publish: ['site', 'owner'].includes(user.role) && item.stage === 'approved'
+      publish: ['site', 'owner'].includes(user.role) && ['approved', 'published'].includes(item.stage)
     }
   };
+  if (!seesCost(user)) {
+    // Custo e margem são só de dono/gerente.
+    out.productSnapshot = { ...item.productSnapshot, cost: undefined };
+    out.channels = (item.channels || []).map(({ margin, promoMargin, ...rest }) => rest);
+  }
+  return out;
 }
 
-function readPricing(input, product) {
-  const priceMode = clean.oneOf(input.priceMode, ['erp', 'custom'], { label: 'Modo de preço', fallback: 'erp' });
-  const sitePrice = priceMode === 'custom' ? clean.money(input.sitePrice, { required: true, label: 'Preço do site' }) : null;
-  const basePrice = priceMode === 'custom' ? sitePrice : product.basePrice;
-  const promoPrice = clean.money(input.promoPrice, { label: 'Preço promocional' });
+// ---------------------------------------------------------------------------
+// Preço por canal. Entrada: channels: [{ id, price, promoPrice? }], promoStart, promoEnd.
+// Guarda junto a taxa e o líquido calculados com a tabela vigente (histórico do que foi decidido).
+// ---------------------------------------------------------------------------
+async function readChannels(input, product) {
+  const config = await getChannels();
+  const raw = Array.isArray(input.channels) ? input.channels : [];
+  if (!raw.length) throw badRequest('Escolha ao menos um canal de venda.');
   const promoStart = clean.date(input.promoStart, { label: 'Início da promoção' });
   const promoEnd = clean.date(input.promoEnd, { label: 'Fim da promoção' });
-  if (promoPrice !== null) {
-    if (!(promoPrice < basePrice)) throw badRequest('O preço promocional precisa ser menor que o preço de venda.');
+  const seen = new Set();
+  const channels = raw.map(entry => {
+    const channel = config.find(c => c.id === entry.id && c.active !== false);
+    if (!channel) throw badRequest(`Canal de venda inválido: ${entry.id}`);
+    if (seen.has(channel.id)) throw badRequest(`${channel.name} aparece duas vezes.`);
+    seen.add(channel.id);
+    const price = clean.money(entry.price ?? product.basePrice, { required: true, label: `Preço em ${channel.name}` });
+    const promoPrice = clean.money(entry.promoPrice, { label: `Preço promocional em ${channel.name}` });
+    if (promoPrice !== null && !(promoPrice < price)) throw badRequest(`${channel.name}: o preço promocional precisa ser menor que ${price.toFixed(2).replace('.', ',')}.`);
+    const fees = channelFees(price, channel);
+    const promoFees = promoPrice !== null ? channelFees(promoPrice, channel) : null;
+    return {
+      id: channel.id, name: channel.name, integration: channel.integration || null,
+      price, promoPrice,
+      feeRule: { percent: channel.percent, fixed: channel.fixed, fixedBelow: channel.fixedBelow ?? null },
+      fee: fees.fee, net: fees.net,
+      promoFee: promoFees?.fee ?? null, promoNet: promoFees?.net ?? null,
+      margin: marginOf(fees, product.cost), promoMargin: promoFees ? marginOf(promoFees, product.cost) : null
+    };
+  });
+  const hasPromo = channels.some(c => c.promoPrice !== null);
+  if (hasPromo) {
     if (!promoStart || !promoEnd) throw badRequest('Informe início e fim da promoção.');
     if (promoEnd < promoStart) throw badRequest('O fim da promoção precisa ser depois do início.');
   }
-  return { priceMode, sitePrice, promoPrice, promoStart: promoPrice ? promoStart : '', promoEnd: promoPrice ? promoEnd : '' };
+  return { channels, promoStart: hasPromo ? promoStart : '', promoEnd: hasPromo ? promoEnd : '' };
 }
 
-// Dono (ou gerente aprovador) seleciona o produto para o site.
+// Mantém a situação de publicação dos canais que continuam escolhidos.
+function mergeListings(previous = {}, channels) {
+  const listings = {};
+  for (const c of channels) listings[c.id] = previous[c.id] || { status: 'idle', attempts: 0, lastError: '', externalId: '', url: '', publishedAt: null };
+  return listings;
+}
+
+// Dono (ou gerente aprovador) escolhe o produto, os canais e o preço em cada um.
 export async function selectProduct(user, input) {
-  if (!(user.role === 'owner' || (user.role === 'manager' && canApprove(user)))) {
-    throw forbidden('Somente o dono (ou gerente autorizado) seleciona produtos para o site.');
-  }
+  if (!isPricer(user)) throw forbidden('Somente o dono (ou gerente autorizado) escolhe produtos e preços de venda.');
   const product = await getProduct(clean.text(input.productId, { required: true, label: 'Produto' }));
   const store = getStore();
   const active = await store.list(C.queue, { where: [['productId', '==', product.id]] });
   if (active.some(i => i.stage !== 'archived')) throw conflict('Este produto já está na fila de publicação. Abra o item existente.');
 
+  const pricing = await readChannels(input, product);
   const item = {
     productId: product.id,
-    productSnapshot: { sku: product.sku, name: product.name, category: product.category, basePrice: product.basePrice, stock: product.stock },
+    productSnapshot: { sku: product.sku, name: product.name, category: product.category, basePrice: product.basePrice, stock: product.stock, cost: product.cost ?? null },
     stage: 'selected',
-    ...readPricing(input, product),
+    ...pricing,
+    listings: mergeListings({}, pricing.channels),
     priority: clean.oneOf(input.priority, PRIORITIES, { label: 'Prioridade', fallback: 'Normal' }),
     notes: clean.text(input.notes, { max: 2000, label: 'Observação' }),
     campaignId: clean.text(input.campaignId, { max: 120 }),
     content: { title: product.name, description: '', seoTitle: '', seoDescription: '', category: product.category, imageRefs: [], siteNotes: '' },
-    publish: { status: 'idle', attempts: 0, lastError: '', externalId: '', lastAttemptAt: null, publishedAt: null },
     requestedBy: { id: user.id, name: user.name },
-    createdAt: now(),
-    updatedAt: now(),
-    updatedBy: user.id
+    createdAt: now(), updatedAt: now(), updatedBy: user.id
   };
   const saved = await store.create(C.queue, item);
   invalidateProductCache();
-  await audit(user, { action: 'queue.select', entity: 'queue', entityId: saved.id, summary: `Selecionou ${product.name} para o site`, after: item });
+  await audit(user, {
+    action: 'queue.select', entity: 'queue', entityId: saved.id,
+    summary: `Escolheu ${product.name} para ${pricing.channels.map(c => c.name).join(', ')}`, after: item
+  });
   return decorate(saved, user);
 }
 
-// Ajuste de preço/prioridade/campanha (dono ou gerente aprovador).
 export async function updatePricing(user, id, input) {
   const store = getStore();
   const item = await store.get(C.queue, id);
   if (!item) throw notFound('Item da fila não encontrado.');
-  if (!(user.role === 'owner' || (user.role === 'manager' && canApprove(user)))) throw forbidden('Só o dono ou gerente autorizado altera preço.');
-  if (item.stage === 'published') throw badRequest('Produto já publicado: alterações de preço no site ainda não são sincronizadas (ver docs/ROADMAP.md).');
+  if (!isPricer(user)) throw forbidden('Só o dono ou gerente autorizado altera preço.');
+  if (item.stage === 'published') throw badRequest('Produto já publicado: mudanças de preço nos canais ainda não são enviadas automaticamente (ver docs/ROADMAP.md).');
   const product = await getProduct(item.productId);
+  const pricing = await readChannels({ ...item, ...input }, product);
   const patch = {
-    ...readPricing({ ...item, ...input }, product),
+    ...pricing,
+    listings: mergeListings(item.listings, pricing.channels),
+    productSnapshot: { ...item.productSnapshot, basePrice: product.basePrice, stock: product.stock, cost: product.cost ?? null },
     priority: clean.oneOf(input.priority ?? item.priority, PRIORITIES, { label: 'Prioridade' }),
     notes: clean.text(input.notes ?? item.notes, { max: 2000, label: 'Observação' }),
     campaignId: clean.text(input.campaignId ?? item.campaignId, { max: 120 }),
     updatedAt: now(), updatedBy: user.id
   };
   const saved = await store.update(C.queue, id, patch);
-  await audit(user, { action: 'queue.pricing', entity: 'queue', entityId: id, summary: `Atualizou preço/prioridade de ${item.productSnapshot.name}`, before: item, after: saved });
+  await audit(user, { action: 'queue.pricing', entity: 'queue', entityId: id, summary: `Atualizou canais e preços de ${item.productSnapshot.name}`, before: item, after: saved });
   return decorate(saved, user);
 }
 
-// Conteúdo do site (responsável pelo site).
+// Conteúdo do anúncio (responsável pelo site). Vale para todos os canais.
 export async function updateContent(user, id, input) {
   const store = getStore();
   const item = await store.get(C.queue, id);
@@ -144,7 +185,7 @@ export async function transitionQueue(user, id, { to, note }) {
   const item = await store.get(C.queue, id);
   if (!item) throw notFound('Item da fila não encontrado.');
   if (!QUEUE_STAGES[to]) throw badRequest('Etapa inválida.');
-  if (to === 'published') throw badRequest('Use "Publicar na Nuvemshop" — a etapa muda só depois da confirmação da loja.');
+  if (to === 'published') throw badRequest('A etapa "Publicado" muda sozinha quando todos os canais estiverem publicados.');
   const transition = findTransition(QUEUE_TRANSITIONS, item.stage, to);
   if (!transition) throw badRequest(`Não é possível ir de "${QUEUE_STAGES[item.stage].label}" para "${QUEUE_STAGES[to].label}".`);
   if (!roleMatches(user, transition.who)) throw forbidden('Seu papel não permite esta mudança de etapa.');
@@ -167,37 +208,75 @@ export async function transitionQueue(user, id, { to, note }) {
   return decorate(saved, user);
 }
 
-// Publicação real. Sem integração configurada, registra a pendência sem fingir sucesso.
-export async function publishQueueItem(user, id) {
+// Quando todos os canais escolhidos estão publicados, o item vai para "Publicado".
+async function settleStage(store, item, user) {
+  const allDone = (item.channels || []).every(c => item.listings?.[c.id]?.status === 'done');
+  if (!allDone || item.stage === 'published') return item;
+  const history = [...(item.stageHistory || []), { from: item.stage, to: 'published', at: now(), by: user.name, note: 'Todos os canais publicados' }];
+  return store.update(C.queue, item.id, { stage: 'published', stageHistory: history, updatedAt: now() });
+}
+
+function requireListing(item, channelId, user) {
+  if (!['site', 'owner'].includes(user.role)) throw forbidden('A publicação é feita pelo responsável do site ou pelo dono.');
+  if (!['approved', 'published'].includes(item.stage)) throw badRequest('Só itens aprovados podem ser publicados.');
+  const channel = (item.channels || []).find(c => c.id === channelId);
+  if (!channel) throw badRequest('Este canal não foi escolhido para este produto.');
+  return channel;
+}
+
+// Publicação automática pela API do canal. Sem integração configurada, registra a pendência sem fingir sucesso.
+export async function publishQueueItem(user, id, channelId = 'site') {
   const store = getStore();
   const item = await store.get(C.queue, id);
   if (!item) throw notFound('Item da fila não encontrado.');
-  if (!['site', 'owner'].includes(user.role)) throw forbidden('A publicação é feita pelo responsável do site.');
-  if (item.stage !== 'approved') throw badRequest('Só itens aprovados podem ser publicados na Nuvemshop.');
-  if (item.publish?.status === 'publishing') throw conflict('Este item já está sendo enviado. Aguarde.');
+  const channel = requireListing(item, channelId, user);
+  const listing = item.listings?.[channelId] || { attempts: 0 };
+  if (listing.status === 'publishing') throw conflict('Este canal já está sendo enviado. Aguarde.');
+  if (listing.status === 'done') throw conflict(`${channel.name} já está publicado.`);
 
-  const attempts = (item.publish?.attempts || 0) + 1;
-  await store.update(C.queue, id, { publish: { ...item.publish, status: 'publishing', attempts, lastAttemptAt: now() } });
+  const attempts = (listing.attempts || 0) + 1;
+  await store.update(C.queue, id, { listings: { ...item.listings, [channelId]: { ...listing, status: 'publishing', attempts, lastAttemptAt: now() } } });
   try {
-    const result = await publishProduct(item);
-    const publish = {
-      ...item.publish, status: 'done', attempts, lastError: '', lastAttemptAt: now(), publishedAt: now(),
-      externalId: result.externalId, url: result.url, imagesSent: result.imagesSent, imageWarnings: result.imageWarnings
+    const result = channel.integration === 'nuvemshop'
+      ? await publishProduct({ ...item, listing }, channel)
+      : await publishToMarketplace(channel, item);
+    const done = {
+      ...listing, status: 'done', attempts, lastError: '', lastAttemptAt: now(), publishedAt: now(), manual: false,
+      externalId: result.externalId, url: result.url || '', imageWarnings: result.imageWarnings || [], imagesSent: !!result.imagesSent, by: user.name
     };
-    const history = [...(item.stageHistory || []), { from: 'approved', to: 'published', at: now(), by: user.name, note: '' }];
-    const saved = await store.update(C.queue, id, { stage: 'published', publish, stageHistory: history, updatedAt: now(), updatedBy: user.id });
+    let saved = await store.update(C.queue, id, { listings: { ...item.listings, [channelId]: done }, updatedAt: now(), updatedBy: user.id });
+    saved = await settleStage(store, saved, user);
     invalidateProductCache();
-    await audit(user, { action: 'queue.publish', entity: 'queue', entityId: id, summary: `Publicou ${item.productSnapshot.name} na Nuvemshop (ID ${result.externalId})` });
-    return { item: decorate(saved, user), warnings: result.imageWarnings };
+    await audit(user, { action: 'queue.publish', entity: 'queue', entityId: id, summary: `Publicou ${item.productSnapshot.name} em ${channel.name} (ID ${result.externalId})` });
+    return { item: decorate(saved, user), warnings: result.imageWarnings || [] };
   } catch (error) {
-    const notConfigured = error instanceof NuvemshopNotConfigured;
-    const publish = { ...item.publish, status: notConfigured ? 'idle' : 'failed', attempts, lastAttemptAt: now(), lastError: error.message };
-    const saved = await store.update(C.queue, id, { publish, updatedAt: now(), updatedBy: user.id });
+    const notConfigured = error instanceof NuvemshopNotConfigured || error.code === 'NOT_CONFIGURED' || error.code === 'NOT_IMPLEMENTED';
+    const failed = { ...listing, status: notConfigured ? 'idle' : 'failed', attempts, lastAttemptAt: now(), lastError: error.message };
+    const saved = await store.update(C.queue, id, { listings: { ...item.listings, [channelId]: failed }, updatedAt: now(), updatedBy: user.id });
     await audit(user, {
       action: notConfigured ? 'queue.publish_pending' : 'queue.publish_failed', entity: 'queue', entityId: id,
-      summary: `${notConfigured ? 'Publicação pendente' : 'Falha ao publicar'} ${item.productSnapshot.name}: ${error.message}`
+      summary: `${notConfigured ? 'Publicação pendente' : 'Falha ao publicar'} ${item.productSnapshot.name} em ${channel.name}: ${error.message}`
     });
-    const response = badRequest(error.message, { item: decorate(saved, user), code: notConfigured ? 'NOT_CONFIGURED' : 'PUBLISH_FAILED' });
-    throw response;
+    throw badRequest(error.message, { item: decorate(saved, user), code: error.code || (notConfigured ? 'NOT_CONFIGURED' : 'PUBLISH_FAILED') });
   }
+}
+
+// Canal sem integração automática: a pessoa publica no painel do canal e registra aqui o link/ID.
+// Fica marcado como "registrado à mão por <nome>" — não é confundido com confirmação da API.
+export async function recordManualListing(user, id, channelId, input) {
+  const store = getStore();
+  const item = await store.get(C.queue, id);
+  if (!item) throw notFound('Item da fila não encontrado.');
+  const channel = requireListing(item, channelId, user);
+  if (channel.integration === 'nuvemshop') throw badRequest('O site é publicado pela integração com a Nuvemshop. Use "Publicar".');
+  const url = clean.text(input.url, { max: 500, label: 'Link do anúncio' });
+  if (url && !/^https:\/\/\S+$/.test(url)) throw badRequest('O link do anúncio precisa começar com https://');
+  const externalId = clean.text(input.externalId, { max: 120, label: 'Código do anúncio' });
+  if (!url && !externalId) throw badRequest('Informe o link ou o código do anúncio para a equipe conseguir conferir.');
+  const listing = { ...(item.listings?.[channelId] || {}), status: 'done', manual: true, by: user.name, publishedAt: now(), url, externalId, lastError: '', note: clean.text(input.note, { max: 500 }) };
+  let saved = await store.update(C.queue, id, { listings: { ...item.listings, [channelId]: listing }, updatedAt: now(), updatedBy: user.id });
+  saved = await settleStage(store, saved, user);
+  invalidateProductCache();
+  await audit(user, { action: 'queue.listing_manual', entity: 'queue', entityId: id, summary: `Registrou anúncio de ${item.productSnapshot.name} em ${channel.name} (feito à mão)` });
+  return decorate(saved, user);
 }

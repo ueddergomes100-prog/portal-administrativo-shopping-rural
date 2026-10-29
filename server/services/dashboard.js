@@ -28,20 +28,37 @@ export async function dashboard(user) {
   }
   if (user.role === 'site') {
     queue.filter(i => ['selected', 'preparing'].includes(i.stage)).forEach(i => push('queue', i.id, `Preparar: ${i.productSnapshot.name}`, QUEUE_STAGES[i.stage].label, `fila/${i.id}`));
-    queue.filter(i => i.stage === 'approved').forEach(i => push('queue', i.id, `Publicar: ${i.productSnapshot.name}`, i.publish?.lastError ? 'Última tentativa falhou' : 'Aprovado', `fila/${i.id}`));
+    queue.filter(i => i.stage === 'approved').forEach(i => {
+      const pending = (i.channels || []).filter(c => i.listings?.[c.id]?.status !== 'done').map(c => c.name);
+      const failed = Object.values(i.listings || {}).some(l => l.status === 'failed');
+      push('queue', i.id, `Publicar: ${i.productSnapshot.name}`, failed ? 'Última tentativa falhou' : `Falta: ${pending.join(', ')}`, `fila/${i.id}`);
+    });
   }
   if (user.role === 'marketing') {
     arts.filter(a => ['requested', 'in_progress', 'changes'].includes(a.status)).forEach(a => push('arts', a.id, `Criar arte: ${a.title}`, `Prazo ${br(a.deadline)}`, `artes/${a.id}`));
     arts.filter(a => a.status === 'approved').forEach(a => push('arts', a.id, `Registrar publicação: ${a.title}`, 'Arte aprovada', `artes/${a.id}`));
   }
   if (user.role === 'owner') {
-    queue.filter(i => i.stage === 'approved' && i.publish?.status === 'failed').forEach(i => push('queue', i.id, `Falha na publicação: ${i.productSnapshot.name}`, i.publish.lastError, `fila/${i.id}`));
+    queue.filter(i => i.stage === 'approved' && Object.values(i.listings || {}).some(l => l.status === 'failed')).forEach(i => {
+      const failed = Object.entries(i.listings).find(([, l]) => l.status === 'failed');
+      push('queue', i.id, `Falha na publicação: ${i.productSnapshot.name}`, failed[1].lastError, `fila/${i.id}`);
+    });
   }
+
+  // Próximos 60 dias: campanhas e promoções que começam ou estão rolando.
+  const horizon = new Date(Date.parse(today + 'T12:00:00Z') + 60 * 86400_000).toISOString().slice(0, 10);
+  const upcoming = [
+    ...campaigns.filter(c => !['cancelled', 'done'].includes(c.status) && c.end >= today && c.start <= horizon)
+      .map(c => ({ kind: 'campaign', id: c.id, name: c.name, start: c.start, end: c.end, status: c.status, route: `campanhas/${c.id}` })),
+    ...promotions.filter(p => p.status !== 'cancelled' && p.end >= today && p.start <= horizon)
+      .map(p => ({ kind: 'promotion', id: p.id, name: p.name, start: p.start, end: p.end, status: p.status, route: `promocoes/${p.id}` }))
+  ].sort((a, b) => a.start.localeCompare(b.start)).slice(0, 8);
 
   const lateArts = arts.filter(a => !['approved', 'published'].includes(a.status) && a.deadline && a.deadline < today);
   return {
     today,
     pipeline,
+    upcoming,
     todo: todo.slice(0, 30),
     counts: {
       products: productCount,

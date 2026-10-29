@@ -63,14 +63,37 @@ export const config = {
     storeId: env('NUVEMSHOP_STORE_ID'),
     accessToken: env('NUVEMSHOP_ACCESS_TOKEN'),
     userAgent: env('NUVEMSHOP_USER_AGENT', 'Portal Shopping Rural'),
-    apiBase: env('NUVEMSHOP_API_BASE', 'https://api.nuvemshop.com.br/v1')
+    apiBase: env('NUVEMSHOP_API_BASE', 'https://api.nuvemshop.com.br/v1'),
+    // Segredo do app (client secret) — valida a assinatura dos webhooks de pedidos.
+    appSecret: env('NUVEMSHOP_APP_SECRET')
   },
 
+  shopee: {
+    partnerId: env('SHOPEE_PARTNER_ID'), partnerKey: env('SHOPEE_PARTNER_KEY'),
+    shopId: env('SHOPEE_SHOP_ID'), accessToken: env('SHOPEE_ACCESS_TOKEN')
+  },
+  mercadoLivre: { accessToken: env('MELI_ACCESS_TOKEN'), userId: env('MELI_USER_ID') },
+
+  // Indicadores sincronizados automaticamente a cada N horas (0 = só manual).
+  metricsSyncHours: Number(process.env.METRICS_SYNC_HOURS ?? 6) || 0,
   ga4: { propertyId: env('GA4_PROPERTY_ID'), credentials: env('GOOGLE_SERVICE_ACCOUNT_JSON') },
   googleAds: {
-    customerId: env('GOOGLE_ADS_CUSTOMER_ID'),
+    customerId: env('GOOGLE_ADS_CUSTOMER_ID').replaceAll('-', ''),
+    loginCustomerId: env('GOOGLE_ADS_LOGIN_CUSTOMER_ID').replaceAll('-', ''),
     developerToken: env('GOOGLE_ADS_DEVELOPER_TOKEN'),
-    refreshToken: env('GOOGLE_ADS_REFRESH_TOKEN')
+    clientId: env('GOOGLE_ADS_CLIENT_ID'),
+    clientSecret: env('GOOGLE_ADS_CLIENT_SECRET'),
+    refreshToken: env('GOOGLE_ADS_REFRESH_TOKEN'),
+    apiVersion: env('GOOGLE_ADS_API_VERSION', 'v20')
   },
-  metaAds: { accountId: env('META_AD_ACCOUNT_ID'), accessToken: env('META_ACCESS_TOKEN') }
+  metaAds: {
+    accountId: env('META_AD_ACCOUNT_ID').replace(/^act_/, ''),
+    accessToken: env('META_ACCESS_TOKEN'),
+    apiVersion: env('META_API_VERSION', 'v21.0'),
+    // Formulários de Lead Ads para importar leads (IDs separados por vírgula) e token da página.
+    leadFormIds: env('META_LEAD_FORM_IDS').split(',').map(s => s.trim()).filter(Boolean),
+    pageAccessToken: env('META_PAGE_ACCESS_TOKEN')
+  },
+  // Token para ferramentas externas (formulário do site, WhatsApp, Zapier/Make) enviarem leads.
+  leadsWebhookToken: env('LEADS_WEBHOOK_TOKEN')
 };
