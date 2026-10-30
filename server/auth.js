@@ -92,7 +92,7 @@ function registerFailure(key) {
 }
 
 export async function loginLocal({ email, password }) {
-  if (config.backend !== 'local') throw badRequest('Neste ambiente o login é feito pelo Firebase.');
+  if (!config.localAuth) throw badRequest('Neste ambiente o login é feito pelo Firebase.');
   const key = String(email || '').toLowerCase().trim();
   checkRate(key);
   const store = getStore();
@@ -108,9 +108,21 @@ export async function loginLocal({ email, password }) {
   return { token, user: publicUser(user) };
 }
 
+// Demonstração: entra como a pessoa de exemplo do papel escolhido (sem senha). Só existe com DATA_BACKEND=demo.
+export async function loginDemo({ role }) {
+  if (!config.demo) throw forbidden('Entrada sem senha só existe no modo demonstração.');
+  if (!ROLE_KEYS.includes(role)) throw badRequest('Papel inválido.');
+  const { ensureDemoData } = await import('./demo.js');
+  await ensureDemoData();
+  const user = await getStore().get(C.users, `demo-${role}`);
+  if (!user) throw badRequest('Pessoa de demonstração não encontrada.');
+  const token = sign({ uid: user.id, v: user.sessionVersion || 1, exp: Date.now() + config.sessionHours * 3600_000 });
+  return { token, user: publicUser(user) };
+}
+
 // Primeiro acesso no modo local: cria a conta do dono se ainda não houver usuários.
 export async function setupFirstOwner({ name, email, password }) {
-  if (config.backend !== 'local') throw badRequest('No modo Firebase, o primeiro dono é definido por BOOTSTRAP_OWNER_EMAIL.');
+  if (!config.localAuth) throw badRequest('No modo Firebase, o primeiro dono é definido por BOOTSTRAP_OWNER_EMAIL.');
   const store = getStore();
   if ((await store.count(C.users)) > 0) throw conflict('O portal já tem usuários. Entre com sua conta.');
   const cleanEmail = String(email || '').trim().toLowerCase();
@@ -125,7 +137,7 @@ export async function setupFirstOwner({ name, email, password }) {
 }
 
 export async function needsSetup() {
-  if (config.backend !== 'local') return false;
+  if (!config.localAuth || config.demo) return false;
   return (await getStore().count(C.users)) === 0;
 }
 
@@ -138,9 +150,10 @@ export async function authenticate(req) {
   if (!token) throw unauthorized();
   const store = getStore();
 
-  if (config.backend === 'local') {
+  if (config.localAuth) {
     const payload = verifyToken(token);
     if (!payload) throw unauthorized('Sua sessão expirou. Entre novamente.');
+    if (config.demo) await (await import('./demo.js')).ensureDemoData();
     const user = await store.get(C.users, payload.uid);
     if (!user || (user.sessionVersion || 1) !== payload.v) throw unauthorized('Sua sessão expirou. Entre novamente.');
     if (!user.active) throw forbidden('Seu acesso está desativado. Fale com o dono da loja.');

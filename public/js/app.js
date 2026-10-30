@@ -161,7 +161,9 @@ function paintNav() {
   }).join('');
   const u = app.user;
   document.getElementById('userChip').innerHTML = `<span class="avatar" aria-hidden="true">${esc(initials(u.name))}</span><span class="user-meta"><strong>${esc(u.name)}</strong><small>${esc(ROLES[u.role]?.label || u.role)}${u.role === 'manager' && u.canApprove ? ' · aprova' : ''}</small></span>`;
-  document.getElementById('envLabel').textContent = app.config.backend === 'local' ? 'Servidor da loja' : 'Nuvem · Firebase';
+  document.getElementById('envLabel').textContent = app.config.demo ? 'Demonstração' : app.config.backend === 'local' ? 'Servidor da loja' : 'Nuvem · Firebase';
+  document.getElementById('demoBar').hidden = !app.config.demo;
+  paintTabbar();
 }
 
 async function refreshBadges() {
@@ -171,6 +173,33 @@ async function refreshBadges() {
     paintNav();
   } catch {}
 }
+
+// Barra inferior no celular: os atalhos mais usados por cada papel + "Menu" (abre a navegação completa).
+const TABS = {
+  owner: ['inicio', 'produtos', 'fila', 'agenda'],
+  manager: ['inicio', 'produtos', 'fila', 'agenda'],
+  marketing: ['inicio', 'artes', 'campanhas', 'agenda'],
+  site: ['inicio', 'fila', 'pedidos', 'artes']
+};
+const SHORT = { inicio: 'Início', produtos: 'Produtos', fila: 'Fila', agenda: 'Agenda', artes: 'Artes', campanhas: 'Campanhas', pedidos: 'Pedidos' };
+function paintTabbar() {
+  const ids = (TABS[app.user.role] || TABS.owner).filter(id => BY_ID[id] && allowed(BY_ID[id]));
+  document.getElementById('tabbar').innerHTML = ids.map(id => {
+    const active = id === app.route.name;
+    const badge = id === 'inicio' && app.todoCount ? `<span class="tab-count">${app.todoCount}</span>` : '';
+    return `<a href="#/${id}" class="tabbar-item${active ? ' is-active' : ''}"${active ? ' aria-current="page"' : ''}>${icon(BY_ID[id].icon)}<span>${SHORT[id]}</span>${badge}</a>`;
+  }).join('') + `<button type="button" class="tabbar-item" data-action="toggle-menu" aria-label="Abrir menu completo">${icon('menu')}<span>Menu</span></button>`;
+}
+
+// No celular as tabelas viram cartões: cada célula ganha o título da sua coluna.
+function labelTables(root = document) {
+  root.querySelectorAll('table.table:not([data-labeled])').forEach(table => {
+    const heads = [...table.querySelectorAll('thead th')].map(th => th.textContent.trim());
+    table.querySelectorAll('tbody tr').forEach(tr => [...tr.children].forEach((td, i) => { if (heads[i]) td.dataset.label = heads[i]; }));
+    table.dataset.labeled = '1';
+  });
+}
+new MutationObserver(() => labelTables()).observe(document.body, { childList: true, subtree: true });
 
 function toggleMenu(open) {
   document.body.classList.toggle('menu-open', open);

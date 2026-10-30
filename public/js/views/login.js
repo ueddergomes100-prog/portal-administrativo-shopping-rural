@@ -1,8 +1,47 @@
 // Tela de entrada: login por e-mail/senha e, no primeiro uso do modo local, cadastro do dono.
 import { esc, field, notice, formData } from '../ui.js';
-import { signIn, setupOwner, resetPassword } from '../auth.js';
+import { signIn, setupOwner, resetPassword, signInDemo } from '../auth.js';
+import { ROLES } from '../../shared/domain.js';
+
+// Demonstração: escolher o papel e entrar, sem senha (dados fictícios).
+function renderDemoLogin(root, { message, onSignedIn }) {
+  const people = [['owner', 'Carlos Mendes'], ['manager', 'Juliana Prado'], ['marketing', 'Marina Alves'], ['site', 'Rafael Souza']];
+  root.innerHTML = `
+  <div class="login-wrap is-demo">
+    <section class="login-brand" aria-hidden="true">
+      <div class="brand-lockup big">${brandMark()}<span><strong>Shopping Rural</strong><small>Portal da operação</small></span></div>
+    </section>
+    <section class="login-panel">
+      <div class="login-form">
+        <span class="demo-pill">Demonstração</span>
+        <h1>Escolha como entrar</h1>
+        <p class="lead">Cada pessoa vê o portal do jeito do seu papel. Os dados são de exemplo.</p>
+        ${message ? notice(esc(message), 'warn') : ''}
+        <ul class="role-pick">${people.map(([role, name]) => `
+          <li><button type="button" class="role-btn" data-role="${role}">
+            <span class="avatar" aria-hidden="true">${esc(name.split(' ').map(p => p[0]).join(''))}</span>
+            <span><strong>${esc(ROLES[role].label)}</strong><small>${esc(name)} · ${esc(ROLES[role].description)}</small></span>
+          </button></li>`).join('')}
+        </ul>
+        <div class="form-error" aria-live="polite"></div>
+      </div>
+    </section>
+  </div>`;
+  root.querySelectorAll('[data-role]').forEach(btn => btn.addEventListener('click', async () => {
+    root.querySelectorAll('[data-role]').forEach(b => { b.disabled = true; });
+    btn.setAttribute('aria-busy', 'true');
+    try {
+      await signInDemo(btn.dataset.role);
+      await onSignedIn();
+    } catch (error) {
+      root.querySelector('.form-error').innerHTML = notice(esc(error.message), 'danger');
+      root.querySelectorAll('[data-role]').forEach(b => { b.disabled = false; });
+    }
+  }));
+}
 
 export function renderLogin(root, { config, message, onSignedIn }) {
+  if (config.demo) return renderDemoLogin(root, { message, onSignedIn });
   const setup = config.needsSetup;
   root.innerHTML = `
   <div class="login-wrap">

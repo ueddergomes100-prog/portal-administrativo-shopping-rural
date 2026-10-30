@@ -44,6 +44,8 @@ export async function listIntegrations() {
     else if (hasCredentials && state.status === 'connected') status = 'connected';
     else if (hasCredentials) status = 'awaiting_auth';
     else if (partially[id]()) status = 'awaiting_auth';
+    // Demonstração: mostra o estado gravado pelos dados de exemplo.
+    if (config.demo && state.status) status = state.status;
     return {
       id,
       ...meta,

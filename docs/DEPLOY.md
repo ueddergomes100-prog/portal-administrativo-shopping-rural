@@ -125,6 +125,13 @@ site (a construir) envia pedidos e avisos com `STORE_API_TOKEN`.
 
 ---
 
+## Demonstração (para apresentar, sem Firebase)
+
+Projeto da Vercel com `DATA_BACKEND=demo` e `SESSION_SECRET` (segredo longo). Abre com botões
+"Entrar como Dono / Gerente / Marketing / Site", faixa "Demonstração" e dados fictícios
+(`server/demo.js`) recriados sozinhos — o que alguém cadastrar pode sumir quando a Vercel trocar de
+instância. Para valer, trocar para `DATA_BACKEND=firestore` com as variáveis da seção 2.
+
 ## Alternativa: tudo na máquina da loja (sem nuvem)
 
 `DATA_BACKEND=local`, `iniciar-portal.cmd` e o portal exposto com Cloudflare Tunnel em

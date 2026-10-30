@@ -2,11 +2,17 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#123528">
   <meta name="robots" content="noindex, nofollow">
   <title>Shopping Rural · Portal</title>
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/assets/icon-180.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SR Portal">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,500..800&family=IBM+Plex+Mono:wght@400;500&family=Public+Sans:wght@400;500;600;700&display=swap">
@@ -35,12 +41,14 @@
     <div class="scrim" id="scrim" aria-hidden="true"></div>
 
     <div class="main-col">
+      <div class="demo-bar" id="demoBar" hidden>Demonstração · dados de exemplo, podem ser reiniciados</div>
       <header class="topbar">
         <button type="button" class="btn-icon menu-btn" id="menuButton" aria-label="Abrir menu" aria-expanded="false" aria-controls="sidebar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
         <span class="topbar-brand">Shopping Rural</span>
       </header>
       <main id="main" tabindex="-1"></main>
     </div>
+    <nav class="tabbar" id="tabbar" aria-label="Atalhos"></nav>
   </div>
 
   <dialog id="drawer" class="drawer"></dialog>

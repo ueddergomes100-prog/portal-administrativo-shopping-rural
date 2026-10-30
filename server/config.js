@@ -2,6 +2,7 @@
 // `.env` na raiz é carregado automaticamente (sem dependência externa).
 // Documentação de cada variável: `.env.example`.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -26,13 +27,20 @@ const num = (name, fallback) => {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 };
 
+const backend = env('DATA_BACKEND', process.env.VERCEL ? 'firestore' : 'local');
+
 export const config = {
   // `local`: dados em data/portal-db.json, login próprio. `firestore`: Firebase Auth + Firestore.
-  backend: env('DATA_BACKEND', process.env.VERCEL ? 'firestore' : 'local'),
+  // `demo`: apresentação — dados fictícios recriados sozinhos, entrada por papel sem senha.
+  backend,
+  demo: backend === 'demo',
+  // Login próprio do portal (e-mail/senha com token assinado): modos local e demo.
+  localAuth: backend === 'local' || backend === 'demo',
   isVercel: !!process.env.VERCEL,
   host: env('HOST', '127.0.0.1'),
   port: num('PORT', 4173),
-  dataDir: path.resolve(ROOT, env('DATA_DIR', 'data')),
+  // Na demonstração os dados ficam numa pasta temporária (na Vercel é a única gravável).
+  dataDir: backend === 'demo' ? path.join(os.tmpdir(), 'portal-shopping-rural-demo') : path.resolve(ROOT, env('DATA_DIR', 'data')),
   mediaDir: path.resolve(ROOT, env('MEDIA_DIR', 'media')),
   sessionSecret: env('SESSION_SECRET'),
   sessionHours: num('SESSION_HOURS', 12),

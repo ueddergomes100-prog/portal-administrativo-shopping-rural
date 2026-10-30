@@ -4,7 +4,7 @@ import { config } from './config.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { HttpError, sendJson, readJsonBody, notFound, forbidden, badRequest, unauthorized } from './http.js';
-import { authenticate, authenticateConnector, loginLocal, setupFirstOwner, needsSetup, publicUser, requireRole } from './auth.js';
+import { authenticate, authenticateConnector, loginLocal, loginDemo, setupFirstOwner, needsSetup, publicUser, requireRole } from './auth.js';
 import { listAudit, audit } from './audit.js';
 import { listProducts, getProduct, forUser } from './services/products.js';
 import { listQueue, getQueueItem, selectProduct, updatePricing, updateContent, transitionQueue, publishToSite, recordListing, removeListing } from './services/queue.js';
@@ -34,6 +34,7 @@ const routes = [
   ['GET', '/api/health', () => ({ ok: true, backend: config.backend, time: new Date().toISOString() }), { auth: 'public' }],
   ['GET', '/api/config', async () => ({
     backend: config.backend,
+    demo: config.demo,
     needsSetup: await needsSetup(),
     mediaAvailable: mediaAvailable(),
     storage: storageDriver(),
@@ -43,6 +44,7 @@ const routes = [
   // Autenticação (modo local). No modo firestore o login acontece no navegador via Firebase Auth.
   ['POST', '/api/auth/setup', ({ body }) => setupFirstOwner(body), { auth: 'public' }],
   ['POST', '/api/auth/login', ({ body }) => loginLocal(body), { auth: 'public' }],
+  ['POST', '/api/auth/demo', ({ body }) => loginDemo(body), { auth: 'public' }],
   ['GET', '/api/auth/me', ({ user }) => ({ user: publicUser(user) })],
 
   ['GET', '/api/dashboard', ({ user }) => dashboard(user)],
@@ -181,6 +183,8 @@ function corsHeaders(req) {
 export async function handleApi(req, res, pathname, searchParams) {
   let extraHeaders = {};
   try {
+    // Demonstração: garante os dados de exemplo nesta instância (na Vercel cada instância começa vazia).
+    if (config.demo) await (await import('./demo.js')).ensureDemoData();
     const candidates = compiled.filter(r => r.regex.test(pathname));
     if (!candidates.length) throw notFound('Rota da API não encontrada.');
     if (req.method === 'OPTIONS' && candidates.some(r => r.cors)) {

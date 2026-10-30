@@ -30,7 +30,7 @@ export async function createUser(actor, input) {
   const base = { name, email, role, active: true, canApprove: role === 'manager' ? input.canApprove === true : role === 'owner', createdAt: now(), updatedAt: now() };
 
   let saved;
-  if (config.backend === 'local') {
+  if (config.localAuth) {
     saved = await store.create(C.users, { ...base, passwordHash: hashPassword(password), sessionVersion: 1 });
   } else {
     const { auth } = await getFirebaseAdmin(config.firebase);
@@ -70,7 +70,7 @@ export async function updateUser(actor, id, input) {
   if (input.password) {
     if (!self && actor.role !== 'owner') throw forbidden();
     validatePassword(input.password);
-    if (config.backend === 'local') {
+    if (config.localAuth) {
       patch.passwordHash = hashPassword(input.password);
       patch.sessionVersion = (current.sessionVersion || 1) + 1; // derruba sessões antigas
     } else {
@@ -83,7 +83,7 @@ export async function updateUser(actor, id, input) {
     await auth.updateUser(id, { disabled: patch.active === false ? true : patch.active === true ? false : undefined, displayName: patch.name });
   }
   // Desativar também invalida sessões locais.
-  if (patch.active === false && config.backend === 'local') patch.sessionVersion = (current.sessionVersion || 1) + 1;
+  if (patch.active === false && config.localAuth) patch.sessionVersion = (current.sessionVersion || 1) + 1;
 
   const saved = await store.update(C.users, id, patch);
   await audit(actor, {

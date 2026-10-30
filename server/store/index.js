@@ -25,9 +25,10 @@ let store = null;
 export function getStore() {
   if (store) return store;
   if (config.backend === 'firestore') store = createFirestoreStore(config);
+  else if (config.backend === 'demo') store = createJsonStore(config);
   else if (config.backend === 'local') {
     if (config.isVercel) throw new Error('DATA_BACKEND=local não funciona na Vercel (sistema de arquivos temporário). Use firestore.');
     store = createJsonStore(config);
-  } else throw new Error(`DATA_BACKEND inválido: "${config.backend}". Use local ou firestore.`);
+  } else throw new Error(`DATA_BACKEND inválido: "${config.backend}". Use local, firestore ou demo.`);
   return store;
 }

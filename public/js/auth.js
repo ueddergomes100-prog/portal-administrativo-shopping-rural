@@ -46,6 +46,12 @@ export async function signIn(email, password) {
   sessionStorage.setItem(TOKEN_KEY, token);
 }
 
+export async function signInDemo(role) {
+  const { post } = await import('./api.js');
+  const { token } = await post('/auth/demo', { role });
+  sessionStorage.setItem(TOKEN_KEY, token);
+}
+
 export async function setupOwner(data) {
   const { post } = await import('./api.js');
   const { token } = await post('/auth/setup', data);
