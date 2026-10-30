@@ -98,6 +98,7 @@ function allowed(view) {
 
 let renderSeq = 0;
 async function onRoute() {
+  if (!app.user) return; // ainda na tela de entrada
   const next = parseHash();
   const view = BY_ID[next.name];
   if (!allowed(view)) return navigate('inicio', { replace: true });
