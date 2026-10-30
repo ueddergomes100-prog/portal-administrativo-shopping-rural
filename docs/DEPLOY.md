@@ -127,7 +127,8 @@ site (a construir) envia pedidos e avisos com `STORE_API_TOKEN`.
 
 ## Demonstração (para apresentar, sem Firebase)
 
-Projeto da Vercel com `DATA_BACKEND=demo` e `SESSION_SECRET` (segredo longo). Abre com botões
+Projeto da Vercel com `DATA_BACKEND=demo` (`SESSION_SECRET` é opcional aqui: sem ele, o segredo
+sai da própria publicação, igual em todas as instâncias). Abre com botões
 "Entrar como Dono / Gerente / Marketing / Site", faixa "Demonstração" e dados fictícios
 (`server/demo.js`) recriados sozinhos — o que alguém cadastrar pode sumir quando a Vercel trocar de
 instância. Para valer, trocar para `DATA_BACKEND=firestore` com as variáveis da seção 2.

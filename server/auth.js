@@ -51,6 +51,12 @@ let secret = null;
 function sessionSecret() {
   if (secret) return secret;
   if (config.sessionSecret) return (secret = config.sessionSecret);
+  // Demonstração na Vercel sem SESSION_SECRET: todas as instâncias da mesma publicação precisam do mesmo
+  // segredo. A entrada da demo já não tem senha, então derivar da publicação não abre nada a mais.
+  if (config.demo && process.env.VERCEL) {
+    const seed = process.env.VERCEL_DEPLOYMENT_ID || process.env.VERCEL_URL || 'demo';
+    return (secret = crypto.createHash('sha256').update(`portal-demo:${seed}`).digest('hex'));
+  }
   // Sem SESSION_SECRET: gera um e guarda em data/ (fora do Git).
   const file = path.join(config.dataDir, '.session-secret');
   fs.mkdirSync(config.dataDir, { recursive: true });
