@@ -74,6 +74,6 @@ server.listen(config.port, config.host, () => {
   console.log(`Portal Shopping Rural em http://${config.host === '0.0.0.0' ? 'localhost' : config.host}:${config.port}`);
   console.log(`Dados: ${config.backend === 'local' ? 'arquivo local (data/portal-db.json)' : 'Firestore ' + config.firebase.projectId}`);
   runMigrations(console).catch(error => console.error('[migração]', error.message));
-  if (config.uniplus.autoSync) startUniplusLoop(console);
+  if (config.uniplus.autoSync && !config.demo) startUniplusLoop(console); // demonstração não tem UniPlus de verdade
   startMetricsLoop(console);
 });

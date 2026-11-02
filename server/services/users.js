@@ -18,7 +18,7 @@ export async function listUsers(user) {
 }
 
 export async function createUser(actor, input) {
-  if (actor.role !== 'owner') throw forbidden('Somente o dono cadastra pessoas.');
+  if (actor.role !== 'owner') throw forbidden('Só o dono pode cadastrar pessoas.');
   const email = clean.email(input.email, { required: true });
   const name = clean.text(input.name, { required: true, max: 120, label: 'Nome' });
   const role = clean.oneOf(input.role, ROLE_KEYS, { label: 'Papel' });
@@ -26,7 +26,7 @@ export async function createUser(actor, input) {
   validatePassword(password);
   const store = getStore();
   const existing = await store.list(C.users, { where: [['email', '==', email]], limit: 1 });
-  if (existing.length) throw conflict('Já existe uma pessoa com este e-mail.');
+  if (existing.length) throw conflict('Já tem uma pessoa cadastrada com este e-mail.');
   const base = { name, email, role, active: true, canApprove: role === 'manager' ? input.canApprove === true : role === 'owner', createdAt: now(), updatedAt: now() };
 
   let saved;
@@ -39,7 +39,7 @@ export async function createUser(actor, input) {
       record = await auth.createUser({ email, password, displayName: name });
     } catch (error) {
       if (error.code === 'auth/email-already-exists') record = await auth.getUserByEmail(email);
-      else throw badRequest('Firebase recusou o cadastro: ' + error.message);
+      else throw badRequest('Não deu para cadastrar: ' + error.message);
     }
     saved = await store.set(C.users, record.uid, base);
   }
@@ -52,7 +52,7 @@ export async function updateUser(actor, id, input) {
   const current = await store.get(C.users, id);
   if (!current) throw notFound('Pessoa não encontrada.');
   const self = actor.id === id;
-  if (actor.role !== 'owner' && !self) throw forbidden('Somente o dono altera o cadastro de outras pessoas.');
+  if (actor.role !== 'owner' && !self) throw forbidden('Só o dono pode mudar o cadastro de outras pessoas.');
 
   const patch = { updatedAt: now() };
   if (input.name !== undefined) patch.name = clean.text(input.name, { required: true, max: 120, label: 'Nome' });
@@ -62,7 +62,7 @@ export async function updateUser(actor, id, input) {
     if (input.canApprove !== undefined) patch.canApprove = input.canApprove === true;
     if (self && (patch.active === false || (patch.role && patch.role !== 'owner'))) {
       const owners = (await store.list(C.users, { where: [['role', '==', 'owner']] })).filter(u => u.active);
-      if (owners.length <= 1) throw badRequest('Você é o único dono ativo. Cadastre outro dono antes de mudar seu acesso.');
+      if (owners.length <= 1) throw badRequest('Você é o único dono com acesso. Cadastre outro dono antes de mudar o seu acesso.');
     }
   }
   if (patch.role && patch.role !== 'manager') patch.canApprove = patch.role === 'owner';

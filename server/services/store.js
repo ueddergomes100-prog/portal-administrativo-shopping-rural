@@ -172,12 +172,12 @@ export async function moveOrder(user, id, { to, trackingCode, note }) {
   const order = await store.get(C.orders, id);
   if (!order) throw notFound('Pedido não encontrado.');
   const transition = findTransition(ORDER_TRANSITIONS, order.status, to);
-  if (!transition) throw badRequest(`Não é possível ir de "${ORDER_STATUS[order.status]?.label}" para "${ORDER_STATUS[to]?.label || to}".`);
+  if (!transition) throw badRequest(`Não dá para passar de "${ORDER_STATUS[order.status]?.label}" para "${ORDER_STATUS[to]?.label || to}". Atualize a página e tente de novo.`);
   if (!roleMatches(user, transition.who)) throw forbidden();
-  if (transition.delivery === 'retirada' && order.delivery?.method !== 'retirada') throw badRequest('Este pedido é para entrega, não retirada.');
+  if (transition.delivery === 'retirada' && order.delivery?.method !== 'retirada') throw badRequest('Este pedido é para entregar, não para retirar na loja.');
   if (transition.delivery === 'entrega' && order.delivery?.method === 'retirada') throw badRequest('Este pedido é para retirada na loja.');
   const code = clean.text(trackingCode, { max: 80, label: 'Código de rastreio' });
-  if (transition.requires === 'tracking' && !code) throw badRequest('Informe o código de rastreio.');
+  if (transition.requires === 'tracking' && !code) throw badRequest('Digite o código de rastreio dos Correios ou da transportadora.');
   const cleanNote = clean.text(note, { max: 500, label: 'Motivo' });
   if (transition.requires === 'note' && !cleanNote) throw badRequest('Escreva o motivo do cancelamento.');
   const patch = {

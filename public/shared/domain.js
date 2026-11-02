@@ -3,10 +3,10 @@
 // mude aqui primeiro: o servidor valida com estas tabelas e a interface desenha com elas.
 
 export const ROLES = {
-  owner: { label: 'Dono', description: 'Visão completa, define preços e aprova publicações, promoções, campanhas e artes.' },
-  manager: { label: 'Gerente', description: 'Cria campanhas e promoções, solicita artes e aprova quando autorizado.' },
-  marketing: { label: 'Marketing', description: 'Produz e entrega artes, acompanha campanhas e indicadores de mídia.' },
-  site: { label: 'Site e marketplaces', description: 'Prepara foto e descrição, publica no site próprio e anuncia na Shopee e no Mercado Livre o que foi aprovado.' }
+  owner: { label: 'Dono', description: 'Vê tudo, escolhe o que vender e aprova o que a equipe prepara.' },
+  manager: { label: 'Gerente', description: 'Cria promoções e campanhas e pede as artes para o marketing.' },
+  marketing: { label: 'Marketing', description: 'Faz as artes e cuida da divulgação da loja.' },
+  site: { label: 'Vendas na internet', description: 'Prepara fotos e textos e coloca os produtos à venda no site, na Shopee e no Mercado Livre.' }
 };
 export const ROLE_KEYS = Object.keys(ROLES);
 
@@ -20,13 +20,13 @@ export function canApprove(user) {
 // disponível no UniPlus -> selecionado -> em preparação -> pronto p/ aprovação -> aprovado -> publicado
 // ---------------------------------------------------------------------------
 export const QUEUE_STAGES = {
-  selected: { label: 'Selecionado', hint: 'O dono escolheu o produto para o site.', tone: 'neutral' },
-  preparing: { label: 'Em preparação', hint: 'O site está preparando foto, descrição e SEO.', tone: 'info' },
-  review: { label: 'Pronto para aprovação', hint: 'Conteúdo pronto aguardando o dono ou gerente.', tone: 'warn' },
-  approved: { label: 'Aprovado', hint: 'Liberado para publicar no site e anunciar nos marketplaces.', tone: 'ok' },
-  published: { label: 'Publicado', hint: 'À venda em todos os canais escolhidos.', tone: 'done' },
-  blocked: { label: 'Bloqueado', hint: 'Pausado por decisão do dono ou gerente.', tone: 'danger' },
-  archived: { label: 'Arquivado', hint: 'Fora da operação, mantido no histórico.', tone: 'muted' }
+  selected: { label: 'Escolhido', hint: 'O dono escolheu o produto para vender na internet.', tone: 'neutral' },
+  preparing: { label: 'Preparando', hint: 'Fotos e texto do anúncio estão sendo feitos.', tone: 'info' },
+  review: { label: 'Esperando aprovação', hint: 'Fotos e texto prontos. Falta o dono ou o gerente aprovar.', tone: 'warn' },
+  approved: { label: 'Aprovado', hint: 'Pode ser colocado à venda no site, na Shopee e no Mercado Livre.', tone: 'ok' },
+  published: { label: 'À venda', hint: 'Já está à venda em todos os lugares escolhidos.', tone: 'done' },
+  blocked: { label: 'Pausado', hint: 'Parado por decisão do dono ou do gerente.', tone: 'danger' },
+  archived: { label: 'Guardado', hint: 'Saiu do dia a dia, mas continua registrado.', tone: 'muted' }
 };
 export const QUEUE_FLOW = ['selected', 'preparing', 'review', 'approved', 'published'];
 
@@ -34,28 +34,28 @@ export const QUEUE_FLOW = ['selected', 'preparing', 'review', 'approved', 'publi
 // A ida para `published` NÃO está aqui: acontece sozinha quando TODOS os canais escolhidos
 // estão publicados (site próprio: publicado no catálogo; marketplaces: anúncio registrado por uma pessoa).
 export const QUEUE_TRANSITIONS = [
-  { from: 'selected', to: 'preparing', who: ['site', 'owner', 'manager'], label: 'Começar preparação' },
+  { from: 'selected', to: 'preparing', who: ['site', 'owner', 'manager'], label: 'Começar a preparar' },
   { from: 'preparing', to: 'review', who: ['site'], label: 'Enviar para aprovação', requires: 'content' },
-  { from: 'review', to: 'approved', who: ['approver'], label: 'Aprovar publicação' },
-  { from: 'review', to: 'preparing', who: ['approver'], label: 'Pedir ajustes', requires: 'note' },
-  { from: 'approved', to: 'preparing', who: ['approver'], label: 'Voltar para preparação', requires: 'note' },
+  { from: 'review', to: 'approved', who: ['approver'], label: 'Aprovar' },
+  { from: 'review', to: 'preparing', who: ['approver'], label: 'Pedir correção', requires: 'note' },
+  { from: 'approved', to: 'preparing', who: ['approver'], label: 'Voltar para preparar', requires: 'note' },
   // Produto já à venda precisa de ajuste no texto/fotos: continua no site enquanto é revisado.
-  { from: 'published', to: 'preparing', who: ['approver'], label: 'Revisar anúncio', requires: 'note' },
-  { from: ['selected', 'preparing', 'review', 'approved'], to: 'blocked', who: ['owner', 'manager'], label: 'Bloquear', requires: 'note' },
-  { from: 'blocked', to: 'selected', who: ['owner', 'manager'], label: 'Desbloquear' },
-  { from: ['selected', 'preparing', 'review', 'approved', 'blocked', 'published'], to: 'archived', who: ['owner'], label: 'Arquivar' },
-  { from: 'archived', to: 'selected', who: ['owner'], label: 'Reativar' }
+  { from: 'published', to: 'preparing', who: ['approver'], label: 'Corrigir anúncio', requires: 'note' },
+  { from: ['selected', 'preparing', 'review', 'approved'], to: 'blocked', who: ['owner', 'manager'], label: 'Pausar', requires: 'note' },
+  { from: 'blocked', to: 'selected', who: ['owner', 'manager'], label: 'Retomar' },
+  { from: ['selected', 'preparing', 'review', 'approved', 'blocked', 'published'], to: 'archived', who: ['owner'], label: 'Guardar' },
+  { from: 'archived', to: 'selected', who: ['owner'], label: 'Trazer de volta' }
 ];
 
 export const PUBLISH_STATUS = {
   idle: 'Aguardando publicação',
   publishing: 'Enviando…',
-  failed: 'Falhou — tente novamente',
+  failed: 'Não deu certo — tente de novo',
   done: 'Publicado'
 };
 export const LISTING_STATUS = {
-  idle: { label: 'Falta publicar', tone: 'warn' },
-  done: { label: 'Publicado', tone: 'done' }
+  idle: { label: 'Falta colocar à venda', tone: 'warn' },
+  done: { label: 'À venda', tone: 'done' }
 };
 
 // ---------------------------------------------------------------------------
@@ -101,21 +101,21 @@ export const PRIORITIES = ['Baixa', 'Normal', 'Alta', 'Urgente'];
 // Solicitações de arte
 // ---------------------------------------------------------------------------
 export const ART_STATUS = {
-  requested: { label: 'Solicitada', tone: 'neutral' },
-  in_progress: { label: 'Em criação', tone: 'info' },
-  awaiting_approval: { label: 'Aguardando aprovação', tone: 'warn' },
-  changes: { label: 'Ajustes', tone: 'danger' },
+  requested: { label: 'Pedida', tone: 'neutral' },
+  in_progress: { label: 'Sendo feita', tone: 'info' },
+  awaiting_approval: { label: 'Esperando aprovação', tone: 'warn' },
+  changes: { label: 'Precisa corrigir', tone: 'danger' },
   approved: { label: 'Aprovada', tone: 'ok' },
   published: { label: 'Publicada', tone: 'done' }
 };
 export const ART_FLOW = ['requested', 'in_progress', 'awaiting_approval', 'approved', 'published'];
 export const ART_TRANSITIONS = [
-  { from: 'requested', to: 'in_progress', who: ['marketing'], label: 'Começar criação' },
-  { from: ['in_progress', 'changes'], to: 'awaiting_approval', who: ['marketing'], label: 'Entregar para aprovação', requires: 'file' },
-  { from: 'changes', to: 'in_progress', who: ['marketing'], label: 'Retomar criação' },
+  { from: 'requested', to: 'in_progress', who: ['marketing'], label: 'Começar a fazer' },
+  { from: ['in_progress', 'changes'], to: 'awaiting_approval', who: ['marketing'], label: 'Mandar para aprovação', requires: 'file' },
+  { from: 'changes', to: 'in_progress', who: ['marketing'], label: 'Voltar a fazer' },
   { from: 'awaiting_approval', to: 'approved', who: ['approver'], label: 'Aprovar arte' },
-  { from: 'awaiting_approval', to: 'changes', who: ['approver'], label: 'Pedir ajustes', requires: 'note' },
-  { from: 'approved', to: 'published', who: ['marketing', 'owner', 'manager'], label: 'Registrar publicação', requires: 'channels' }
+  { from: 'awaiting_approval', to: 'changes', who: ['approver'], label: 'Pedir correção', requires: 'note' },
+  { from: 'approved', to: 'published', who: ['marketing', 'owner', 'manager'], label: 'Avisar onde foi publicada', requires: 'channels' }
 ];
 export const ART_FORMATS = ['Post', 'Carrossel', 'Stories', 'Reels / vídeo', 'Banner do site', 'Impresso', 'Outro'];
 export const ART_ORIGINS = { campaign: 'Campanha', promotion: 'Promoção', product: 'Produto' };
@@ -127,18 +127,18 @@ export const PUBLICATION_CHANNELS = ['WhatsApp', 'Instagram', 'Facebook', 'Site'
 // ---------------------------------------------------------------------------
 export const CAMPAIGN_STATUS = {
   draft: { label: 'Rascunho', tone: 'neutral' },
-  awaiting_approval: { label: 'Aguardando aprovação', tone: 'warn' },
+  awaiting_approval: { label: 'Esperando aprovação', tone: 'warn' },
   approved: { label: 'Aprovada', tone: 'ok' },
-  running: { label: 'Em andamento', tone: 'info' },
-  done: { label: 'Concluída', tone: 'done' },
+  running: { label: 'Acontecendo', tone: 'info' },
+  done: { label: 'Terminada', tone: 'done' },
   cancelled: { label: 'Cancelada', tone: 'muted' }
 };
 export const CAMPAIGN_TRANSITIONS = [
-  { from: 'draft', to: 'awaiting_approval', who: ['owner', 'manager', 'marketing'], label: 'Enviar para aprovação' },
+  { from: 'draft', to: 'awaiting_approval', who: ['owner', 'manager', 'marketing'], label: 'Mandar para aprovação' },
   { from: 'awaiting_approval', to: 'approved', who: ['approver'], label: 'Aprovar campanha' },
-  { from: 'awaiting_approval', to: 'draft', who: ['approver'], label: 'Devolver para ajustes', requires: 'note' },
-  { from: 'approved', to: 'running', who: ['owner', 'manager'], label: 'Iniciar campanha' },
-  { from: 'running', to: 'done', who: ['owner', 'manager'], label: 'Concluir' },
+  { from: 'awaiting_approval', to: 'draft', who: ['approver'], label: 'Devolver para corrigir', requires: 'note' },
+  { from: 'approved', to: 'running', who: ['owner', 'manager'], label: 'Começar campanha' },
+  { from: 'running', to: 'done', who: ['owner', 'manager'], label: 'Terminar campanha' },
   { from: ['draft', 'awaiting_approval', 'approved', 'running'], to: 'cancelled', who: ['owner', 'manager'], label: 'Cancelar', requires: 'note' }
 ];
 export const CAMPAIGN_CHANNELS = ['Site', 'Instagram', 'Facebook', 'WhatsApp', 'Google Ads', 'Meta Ads', 'Loja física'];
@@ -146,23 +146,23 @@ export const CAMPAIGN_OBJECTIVES = ['Vendas', 'Divulgação', 'Geração de lead
 
 export const PROMOTION_STATUS = {
   draft: { label: 'Rascunho', tone: 'neutral' },
-  awaiting_approval: { label: 'Aguardando aprovação', tone: 'warn' },
+  awaiting_approval: { label: 'Esperando aprovação', tone: 'warn' },
   approved: { label: 'Aprovada', tone: 'ok' },
   cancelled: { label: 'Cancelada', tone: 'muted' }
 };
 export const PROMOTION_TRANSITIONS = [
-  { from: 'draft', to: 'awaiting_approval', who: ['owner', 'manager'], label: 'Enviar para aprovação' },
+  { from: 'draft', to: 'awaiting_approval', who: ['owner', 'manager'], label: 'Mandar para aprovação' },
   { from: 'awaiting_approval', to: 'approved', who: ['approver'], label: 'Aprovar promoção' },
-  { from: 'awaiting_approval', to: 'draft', who: ['approver'], label: 'Devolver para ajustes', requires: 'note' },
+  { from: 'awaiting_approval', to: 'draft', who: ['approver'], label: 'Devolver para corrigir', requires: 'note' },
   { from: ['draft', 'awaiting_approval', 'approved'], to: 'cancelled', who: ['owner', 'manager'], label: 'Cancelar', requires: 'note' }
 ];
 
 // Promoção aprovada ganha uma fase calculada pelas datas (fuso de São Paulo).
 export function promotionPhase(promo, todayISO) {
   if (promo.status !== 'approved') return null;
-  if (todayISO < promo.start) return { key: 'scheduled', label: 'Programada', tone: 'info' };
-  if (todayISO > promo.end) return { key: 'ended', label: 'Encerrada', tone: 'muted' };
-  return { key: 'active', label: 'No ar', tone: 'ok' };
+  if (todayISO < promo.start) return { key: 'scheduled', label: 'Vai começar', tone: 'info' };
+  if (todayISO > promo.end) return { key: 'ended', label: 'Já terminou', tone: 'muted' };
+  return { key: 'active', label: 'Valendo hoje', tone: 'ok' };
 }
 
 // ---------------------------------------------------------------------------
@@ -170,10 +170,10 @@ export function promotionPhase(promo, todayISO) {
 // ---------------------------------------------------------------------------
 export const LEAD_STATUS = {
   new: { label: 'Novo', tone: 'neutral' },
-  contacted: { label: 'Em contato', tone: 'info' },
-  qualified: { label: 'Qualificado', tone: 'warn' },
-  won: { label: 'Convertido', tone: 'ok' },
-  lost: { label: 'Perdido', tone: 'muted' }
+  contacted: { label: 'Conversando', tone: 'info' },
+  qualified: { label: 'Quer comprar', tone: 'warn' },
+  won: { label: 'Comprou', tone: 'ok' },
+  lost: { label: 'Desistiu', tone: 'muted' }
 };
 export const LEAD_SOURCES = ['Site', 'WhatsApp', 'Instagram', 'Facebook', 'Meta Ads', 'Google Ads', 'Loja física', 'Indicação', 'Outro'];
 
@@ -235,18 +235,18 @@ export function currentPrice(channel, promoStart, promoEnd, todayISO) {
 // Integrações
 // ---------------------------------------------------------------------------
 export const INTEGRATION_STATUS = {
-  not_connected: { label: 'Não conectado', tone: 'muted' },
+  not_connected: { label: 'Não ligado', tone: 'muted' },
   awaiting_auth: { label: 'Aguardando autorização', tone: 'warn' },
-  connected: { label: 'Conectado', tone: 'ok' },
-  error: { label: 'Erro', tone: 'danger' }
+  connected: { label: 'Funcionando', tone: 'ok' },
+  error: { label: 'Com problema', tone: 'danger' }
 };
 export const INTEGRATIONS = {
-  uniplus: { name: 'UniPlus ERP', role: 'Catálogo, SKU, estoque e preço-base', env: ['UNIPLUS_API_URL'] },
-  site: { name: 'Site próprio', role: 'Catálogo publicado pelo portal e pedidos com pagamento', env: ['STORE_API_TOKEN', 'STORE_PUBLIC_URL', 'PORTAL_PUBLIC_URL'] },
-  ga4: { name: 'Google Analytics 4', role: 'Visitas, fontes de tráfego e conversões', env: ['GA4_PROPERTY_ID', 'GOOGLE_SERVICE_ACCOUNT_JSON'] },
-  googleads: { name: 'Google Ads', role: 'Investimento, cliques, campanhas e conversões', env: ['GOOGLE_ADS_CUSTOMER_ID', 'GOOGLE_ADS_DEVELOPER_TOKEN', 'GOOGLE_ADS_CLIENT_ID', 'GOOGLE_ADS_CLIENT_SECRET', 'GOOGLE_ADS_REFRESH_TOKEN'] },
-  metaads: { name: 'Meta Ads', role: 'Alcance, gasto, leads e conversões', env: ['META_AD_ACCOUNT_ID', 'META_ACCESS_TOKEN'] },
-  leads: { name: 'Entrada de leads', role: 'Formulário do site, WhatsApp e outras ferramentas enviam leads ao portal', env: ['LEADS_WEBHOOK_TOKEN'] }
+  uniplus: { name: 'Sistema da loja (UniPlus)', role: 'De onde vêm os produtos, o estoque e os preços', env: ['UNIPLUS_API_URL'] },
+  site: { name: 'Site da loja', role: 'Produtos à venda no site e os pedidos que chegam por lá', env: ['STORE_API_TOKEN', 'STORE_PUBLIC_URL', 'PORTAL_PUBLIC_URL'] },
+  ga4: { name: 'Google Analytics', role: 'Quantas pessoas visitam o site e de onde vêm', env: ['GA4_PROPERTY_ID', 'GOOGLE_SERVICE_ACCOUNT_JSON'] },
+  googleads: { name: 'Anúncios no Google', role: 'Quanto foi gasto em anúncios no Google e o que trouxe', env: ['GOOGLE_ADS_CUSTOMER_ID', 'GOOGLE_ADS_DEVELOPER_TOKEN', 'GOOGLE_ADS_CLIENT_ID', 'GOOGLE_ADS_CLIENT_SECRET', 'GOOGLE_ADS_REFRESH_TOKEN'] },
+  metaads: { name: 'Anúncios no Instagram e Facebook', role: 'Quanto foi gasto em anúncios e quantas pessoas chegaram', env: ['META_AD_ACCOUNT_ID', 'META_ACCESS_TOKEN'] },
+  leads: { name: 'Contatos de clientes', role: 'Pessoas que deixam contato no site ou no WhatsApp chegam aqui sozinhas', env: ['LEADS_WEBHOOK_TOKEN'] }
 };
 
 // ---------------------------------------------------------------------------

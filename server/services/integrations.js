@@ -73,7 +73,7 @@ const EDITABLE = {
 };
 
 export async function updateIntegrationSettings(id, input) {
-  if (!INTEGRATIONS[id]) throw badRequest('Integração desconhecida.');
+  if (!INTEGRATIONS[id]) throw badRequest('Conexão não encontrada.');
   const settings = {};
   for (const key of EDITABLE[id]) if (input[key] !== undefined) settings[key] = String(input[key]).trim().slice(0, 500);
   if (settings.storeUrl && !/^https:\/\/[^\s]+$/.test(settings.storeUrl)) throw badRequest('Use um endereço que comece com https://');

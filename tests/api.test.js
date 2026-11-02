@@ -85,10 +85,10 @@ test('fluxo completo da fila no modo local', async () => {
   const channels = [{ id: 'site', price: 90, promoPrice: 80 }, { id: 'shopee', price: 110 }];
   assert.equal((await call('POST', '/queue', { productId: '1', channels }, site)).status, 403);
   assert.equal((await call('POST', '/queue', { productId: '1', channels: [] }, owner)).status, 400);
-  const badPromo = await call('POST', '/queue', { productId: '1', channels: [{ id: 'site', price: 90, promoPrice: 95 }], promoStart: '2026-11-01', promoEnd: '2026-11-02' }, owner);
+  const badPromo = await call('POST', '/queue', { productId: '1', channels: [{ id: 'site', price: 90, promoPrice: 95 }], promoStart: '2099-11-01', promoEnd: '2099-11-02' }, owner);
   assert.equal(badPromo.status, 400);
   assert.equal((await call('POST', '/queue', { productId: '1', channels }, owner)).status, 400); // promoção sem datas
-  const selected = await call('POST', '/queue', { productId: '1', channels, promoStart: '2026-11-01', promoEnd: '2026-11-02' }, owner);
+  const selected = await call('POST', '/queue', { productId: '1', channels, promoStart: '2099-11-01', promoEnd: '2099-11-02' }, owner);
   assert.equal(selected.status, 200);
   const id = selected.body.item.id;
   // Shopee padrão: 20% + R$ 6 -> R$ 110 vira R$ 82 líquido.
@@ -159,7 +159,7 @@ test('fluxo completo da fila no modo local', async () => {
   assert.equal(product.category, 'racao-caes');
   assert.equal(product.pet, 'cao');
   assert.deepEqual(product.measure, { value: 15, unit: 'kg' });
-  assert.equal(product.price, 90); // promoção ainda não começou (01/11)
+  assert.equal(product.price, 90); // promoção ainda não começou (01/11/2099)
   assert.equal(product.compareAt, undefined);
   assert.equal(product.stock, 5);
   assert.equal(product.image, 'https://portal.teste/api/store/images/produtos/foto.jpg');

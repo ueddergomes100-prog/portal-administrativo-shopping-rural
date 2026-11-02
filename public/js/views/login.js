@@ -9,13 +9,13 @@ function renderDemoLogin(root, { message, onSignedIn }) {
   root.innerHTML = `
   <div class="login-wrap is-demo">
     <section class="login-brand" aria-hidden="true">
-      <div class="brand-lockup big">${brandMark()}<span><strong>Shopping Rural</strong><small>Portal da operação</small></span></div>
+      <div class="brand-lockup big">${brandMark()}<span><strong>Shopping Rural</strong><small>Portal da loja</small></span></div>
     </section>
     <section class="login-panel">
       <div class="login-form">
         <span class="demo-pill">Demonstração</span>
         <h1>Escolha como entrar</h1>
-        <p class="lead">Cada pessoa vê o portal do jeito do seu papel. Os dados são de exemplo.</p>
+        <p class="lead">Cada pessoa vê o portal do jeito da sua função. Os dados são de exemplo.</p>
         ${message ? notice(esc(message), 'warn') : ''}
         <ul class="role-pick">${people.map(([role, name]) => `
           <li><button type="button" class="role-btn" data-role="${role}">
@@ -46,28 +46,28 @@ export function renderLogin(root, { config, message, onSignedIn }) {
   root.innerHTML = `
   <div class="login-wrap">
     <section class="login-brand" aria-hidden="true">
-      <div class="brand-lockup big">${brandMark()}<span><strong>Shopping Rural</strong><small>Portal da operação</small></span></div>
+      <div class="brand-lockup big">${brandMark()}<span><strong>Shopping Rural</strong><small>Portal da loja</small></span></div>
       <ol class="login-trail">
-        <li><span class="tag tone-neutral"><span class="tag-hole"></span>UniPlus</span><small>catálogo e estoque</small></li>
-        <li><span class="tag tone-info"><span class="tag-hole"></span>Preparação</span><small>foto, descrição, SEO</small></li>
-        <li><span class="tag tone-warn"><span class="tag-hole"></span>Aprovação</span><small>dono ou gerente</small></li>
-        <li><span class="tag tone-done"><span class="tag-hole"></span>À venda</span><small>site próprio, Shopee, Mercado Livre</small></li>
+        <li><span class="tag tone-neutral"><span class="tag-hole"></span>Sistema da loja</span><small>produtos e estoque</small></li>
+        <li><span class="tag tone-info"><span class="tag-hole"></span>Preparar</span><small>fotos e texto</small></li>
+        <li><span class="tag tone-warn"><span class="tag-hole"></span>Aprovar</span><small>dono ou gerente</small></li>
+        <li><span class="tag tone-done"><span class="tag-hole"></span>À venda</span><small>site, Shopee, Mercado Livre</small></li>
       </ol>
     </section>
     <section class="login-panel">
       <form class="login-form" data-login novalidate>
-        <h1>${setup ? 'Configure o primeiro acesso' : 'Entrar no portal'}</h1>
+        <h1>${setup ? 'Primeiro acesso' : 'Entrar no portal'}</h1>
         <p class="lead">${setup
-          ? 'Ainda não há ninguém cadastrado. Crie a conta do dono — depois você convida a equipe em Equipe.'
-          : 'Use o e-mail e a senha cadastrados pelo dono da loja.'}</p>
+          ? 'Ainda não tem ninguém cadastrado. Crie a conta do dono. Depois você cadastra a equipe em Equipe.'
+          : 'Use o e-mail e a senha que o dono da loja cadastrou para você.'}</p>
         ${message ? notice(esc(message), 'warn') : ''}
         ${setup ? field('name', 'Seu nome', { required: true, max: 120 }) : ''}
         ${field('email', 'E-mail', { type: 'email', required: true })}
-        ${field('password', 'Senha', { type: 'password', required: true, hint: setup ? 'Mínimo de 8 caracteres.' : '' })}
+        ${field('password', 'Senha', { type: 'password', required: true, hint: setup ? 'Pelo menos 8 caracteres.' : '' })}
         <div class="form-error" aria-live="polite"></div>
         <button class="btn primary block" type="submit">${setup ? 'Criar conta do dono e entrar' : 'Entrar'}</button>
         ${!setup && config.backend === 'firestore' ? '<button class="btn ghost block" type="button" data-reset>Esqueci minha senha</button>' : ''}
-        <p class="login-env">${config.backend === 'local' ? 'Servidor da loja · dados guardados nesta máquina' : 'Nuvem · Firebase ' + esc(config.firebase?.projectId || '')}</p>
+        <p class="login-env">${config.backend === 'local' ? 'Portal no computador da loja' : 'Portal na internet'}</p>
       </form>
     </section>
   </div>`;
@@ -85,7 +85,7 @@ export function renderLogin(root, { config, message, onSignedIn }) {
   form.addEventListener('submit', async event => {
     event.preventDefault();
     const data = formData(form);
-    if (!data.email || !data.password || (setup && !data.name)) return showError('Preencha todos os campos.');
+    if (!data.email || !data.password || (setup && !data.name)) return showError(setup ? 'Preencha seu nome, o e-mail e a senha.' : 'Preencha o e-mail e a senha.');
     const submit = form.querySelector('[type=submit]');
     submit.disabled = true;
     form.setAttribute('aria-busy', 'true');
@@ -105,10 +105,10 @@ export function renderLogin(root, { config, message, onSignedIn }) {
 
   form.querySelector('[data-reset]')?.addEventListener('click', async () => {
     const email = form.elements.email.value.trim();
-    if (!email) return showError('Digite seu e-mail acima para receber o link de nova senha.');
+    if (!email) return showError('Digite seu e-mail no campo acima para receber o link de senha nova.');
     try {
       await resetPassword(email);
-      form.querySelector('.form-error').innerHTML = notice('Se o e-mail estiver cadastrado, você receberá um link para criar uma nova senha.', 'info');
+      form.querySelector('.form-error').innerHTML = notice('Se o e-mail estiver cadastrado, você vai receber um link para criar uma senha nova. Olhe também a caixa de spam.', 'info');
     } catch (error) {
       showError(error.message);
     }

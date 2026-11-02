@@ -1,5 +1,5 @@
 // Inicialização, rotas (#/area/id), navegação lateral e delegação de eventos.
-// Cada tela é um módulo em js/views/ com: { id, title, icon, group, roles?, load, render, open?, actions?, forms? }.
+// Cada tela é um módulo em js/views/ com: { id, title, icon, roles?, load, render, open?, actions?, forms? }.
 import { get } from './api.js';
 import { initAuth, storedSession, signOut, authMode } from './auth.js';
 import { esc, icon, initials, toast, closeLayers, closeTopLayer, formData, formError, errorState, loading } from './ui.js';
@@ -20,10 +20,29 @@ import historyView from './views/history.js';
 import account from './views/account.js';
 import agenda from './views/agenda.js';
 import channelsView from './views/channels.js';
+import settingsHub from './views/settings-hub.js';
 
-const VIEWS = [dashboard, products, queue, promotions, orders, agenda, campaigns, arts, leads, media, channelsView, integrations, team, historyView, account];
+const VIEWS = [dashboard, products, queue, promotions, orders, agenda, campaigns, arts, leads, media, channelsView, integrations, team, historyView, account, settingsHub];
 const BY_ID = Object.fromEntries(VIEWS.map(v => [v.id, v]));
-const GROUPS = ['Hoje', 'Operação', 'Marketing', 'Gestão'];
+
+// Menu de cada papel: só o que a pessoa usa no dia a dia. O resto fica em "Ajustes" (e continua
+// acessível pelos links das telas). Poucas opções, com nomes do dia a dia, para ninguém se perder.
+const DAILY = ['inicio', 'produtos', 'fila', 'pedidos', 'promocoes'];
+const PROMO = ['agenda', 'campanhas', 'artes', 'leads', 'midia'];
+const MENU = {
+  owner: [['Dia a dia', DAILY], ['Divulgação', PROMO]],
+  manager: [['Dia a dia', DAILY], ['Divulgação', PROMO]],
+  marketing: [['Dia a dia', ['inicio', 'artes', 'agenda']], ['Divulgação', ['campanhas', 'promocoes', 'leads', 'midia']]],
+  site: [['Dia a dia', ['inicio', 'fila', 'pedidos', 'artes']], ['Para consultar', ['produtos', 'promocoes', 'agenda']]]
+};
+
+// Letra maior: preferência guardada só neste aparelho.
+const TEXT_KEY = 'sr-letra-grande';
+function applyTextSize(big) {
+  document.documentElement.classList.toggle('big-text', big);
+  document.querySelectorAll('[data-action=text-size]').forEach(b => b.setAttribute('aria-pressed', String(big)));
+}
+try { applyTextSize(localStorage.getItem(TEXT_KEY) === '1'); } catch {}
 
 const app = {
   config: null,
@@ -151,15 +170,15 @@ function rerender() {
 // ---------------------------------------------------------------------------
 function paintNav() {
   const nav = document.getElementById('nav');
-  nav.innerHTML = GROUPS.map(group => {
-    const items = VIEWS.filter(v => v.group === group && allowed(v));
-    if (!items.length) return '';
-    return `<div class="nav-group"><p class="nav-label">${group}</p>${items.map(v => {
-      const active = v.id === app.route.name;
-      const badge = v.id === 'inicio' && app.todoCount ? `<span class="nav-count" aria-label="${app.todoCount} pendências para você">${app.todoCount}</span>` : '';
-      return `<a href="#/${v.id}" class="nav-link${active ? ' is-active' : ''}"${active ? ' aria-current="page"' : ''}>${icon(v.icon)}<span>${esc(v.title)}</span>${badge}</a>`;
-    }).join('')}</div>`;
-  }).join('');
+  const link = v => {
+    const active = v.id === app.route.name;
+    const badge = v.id === 'inicio' && app.todoCount ? `<span class="nav-count" aria-label="${app.todoCount} coisas para você resolver">${app.todoCount}</span>` : '';
+    return `<a href="#/${v.id}" class="nav-link${active ? ' is-active' : ''}"${active ? ' aria-current="page"' : ''}>${icon(v.icon)}<span>${esc(v.title)}</span>${badge}</a>`;
+  };
+  nav.innerHTML = (MENU[app.user.role] || MENU.owner).map(([label, ids]) => {
+    const items = ids.map(id => BY_ID[id]).filter(v => v && allowed(v));
+    return items.length ? `<div class="nav-group"><p class="nav-label">${label}</p>${items.map(link).join('')}</div>` : '';
+  }).join('') + `<div class="nav-group">${link(settingsHub)}</div>`;
   const u = app.user;
   document.getElementById('userChip').innerHTML = `<span class="avatar" aria-hidden="true">${esc(initials(u.name))}</span><span class="user-meta"><strong>${esc(u.name)}</strong><small>${esc(ROLES[u.role]?.label || u.role)}${u.role === 'manager' && u.canApprove ? ' · aprova' : ''}</small></span>`;
   document.getElementById('envLabel').textContent = app.config.demo ? 'Demonstração' : app.config.backend === 'local' ? 'Servidor da loja' : 'Nuvem · Firebase';
@@ -182,7 +201,7 @@ const TABS = {
   marketing: ['inicio', 'artes', 'campanhas', 'agenda'],
   site: ['inicio', 'fila', 'pedidos', 'artes']
 };
-const SHORT = { inicio: 'Início', produtos: 'Produtos', fila: 'Fila', agenda: 'Agenda', artes: 'Artes', campanhas: 'Campanhas', pedidos: 'Pedidos' };
+const SHORT = { inicio: 'Início', produtos: 'Produtos', fila: 'Anúncios', agenda: 'Agenda', artes: 'Artes', campanhas: 'Campanhas', pedidos: 'Pedidos' };
 function paintTabbar() {
   const ids = (TABS[app.user.role] || TABS.owner).filter(id => BY_ID[id] && allowed(BY_ID[id]));
   document.getElementById('tabbar').innerHTML = ids.map(id => {
@@ -244,6 +263,13 @@ document.addEventListener('click', event => {
   if (action === 'reload') return refresh();
   if (action === 'logout') return void signOut().then(() => location.reload());
   if (action === 'toggle-menu') return toggleMenu(!document.body.classList.contains('menu-open'));
+  if (action === 'text-size') {
+    const big = !document.documentElement.classList.contains('big-text');
+    try { localStorage.setItem(TEXT_KEY, big ? '1' : '0'); } catch {}
+    applyTextSize(big);
+    if (app.route.name === 'ajustes') rerender();
+    return toast(big ? 'Letra maior ligada.' : 'Letra no tamanho normal.', 'info');
+  }
   const view = BY_ID[app.route.name];
   const handler = view.actions?.[action];
   if (!handler) return;

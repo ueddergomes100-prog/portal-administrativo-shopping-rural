@@ -8,7 +8,6 @@ export default {
   id: 'conta',
   title: 'Minha conta',
   icon: 'user',
-  group: null, // acessada pelo rodapé da navegação
 
   load: () => Promise.resolve({}),
 
@@ -25,8 +24,8 @@ export default {
       </section>
       <section class="panel"><div class="panel-head"><h2>Trocar senha</h2></div>
         <form data-form="password" class="form-grid">
-          ${field('password', 'Nova senha', { type: 'password', required: true, full: true, hint: 'Mínimo de 8 caracteres.' })}
-          ${field('confirm', 'Repita a nova senha', { type: 'password', required: true, full: true })}
+          ${field('password', 'Nova senha', { type: 'password', required: true, full: true, hint: 'Pelo menos 8 caracteres.' })}
+          ${field('confirm', 'Digite a nova senha de novo', { type: 'password', required: true, full: true })}
           <div class="form-error full"></div>
           <div class="full form-actions"><button class="btn" type="submit">${icon('lock')}<span>Trocar senha</span></button></div>
         </form>
@@ -43,11 +42,11 @@ export default {
       ctx.rerender();
     },
     async password(ctx, data, form) {
-      if (data.password !== data.confirm) throw new Error('As duas senhas não são iguais.');
+      if (data.password !== data.confirm) throw new Error('As duas senhas estão diferentes. Digite a mesma senha nos dois campos.');
       await patch(`/users/${ctx.user.id}`, { password: data.password });
       form.reset();
       if (authMode() === 'local') {
-        toast('Senha trocada. Entre novamente com a nova senha.');
+        toast('Senha trocada. Entre de novo com a senha nova.');
         await signOut();
         setTimeout(() => location.reload(), 1200);
       } else {

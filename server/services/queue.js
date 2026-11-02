@@ -61,18 +61,18 @@ function decorate(item, user) {
 async function readChannels(input, product) {
   const config = await getChannels();
   const raw = Array.isArray(input.channels) ? input.channels : [];
-  if (!raw.length) throw badRequest('Escolha ao menos um canal de venda.');
+  if (!raw.length) throw badRequest('Escolha pelo menos um lugar para vender.');
   const promoStart = clean.date(input.promoStart, { label: 'Início da promoção' });
   const promoEnd = clean.date(input.promoEnd, { label: 'Fim da promoção' });
   const seen = new Set();
   const channels = raw.map(entry => {
     const channel = config.find(c => c.id === entry.id && c.active !== false);
-    if (!channel) throw badRequest(`Canal de venda inválido: ${entry.id}`);
+    if (!channel) throw badRequest(`Lugar de venda não encontrado (${entry.id}). Confira em Taxas de venda.`);
     if (seen.has(channel.id)) throw badRequest(`${channel.name} aparece duas vezes.`);
     seen.add(channel.id);
     const price = clean.money(entry.price ?? product.basePrice, { required: true, label: `Preço em ${channel.name}` });
-    const promoPrice = clean.money(entry.promoPrice, { label: `Preço promocional em ${channel.name}` });
-    if (promoPrice !== null && !(promoPrice < price)) throw badRequest(`${channel.name}: o preço promocional precisa ser menor que ${price.toFixed(2).replace('.', ',')}.`);
+    const promoPrice = clean.money(entry.promoPrice, { label: `Preço da promoção em ${channel.name}` });
+    if (promoPrice !== null && !(promoPrice < price)) throw badRequest(`${channel.name}: o preço da promoção precisa ser menor que o preço normal (R$ ${price.toFixed(2).replace('.', ',')}).`);
     const fees = channelFees(price, channel);
     const promoFees = promoPrice !== null ? channelFees(promoPrice, channel) : null;
     return {
@@ -86,8 +86,8 @@ async function readChannels(input, product) {
   });
   const hasPromo = channels.some(c => c.promoPrice !== null);
   if (hasPromo) {
-    if (!promoStart || !promoEnd) throw badRequest('Informe início e fim da promoção.');
-    if (promoEnd < promoStart) throw badRequest('O fim da promoção precisa ser depois do início.');
+    if (!promoStart || !promoEnd) throw badRequest('Preencha quando a promoção começa e quando termina.');
+    if (promoEnd < promoStart) throw badRequest('A promoção precisa terminar depois de começar. Confira as datas.');
   }
   return { channels, promoStart: hasPromo ? promoStart : '', promoEnd: hasPromo ? promoEnd : '' };
 }
@@ -101,11 +101,11 @@ function mergeListings(previous = {}, channels) {
 
 // Dono (ou gerente aprovador) escolhe o produto, os canais e o preço em cada um.
 export async function selectProduct(user, input) {
-  if (!isPricer(user)) throw forbidden('Somente o dono (ou gerente autorizado) escolhe produtos e preços de venda.');
+  if (!isPricer(user)) throw forbidden('Só o dono (ou o gerente que pode aprovar) escolhe o que vender e por quanto.');
   const product = await getProduct(clean.text(input.productId, { required: true, label: 'Produto' }));
   const store = getStore();
   const active = await store.list(C.queue, { where: [['productId', '==', product.id]] });
-  if (active.some(i => i.stage !== 'archived')) throw conflict('Este produto já está na fila de publicação. Abra o item existente.');
+  if (active.some(i => i.stage !== 'archived')) throw conflict('Este produto já está em Anúncios. Abra ele por lá.');
 
   const pricing = await readChannels(input, product);
   const item = {
@@ -138,7 +138,7 @@ export async function updatePricing(user, id, input) {
   const store = getStore();
   const item = await store.get(C.queue, id);
   if (!item) throw notFound('Item da fila não encontrado.');
-  if (!isPricer(user)) throw forbidden('Só o dono ou gerente autorizado altera preço.');
+  if (!isPricer(user)) throw forbidden('Só o dono (ou o gerente que pode aprovar) muda o preço.');
   const product = await getProduct(item.productId);
   const pricing = await readChannels({ ...item, ...input }, product);
   // Site próprio lê o preço novo na hora. Marketplaces já anunciados ficam marcados
@@ -171,14 +171,14 @@ export async function updateContent(user, id, input) {
   const store = getStore();
   const item = await store.get(C.queue, id);
   if (!item) throw notFound('Item da fila não encontrado.');
-  if (user.role !== 'site') throw forbidden('O conteúdo é preparado pelo responsável do site.');
-  if (!['selected', 'preparing'].includes(item.stage)) throw badRequest('O conteúdo só pode ser editado em "Selecionado" ou "Em preparação".');
+  if (user.role !== 'site') throw forbidden('Quem prepara o texto e as fotos é a pessoa das vendas na internet.');
+  if (!['selected', 'preparing'].includes(item.stage)) throw badRequest('O texto e as fotos só podem ser mudados nas etapas "Escolhido" ou "Preparando".');
   const imageRefs = clean.ids(input.imageRefs ?? item.content.imageRefs, { label: 'Imagens', max: 10 }).map(ref => clean.fileRef(ref)).filter(Boolean);
   const content = {
     title: clean.text(input.title ?? item.content.title, { max: 160, label: 'Título' }),
     description: clean.text(input.description ?? item.content.description, { max: 20000, label: 'Descrição' }),
-    seoTitle: clean.text(input.seoTitle ?? item.content.seoTitle, { max: 70, label: 'Título SEO' }),
-    seoDescription: clean.text(input.seoDescription ?? item.content.seoDescription, { max: 320, label: 'Descrição SEO' }),
+    seoTitle: clean.text(input.seoTitle ?? item.content.seoTitle, { max: 70, label: 'Título para o Google' }),
+    seoDescription: clean.text(input.seoDescription ?? item.content.seoDescription, { max: 320, label: 'Descrição para o Google' }),
     category: clean.text(input.category ?? item.content.category, { max: 120, label: 'Categoria' }),
     imageRefs,
     siteNotes: clean.text(input.siteNotes ?? item.content.siteNotes, { max: 2000, label: 'Observações' }),
@@ -232,16 +232,16 @@ function siteProblems(item) {
   if (!c.siteCategory) missing.push('categoria do site');
   if (!c.pet) missing.push('pet (cão, gato ou ambos)');
   if (!c.measureValue) missing.push('medida (ex.: 15 kg, 1 un)');
-  if (!c.short) missing.push('resumo');
+  if (!c.short) missing.push('resumo curto');
   if (c.measureUnit !== 'kg' && !c.weightKg) missing.push('peso para frete');
   return missing;
 }
 
 function contentProblems(item) {
   const missing = [];
-  if (!item.content?.title) missing.push('título');
-  if (!item.content?.description || item.content.description.length < 30) missing.push('descrição (mín. 30 caracteres)');
-  if (!item.content?.imageRefs?.length) missing.push('ao menos uma foto');
+  if (!item.content?.title) missing.push('nome do produto no anúncio');
+  if (!item.content?.description || item.content.description.length < 30) missing.push('descrição (pelo menos 30 letras)');
+  if (!item.content?.imageRefs?.length) missing.push('pelo menos uma foto');
   return missing;
 }
 
@@ -249,18 +249,18 @@ export async function transitionQueue(user, id, { to, note }) {
   const store = getStore();
   const item = await store.get(C.queue, id);
   if (!item) throw notFound('Item da fila não encontrado.');
-  if (!QUEUE_STAGES[to]) throw badRequest('Etapa inválida.');
-  if (to === 'published') throw badRequest('A etapa "Publicado" muda sozinha quando todos os canais estiverem publicados.');
+  if (!QUEUE_STAGES[to]) throw badRequest('Etapa não encontrada. Atualize a página e tente de novo.');
+  if (to === 'published') throw badRequest('O produto fica "À venda" sozinho quando estiver à venda em todos os lugares escolhidos.');
   const transition = findTransition(QUEUE_TRANSITIONS, item.stage, to);
-  if (!transition) throw badRequest(`Não é possível ir de "${QUEUE_STAGES[item.stage].label}" para "${QUEUE_STAGES[to].label}".`);
-  if (!roleMatches(user, transition.who)) throw forbidden('Seu papel não permite esta mudança de etapa.');
+  if (!transition) throw badRequest(`Não dá para passar de "${QUEUE_STAGES[item.stage].label}" para "${QUEUE_STAGES[to].label}". Atualize a página e tente de novo.`);
+  if (!roleMatches(user, transition.who)) throw forbidden('Sua função não permite fazer esta mudança. Peça ao dono ou ao gerente.');
   const cleanNote = clean.text(note, { max: 2000, label: 'Observação' });
   if (transition.requires === 'note' && !cleanNote) throw badRequest('Escreva o motivo para a equipe entender o que fazer.');
   if (transition.requires === 'content') {
     // Com o canal Site próprio, os dados que o site exibe já são cobrados aqui.
     const hasSite = (item.channels || []).some(c => c.integration === 'site');
     const missing = [...contentProblems(item), ...(hasSite ? siteProblems(item) : [])];
-    if (missing.length) throw badRequest('Antes de enviar para aprovação, preencha: ' + missing.join(', ') + '.');
+    if (missing.length) throw badRequest('Antes de mandar para aprovação, preencha: ' + missing.join(', ') + '.');
   }
   const history = [...(item.stageHistory || []), { from: item.stage, to, at: now(), by: user.name, note: cleanNote }].slice(-50);
   const patch = { stage: to, stageHistory: history, updatedAt: now(), updatedBy: user.id };
@@ -300,10 +300,10 @@ async function loadForListing(user, id, channelId) {
   const store = getStore();
   const item = await store.get(C.queue, id);
   if (!item) throw notFound('Item da fila não encontrado.');
-  if (!['site', 'owner'].includes(user.role)) throw forbidden('Quem publica é o responsável pelo site e marketplaces, ou o dono.');
-  if (!['approved', 'published'].includes(item.stage)) throw badRequest('Só itens aprovados podem ser publicados.');
+  if (!['site', 'owner'].includes(user.role)) throw forbidden('Quem coloca à venda é a pessoa das vendas na internet ou o dono.');
+  if (!['approved', 'published'].includes(item.stage)) throw badRequest('Só dá para colocar à venda depois de aprovado.');
   const channel = (item.channels || []).find(c => c.id === channelId);
-  if (!channel) throw badRequest('Este canal não foi escolhido para este produto.');
+  if (!channel) throw badRequest('Este produto não foi escolhido para vender nesse lugar.');
   return { store, item, channel };
 }
 
@@ -321,9 +321,9 @@ async function uniqueSlug(store, item) {
 // Site próprio: coloca o produto no catálogo lido pelo site (GET /api/store/catalog).
 export async function publishToSite(user, id) {
   const { store, item, channel } = await loadForListing(user, id, 'site');
-  if (channel.integration !== 'site') throw badRequest('Este canal não é o site próprio.');
+  if (channel.integration !== 'site') throw badRequest('Este lugar de venda não é o site da loja.');
   const missing = [...contentProblems(item), ...siteProblems(item)];
-  if (missing.length) throw badRequest('Para publicar no site, complete no conteúdo do anúncio: ' + missing.join(', ') + '.');
+  if (missing.length) throw badRequest('Para colocar à venda no site, preencha em “Texto e fotos do anúncio”: ' + missing.join(', ') + '.');
   const slug = await uniqueSlug(store, item);
   const listing = { status: 'done', manual: false, publishedAt: now(), by: user.name, externalId: slug, url: siteProductUrl(slug) };
   let saved = await store.update(C.queue, id, { slug, listings: { ...item.listings, site: listing }, updatedAt: now(), updatedBy: user.id });
@@ -337,11 +337,11 @@ export async function publishToSite(user, id) {
 // Marketplaces: a pessoa anunciou no painel do canal e registra aqui o link/código.
 export async function recordListing(user, id, channelId, input) {
   const { store, item, channel } = await loadForListing(user, id, channelId);
-  if (channel.integration === 'site') throw badRequest('O site próprio é publicado pelo botão "Publicar no site".');
+  if (channel.integration === 'site') throw badRequest('Para o site da loja, use o botão "Colocar à venda no site".');
   const url = clean.text(input.url, { max: 500, label: 'Link do anúncio' });
   if (url && !/^https:\/\/\S+$/.test(url)) throw badRequest('O link do anúncio precisa começar com https://');
   const externalId = clean.text(input.externalId, { max: 120, label: 'Código do anúncio' });
-  if (!url && !externalId) throw badRequest('Informe o link ou o código do anúncio para a equipe conseguir conferir.');
+  if (!url && !externalId) throw badRequest('Cole o link ou o número do anúncio, para a equipe poder conferir.');
   const listing = { status: 'done', manual: true, by: user.name, publishedAt: now(), url, externalId, note: clean.text(input.note, { max: 500 }) };
   let saved = await store.update(C.queue, id, { listings: { ...item.listings, [channelId]: listing }, updatedAt: now(), updatedBy: user.id });
   saved = await settleStage(store, saved, user);
@@ -354,7 +354,7 @@ export async function recordListing(user, id, channelId, input) {
 export async function removeListing(user, id, channelId) {
   const { store, item, channel } = await loadForListing(user, id, channelId);
   const before = item.listings?.[channelId];
-  if (before?.status !== 'done') throw badRequest(`${channel.name} não está publicado.`);
+  if (before?.status !== 'done') throw badRequest(`${channel.name} ainda não está marcado como à venda.`);
   const listing = { status: 'idle', externalId: '', url: '', publishedAt: null, removedAt: now(), removedBy: user.name };
   let saved = await store.update(C.queue, id, { listings: { ...item.listings, [channelId]: listing }, updatedAt: now(), updatedBy: user.id });
   saved = await settleStage(store, saved, user);

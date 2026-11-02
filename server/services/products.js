@@ -74,6 +74,6 @@ export async function listProducts({ search = '', filter = '', category = '', pa
 
 export async function getProduct(id) {
   const product = await getStore().get(C.products, id);
-  if (!product) throw notFound('Produto não encontrado no catálogo sincronizado do UniPlus.');
+  if (!product) throw notFound('Produto não encontrado. Ele pode ter saído do sistema da loja.');
   return product;
 }

@@ -20,7 +20,7 @@ export async function listMetrics() {
 
 export async function syncMetrics(source, actor = null) {
   const def = SOURCES[source];
-  if (!def) throw badRequest('Fonte de indicadores desconhecida.');
+  if (!def) throw badRequest('Esta conta de resultados não existe no portal.');
   try {
     const report = await def.fetch();
     const at = new Date().toISOString();

@@ -11,18 +11,17 @@ const view = {
   id: 'pedidos',
   title: 'Pedidos',
   icon: 'orders',
-  group: 'Operação',
 
   load: () => get('/orders'),
 
   render({ state, data }) {
     const { connected, orders } = data;
-    const head = pageHead({ title: 'Pedidos do site', lead: 'Pedidos feitos no site próprio. Mova o andamento aqui — o cliente vê a mesma etapa na página do pedido.' });
+    const head = pageHead({ title: 'Pedidos', lead: 'Compras feitas no site da loja. Mude a situação do pedido aqui e o cliente vê a mesma coisa no site.' });
     if (!orders.length) {
       return `${head}<section class="panel">${empty({
-        title: connected ? 'Nenhum pedido ainda' : 'Site ainda não ligado',
-        text: connected ? 'Quando alguém comprar no site, o pedido aparece aqui.' : 'Configure STORE_API_TOKEN no servidor e use o mesmo token no servidor do site (veja docs/SITE.md).',
-        action: `<a class="btn" href="#/integracoes">${icon('link')}<span>Ver integrações</span></a>`, ic: 'orders'
+        title: connected ? 'Nenhum pedido ainda' : 'O site ainda não está ligado',
+        text: connected ? 'Quando alguém comprar no site, o pedido aparece aqui.' : 'O site da loja ainda não foi ligado ao portal. Quem instalou o portal precisa fazer essa ligação.',
+        action: `<a class="btn" href="#/integracoes">${icon('link')}<span>Ver conexões</span></a>`, ic: 'orders'
       })}</section>`;
     }
     const filter = state.status || '';
@@ -65,7 +64,7 @@ const view = {
         <div><dt>Rastreio</dt><dd class="mono">${esc(order.trackingCode || '—')}</dd></div>
         ${a ? `<div class="full-row"><dt>Endereço</dt><dd>${esc([a.recipient, `${a.street || ''}, ${a.number || ''}${a.complement ? ' ' + a.complement : ''}`, a.district, `${a.city || ''}/${a.state || ''}`, a.cep].filter(Boolean).join(' · '))}</dd></div>` : ''}
       </dl>
-      <section class="section"><h3>Itens</h3><div class="table-wrap"><table class="table compact"><thead><tr><th scope="col">Produto</th><th scope="col" class="num">Qtd.</th><th scope="col" class="num">Preço</th></tr></thead>
+      <section class="section"><h3>Produtos</h3><div class="table-wrap"><table class="table compact"><thead><tr><th scope="col">Produto</th><th scope="col" class="num">Quant.</th><th scope="col" class="num">Preço</th></tr></thead>
       <tbody>${order.items.map(i => `<tr><td>${esc(i.name)}<span class="mono sub">${esc([i.sku, i.measure].filter(Boolean).join(' · '))}</span></td><td class="num mono">${num(i.qty)}</td><td class="num mono">${money(i.unitPrice)}</td></tr>`).join('')}</tbody></table></div>
       <dl class="ledger compact-ledger">
         <div><dt>Subtotal</dt><dd class="mono">${money(t.subtotal)}</dd></div>
@@ -74,8 +73,8 @@ const view = {
         <div><dt>Frete</dt><dd class="mono">${money(t.shipping)}</dd></div>
         <div><dt>Total</dt><dd class="mono">${money(t.total)}</dd></div>
       </dl></section>
-      ${order.status === 'aguardando_pagamento' ? notice('Aguardando a confirmação do pagamento pelo site/gateway. Não separe antes de ficar “Pago”.', 'warn') : ''}
-      <section class="section"><h3>Andamento</h3><ul class="timeline">${(order.timeline || []).slice().reverse().map(h => `<li><span class="tl-when">${dateTime(h.at)}</span><span class="tl-what">${statusTag(ORDER_STATUS, h.status)}${h.by ? ` ${esc(h.by)}` : ''}${h.note ? `<q>${esc(h.note)}</q>` : ''}</span></li>`).join('')}</ul></section>`,
+      ${order.status === 'aguardando_pagamento' ? notice('O pagamento ainda não foi confirmado. Não separe o pedido antes de aparecer “Pago”.', 'warn') : ''}
+      <section class="section"><h3>O que já aconteceu</h3><ul class="timeline">${(order.timeline || []).slice().reverse().map(h => `<li><span class="tl-when">${dateTime(h.at)}</span><span class="tl-what">${statusTag(ORDER_STATUS, h.status)}${h.by ? ` ${esc(h.by)}` : ''}${h.note ? `<q>${esc(h.note)}</q>` : ''}</span></li>`).join('')}</ul></section>`,
       footer: [...(order.transitions || [])].sort((x, y) => (y.to === 'cancelado') - (x.to === 'cancelado'))
         .map(tr => button(tr.label, { action: 'move', variant: tr.to === 'cancelado' ? 'ghost danger-text' : 'primary', data: { to: tr.to, requires: tr.requires || '', label: tr.label } })).join('')
     });
@@ -89,7 +88,7 @@ const view = {
       const { to, requires, label } = el.dataset;
       const note = await confirmDialog({
         title: label,
-        text: `Pedido ${esc(order.number)} vai para <strong>${esc(ORDER_STATUS[to].label)}</strong>. O cliente vê essa etapa no site.`,
+        text: `O pedido ${esc(order.number)} vai ficar como <strong>${esc(ORDER_STATUS[to].label)}</strong>. O cliente vê essa mudança no site.`,
         confirmLabel: label,
         tone: to === 'cancelado' ? 'danger' : 'primary',
         noteLabel: requires === 'tracking' ? 'Código de rastreio' : requires === 'note' ? 'Motivo do cancelamento' : '',

@@ -19,14 +19,13 @@ function when(today, start, end) {
   if (toStart === 1) return 'começa amanhã';
   if (toStart === 0) return 'começa hoje';
   const toEnd = daysBetween(today, end);
-  return toEnd === 0 ? 'termina hoje' : `rolando · termina em ${num(toEnd)} dia(s)`;
+  return toEnd === 0 ? 'termina hoje' : `acontecendo · termina em ${num(toEnd)} dia(s)`;
 }
 
 export default {
   id: 'agenda',
   title: 'Agenda',
   icon: 'calendar',
-  group: 'Marketing',
 
   async load({ state }) {
     const today = todayInSaoPaulo();
@@ -68,7 +67,7 @@ export default {
 
     return `${pageHead({
       title: 'Agenda',
-      lead: 'Tudo que vem por aí: campanhas, promoções e prazos de arte. Clique para abrir.',
+      lead: 'Tudo o que vem por aí: campanhas, promoções e prazos de arte. Toque em um item para abrir.',
       actions: canCreate ? `<a class="btn primary" href="#/campanhas">${icon('plus')}<span>Planejar campanha</span></a>` : ''
     })}
     <div class="grid-agenda">
@@ -85,19 +84,19 @@ export default {
       </section>
       <div>
         <section class="panel" aria-labelledby="nextTitle">
-          <div class="panel-head"><h2 id="nextTitle">Próximos 90 dias</h2></div>
+          <div class="panel-head"><h2 id="nextTitle">Próximos 3 meses</h2></div>
           ${upcoming.length ? `<ul class="upcoming">${upcoming.map(e => `<li><a href="#/${KIND[e.kind].route}/${esc(e.id)}">
             <span class="up-when"><strong>${esc(date(e.start).slice(0, 5))}</strong><small>${esc(KIND[e.kind].label)}</small></span>
             <span class="up-what"><strong>${esc(e.name)}</strong><small>${esc(when(today, e.start, e.end))} · até ${esc(date(e.end))}</small></span>
             ${e.status ? `<span class="up-tag">${statusTag({ x: e.status }, 'x')}</span>` : ''}</a></li>`).join('')}</ul>`
-            : empty({ title: 'Nada agendado', text: 'Planeje a próxima campanha com antecedência para dar tempo das artes.', ic: 'calendar' })}
+            : empty({ title: 'Nada marcado', text: 'Planeje a próxima campanha com antecedência para dar tempo de fazer as artes.', ic: 'calendar' })}
         </section>
         <section class="panel" aria-labelledby="dlTitle">
-          <div class="panel-head"><h2 id="dlTitle">Prazos de arte</h2><a class="link" href="#/artes">Quadro de artes ${icon('arrow')}</a></div>
+          <div class="panel-head"><h2 id="dlTitle">Prazos de arte</h2><a class="link" href="#/artes">Ver artes ${icon('arrow')}</a></div>
           ${deadlines.length ? `<ul class="upcoming">${deadlines.map(e => `<li><a href="#/artes/${esc(e.id)}">
-            <span class="up-when"><strong>${esc(date(e.start).slice(0, 5))}</strong><small>${daysBetween(today, e.start) === 0 ? 'hoje' : `em ${num(daysBetween(today, e.start))} d`}</small></span>
+            <span class="up-when"><strong>${esc(date(e.start).slice(0, 5))}</strong><small>${daysBetween(today, e.start) === 0 ? 'hoje' : `em ${num(daysBetween(today, e.start))} dia(s)`}</small></span>
             <span class="up-what"><strong>${esc(e.name)}</strong><small>${esc(e.status?.label || '')}</small></span></a></li>`).join('')}</ul>`
-            : '<p class="muted">Nenhum prazo nos próximos 90 dias.</p>'}
+            : '<p class="muted">Nenhuma arte com prazo nos próximos 3 meses.</p>'}
         </section>
       </div>
     </div>`;

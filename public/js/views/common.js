@@ -13,18 +13,18 @@ export function productPicker({ name = 'productIds', label = 'Produtos', mode = 
   return `<div class="field full picker" data-picker="${esc(name)}" data-mode="${mode}">
     <label for="picker-${esc(name)}">${esc(label)}${required ? ' <span class="req" aria-hidden="true">*</span>' : ''}</label>
     <ul class="picker-chosen" data-chosen>${rows}</ul>
-    <div class="picker-search">${icon('search')}<input id="picker-${esc(name)}" type="search" data-input="picker-search" placeholder="Buscar produto por nome ou SKU" autocomplete="off" aria-describedby="picker-${esc(name)}-hint"></div>
+    <div class="picker-search">${icon('search')}<input id="picker-${esc(name)}" type="search" data-input="picker-search" placeholder="Buscar produto por nome ou código" autocomplete="off" aria-describedby="picker-${esc(name)}-hint"></div>
     <ul class="picker-results" data-results role="listbox" aria-label="Resultados"></ul>
-    <small class="hint" id="picker-${esc(name)}-hint">${esc(hint || (mode === 'single' ? 'Escolha um produto.' : 'Busque e clique para adicionar.'))}</small>
+    <small class="hint" id="picker-${esc(name)}-hint">${esc(hint || (mode === 'single' ? 'Busque e toque no produto.' : 'Busque e toque nos produtos para colocar na lista.'))}</small>
   </div>`;
 }
 
 function pickerRow(name, mode, p) {
   const base = `<span class="picker-name"><strong>${esc(p.name)}</strong><span class="mono sub">${esc(p.sku || '')}${p.basePrice !== undefined ? ' · ' + money(p.basePrice) : ''}</span></span>`;
-  const remove = `<button type="button" class="btn-icon" data-action="picker-remove" aria-label="Remover ${esc(p.name)}">${icon('close')}</button>`;
+  const remove = `<button type="button" class="btn-icon" data-action="picker-remove" aria-label="Tirar ${esc(p.name)} da lista">${icon('close')}</button>`;
   if (mode === 'price') {
     return `<li class="picker-row" data-picker-row data-id="${esc(p.id)}">${base}
-      <label class="picker-price"><span class="sr-only">Preço promocional de ${esc(p.name)}</span><span aria-hidden="true">R$</span><input type="number" min="0" step="0.01" required data-promo data-input="promo-net" value="${esc(p.promoPrice ?? '')}" placeholder="Promo"></label>${remove}
+      <label class="picker-price"><span class="sr-only">Preço na promoção de ${esc(p.name)}</span><span aria-hidden="true">R$</span><input type="number" min="0" step="0.01" required data-promo data-input="promo-net" value="${esc(p.promoPrice ?? '')}" placeholder="Promoção"></label>${remove}
       <span class="picker-net" data-net aria-live="polite"></span></li>`;
   }
   return `<li class="picker-row" data-picker-row data-id="${esc(p.id)}"><input type="hidden" name="${esc(name)}" value="${esc(p.id)}">${base}${remove}</li>`;
@@ -43,7 +43,7 @@ export const pickerInputs = {
         box.innerHTML = result.data.length ? result.data.map(p => `<li><button type="button" class="picker-option" data-action="picker-add"
           data-id="${esc(p.id)}" data-name="${esc(p.name)}" data-sku="${esc(p.sku)}" data-price="${esc(p.basePrice)}">
           <strong>${esc(p.name)}</strong><span class="mono">${esc(p.sku)} · ${money(p.basePrice)} · estoque ${esc(p.stock)}</span></button></li>`).join('')
-          : '<li class="picker-none">Nenhum produto encontrado.</li>';
+          : '<li class="picker-none">Nenhum produto com esse nome ou código.</li>';
       } catch (error) {
         box.innerHTML = `<li class="picker-none">${esc(error.message)}</li>`;
       }
@@ -98,7 +98,7 @@ export async function runTransition({ entity, record, el, statuses, name }) {
       text: `“${esc(name)}” vai para <strong>${esc(statuses[to].label)}</strong>.`,
       confirmLabel: label,
       tone: to === 'cancelled' ? 'danger' : 'primary',
-      noteLabel: requires === 'note' ? 'Motivo (a equipe vai ler)' : 'Observação (opcional)',
+      noteLabel: requires === 'note' ? 'Explique o motivo (a equipe vai ler)' : 'Recado (se quiser)',
       noteRequired: requires === 'note'
     });
     if (note === null) return false;
@@ -113,14 +113,14 @@ export async function runTransition({ entity, record, el, statuses, name }) {
 function channelsPrompt(name) {
   return new Promise(resolve => {
     openModal({
-      title: 'Registrar publicação',
+      title: 'Avisar onde foi publicada',
       body: `<form id="channelsForm" class="form-grid">
-        <p class="full lead">Marque onde “${esc(name)}” foi publicada ou enviada. Isto é um registro da equipe — o portal não publica nem envia mensagens automaticamente.</p>
-        ${field('channels', 'Canais', { type: 'checkboxes', full: true, options: PUBLICATION_CHANNELS, required: true })}
-        ${field('channelNote', 'Detalhe (opcional)', { full: true, max: 500, placeholder: 'Ex.: grupo de clientes do WhatsApp; post fixado no Instagram' })}
+        <p class="full lead">Marque onde “${esc(name)}” foi publicada ou enviada. Isto só fica anotado aqui: o portal não publica nem manda mensagens sozinho.</p>
+        ${field('channels', 'Onde', { type: 'checkboxes', full: true, options: PUBLICATION_CHANNELS, required: true })}
+        ${field('channelNote', 'Detalhe (se quiser)', { full: true, max: 500, placeholder: 'Ex.: grupo de clientes do WhatsApp; post fixado no Instagram' })}
         <div class="form-error full"></div>
       </form>`,
-      footer: `<button type="button" class="btn ghost" data-cancel>Cancelar</button><button type="submit" form="channelsForm" class="btn primary">Registrar</button>`
+      footer: `<button type="button" class="btn ghost" data-cancel>Cancelar</button><button type="submit" form="channelsForm" class="btn primary">Salvar</button>`
     });
     const modal = document.getElementById('modal');
     const form = modal.querySelector('#channelsForm');
@@ -132,7 +132,7 @@ function channelsPrompt(name) {
       e.preventDefault();
       const channels = [...form.querySelectorAll('input[name=channels]:checked')].map(i => i.value);
       if (!channels.length) {
-        form.querySelector('.form-error').innerHTML = '<p class="error-text">Marque ao menos um canal.</p>';
+        form.querySelector('.form-error').innerHTML = '<p class="error-text">Marque pelo menos um lugar onde a arte saiu.</p>';
         return;
       }
       finish({ channels, channelNote: form.elements.channelNote.value.trim() });
@@ -146,7 +146,7 @@ function channelsPrompt(name) {
 export function notesSection(record) {
   const notes = (record.notes || []).slice().reverse();
   return `<section class="section">
-    <h3>Comentários e etapas</h3>
+    <h3>Comentários e mudanças</h3>
     <form data-form="note" class="note-form">
       <label for="noteText" class="sr-only">Novo comentário</label>
       <textarea id="noteText" name="text" rows="2" maxlength="2000" placeholder="Escreva um comentário para a equipe" required></textarea>
@@ -161,7 +161,7 @@ export function personName(users, id) {
   return users.find(u => u.id === id)?.name || '—';
 }
 
-export function peopleOptions(users, { empty = 'Sem responsável', roles } = {}) {
+export function peopleOptions(users, { empty = 'Ninguém ainda', roles } = {}) {
   return [['', empty], ...users.filter(u => u.active !== false && (!roles || roles.includes(u.role))).map(u => [u.id, u.name])];
 }
 
@@ -170,17 +170,17 @@ export { statusTag };
 // ---------------------------------------------------------------------------
 // Pedido de arte junto com a campanha/promoção (um formulário só).
 // ---------------------------------------------------------------------------
-export function artRequestSection(users, { title = 'Pedir arte ao marketing junto' } = {}) {
+export function artRequestSection(users, { title = 'Pedir a arte junto' } = {}) {
   return `<fieldset class="field full art-inline">
     <legend class="sr-only">Pedido de arte</legend>
-    <label class="check"><input type="checkbox" name="artRequested" value="true" data-change="art-toggle"><span><strong>${esc(title)}</strong> — o marketing recebe o pedido já ligado a este cadastro.</span></label>
+    <label class="check"><input type="checkbox" name="artRequested" value="true" data-change="art-toggle"><span><strong>${esc(title)}</strong> — o marketing recebe o pedido na hora, junto com o que você está salvando.</span></label>
     <div class="form-grid" data-art-fields hidden>
-      ${field('artTitle', 'Título do pedido de arte', { full: true, max: 140, placeholder: 'Se ficar vazio, usamos o nome do cadastro' })}
+      ${field('artTitle', 'Nome da arte', { full: true, max: 140, placeholder: 'Se deixar vazio, usamos o nome lá de cima' })}
       ${field('artFormat', 'Formato', { type: 'select', options: ART_FORMATS, value: 'Post' })}
-      ${field('artDeadline', 'Prazo da arte', { type: 'date' })}
+      ${field('artDeadline', 'Arte pronta até', { type: 'date' })}
       ${field('artPriority', 'Prioridade', { type: 'select', options: PRIORITIES, value: 'Normal' })}
-      ${field('artAssigneeId', 'Responsável (marketing)', { type: 'select', options: peopleOptions(users, { empty: 'Definir depois', roles: ['marketing', 'manager', 'owner'] }) })}
-      ${field('artBriefing', 'O que a arte precisa ter', { type: 'textarea', full: true, rows: 4, max: 8000, placeholder: 'Produto, preço normal e promocional, período, texto, onde vai ser usada (Instagram, WhatsApp, site…).' })}
+      ${field('artAssigneeId', 'Quem faz (marketing)', { type: 'select', options: peopleOptions(users, { empty: 'Escolher depois', roles: ['marketing', 'manager', 'owner'] }) })}
+      ${field('artBriefing', 'O que a arte precisa ter', { type: 'textarea', full: true, rows: 4, max: 8000, placeholder: 'Produto, preço normal e da promoção, datas, texto e onde vai ser usada (Instagram, WhatsApp, site…).' })}
     </div>
   </fieldset>`;
 }

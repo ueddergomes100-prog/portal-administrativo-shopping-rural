@@ -34,26 +34,26 @@ export function pricingEditor({ channels, product, selected = [], promoStart = '
         <span><strong>${esc(channel.name)}</strong><small>${esc(feeRuleText(channel) === 'sem taxa' ? 'sem taxa' : 'taxa ' + feeRuleText(channel))}</small></span></label></td>
       <td data-label="Vender por"><label class="calc-money"><span class="sr-only">Preço em ${esc(channel.name)}</span><span aria-hidden="true">R$</span>
         <input type="number" min="0" step="0.01" inputmode="decimal" data-input="calc" data-calc="price" value="${esc(price)}"${on ? '' : ' disabled'}></label></td>
-      <td class="calc-out" data-label="Recebe" data-out="price">${resultCells(price, channel, cost)}</td>
-      <td data-label="Promoção"><label class="calc-money"><span class="sr-only">Preço promocional em ${esc(channel.name)}</span><span aria-hidden="true">R$</span>
+      <td class="calc-out" data-label="Você recebe" data-out="price">${resultCells(price, channel, cost)}</td>
+      <td data-label="Na promoção"><label class="calc-money"><span class="sr-only">Preço na promoção em ${esc(channel.name)}</span><span aria-hidden="true">R$</span>
         <input type="number" min="0" step="0.01" inputmode="decimal" data-input="calc" data-calc="promo" value="${esc(promo)}" placeholder="—"${on ? '' : ' disabled'}></label></td>
       <td class="calc-out" data-label="Recebe na promoção" data-out="promo">${promo ? resultCells(promo, channel, cost) : '<span class="muted">—</span>'}</td>
     </tr>`;
   }).join('');
   return `<div class="calc" data-cost="${cost ?? ''}">
     <div class="calc-head">
-      <div><span class="calc-label">Preço no UniPlus</span><strong class="mono">${money(product.basePrice)}</strong></div>
+      <div><span class="calc-label">Preço na loja</span><strong class="mono">${money(product.basePrice)}</strong></div>
       <div><span class="calc-label">Estoque</span><strong class="mono">${num(product.stock)}</strong></div>
       ${cost ? `<div><span class="calc-label">Custo</span><strong class="mono">${money(cost)}</strong></div>` : ''}
     </div>
     <div class="table-wrap"><table class="calc-table">
-      <thead><tr><th scope="col">Canal</th><th scope="col">Vender por</th><th scope="col">Recebe (líquido)</th><th scope="col">Promoção</th><th scope="col">Recebe na promoção</th></tr></thead>
+      <thead><tr><th scope="col">Onde vender</th><th scope="col">Vender por</th><th scope="col">Você recebe</th><th scope="col">Na promoção</th><th scope="col">Recebe na promoção</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
     <div class="calc-dates">
-      ${field('promoStart', 'Promoção a partir de', { type: 'date', value: promoStart })}
-      ${field('promoEnd', 'Promoção até', { type: 'date', value: promoEnd })}
-      <small class="hint full">Preencha as datas só se algum canal tiver preço promocional.</small>
+      ${field('promoStart', 'Promoção começa em', { type: 'date', value: promoStart })}
+      ${field('promoEnd', 'Promoção termina em', { type: 'date', value: promoEnd })}
+      <small class="hint full">Só preencha as datas se colocar preço de promoção em algum lugar.</small>
     </div>
   </div>`;
 }
@@ -92,9 +92,9 @@ export function pricingSummary(item, { showCost = false } = {}) {
     <td class="num mono">${money(c.price)}</td>
     <td class="num mono">− ${money(c.fee)}</td>
     <td class="num mono"><strong>${money(c.net)}</strong>${showCost && c.margin ? `<span class="sub ${c.margin.value < 0 ? 'is-danger' : ''}">${money(c.margin.value)} · ${num(c.margin.percent)}%</span>` : ''}</td>
-    <td class="num mono">${c.promoPrice ? `${money(c.promoPrice)}<span class="sub">líquido ${money(c.promoNet)}</span>` : '—'}</td>
+    <td class="num mono">${c.promoPrice ? `${money(c.promoPrice)}<span class="sub">recebe ${money(c.promoNet)}</span>` : '—'}</td>
   </tr>`).join('');
   return `<div class="table-wrap"><table class="table compact">
-    <thead><tr><th scope="col">Canal</th><th scope="col" class="num">Preço</th><th scope="col" class="num">Taxa</th><th scope="col" class="num">Líquido${showCost ? ' / lucro' : ''}</th><th scope="col" class="num">Promoção</th></tr></thead>
+    <thead><tr><th scope="col">Onde</th><th scope="col" class="num">Preço</th><th scope="col" class="num">Taxa</th><th scope="col" class="num">Você recebe${showCost ? ' / lucro' : ''}</th><th scope="col" class="num">Promoção</th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;
 }

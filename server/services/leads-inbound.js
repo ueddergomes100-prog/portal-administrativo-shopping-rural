@@ -31,7 +31,7 @@ export async function receiveLead(input, { source: defaultSource = 'Site', exter
   const name = clean.text(input.name || input.nome, { max: 120, label: 'Nome' }) || 'Contato sem nome';
   const email = clean.email(input.email);
   const phone = clean.text(input.phone || input.telefone || input.whatsapp, { max: 40, label: 'Telefone' });
-  if (!email && !phone) throw badRequest('Envie ao menos telefone ou e-mail do contato.');
+  if (!email && !phone) throw badRequest('Envie pelo menos o telefone ou o e-mail do contato.');
   const source = LEAD_SOURCES.includes(input.source) ? input.source : defaultSource;
   const message = clean.text(input.message || input.mensagem || input.interest, { max: 3000, label: 'Mensagem' });
   const utm = ['utm_source', 'utm_medium', 'utm_campaign'].map(k => input[k] ? `${k}=${String(input[k]).slice(0, 80)}` : '').filter(Boolean).join(' · ');

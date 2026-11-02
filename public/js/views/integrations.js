@@ -9,20 +9,19 @@ const HELP = {
   ga4: 'Crie uma conta de serviço no Google Cloud, dê acesso de leitor à propriedade GA4 e informe o JSON no servidor.',
   googleads: 'Requer developer token aprovado, ID do cliente, app OAuth (client id/secret) e refresh token da conta de anúncios.',
   metaads: 'Gere um token de usuário do sistema no Gerenciador de Negócios com acesso à conta de anúncios (permissão ads_read). Para leads, um token da página com leads_retrieval.',
-  leads: 'Defina LEADS_WEBHOOK_TOKEN no servidor. Ferramentas externas enviam leads para /api/leads/inbound com esse token (detalhes em Indicadores e leads).'
+  leads: 'Defina LEADS_WEBHOOK_TOKEN no servidor. Ferramentas externas enviam leads para /api/leads/inbound com esse token (detalhes em Resultados).'
 };
 
 export default {
   id: 'integracoes',
-  title: 'Integrações',
+  title: 'Conexões',
   icon: 'link',
-  group: 'Gestão',
 
   load: () => get('/integrations'),
 
   render({ user, config, data }) {
     const manage = ['owner', 'manager'].includes(user.role);
-    return `${pageHead({ title: 'Integrações', lead: 'Credenciais ficam só no servidor (arquivo .env ou variáveis da Vercel). Aqui você vê o estado de cada conexão e o que falta.' })}
+    return `${pageHead({ title: 'Conexões', lead: 'Veja se o portal está ligado ao sistema da loja, ao site e às contas de anúncios. Se algo estiver com problema, avise quem instalou o portal.' })}
     <div class="int-list">${data.integrations.map(i => `
       <section class="panel int-card" aria-labelledby="int-${i.id}">
         <div class="int-head">
@@ -30,17 +29,17 @@ export default {
           ${statusTag(INTEGRATION_STATUS, i.status)}
         </div>
         <dl class="facts">
-          <div><dt>Última sincronização</dt><dd>${i.lastSyncAt ? `${esc(relative(i.lastSyncAt))} <small>${dateTime(i.lastSyncAt)}</small>` : 'Nunca'}</dd></div>
-          ${i.itemCount !== null ? `<div><dt>Itens na última leitura</dt><dd class="mono">${num(i.itemCount)}</dd></div>` : ''}
-          ${i.settings?.storeUrl ? `<div><dt>Loja</dt><dd><a href="${esc(i.settings.storeUrl)}" target="_blank" rel="noopener noreferrer">${esc(i.settings.storeUrl)} ${icon('external')}</a></dd></div>` : ''}
+          <div><dt>Última atualização</dt><dd>${i.lastSyncAt ? `${esc(relative(i.lastSyncAt))} <small>${dateTime(i.lastSyncAt)}</small>` : 'Ainda não'}</dd></div>
+          ${i.itemCount !== null ? `<div><dt>Itens recebidos da última vez</dt><dd class="mono">${num(i.itemCount)}</dd></div>` : ''}
+          ${i.settings?.storeUrl ? `<div><dt>Endereço</dt><dd><a href="${esc(i.settings.storeUrl)}" target="_blank" rel="noopener noreferrer">${esc(i.settings.storeUrl)} ${icon('external')}</a></dd></div>` : ''}
         </dl>
-        ${i.lastError ? notice(`<strong>Erro${i.lastErrorAt ? ' ' + esc(relative(i.lastErrorAt)) : ''}:</strong> ${esc(i.lastError)}`, 'danger') : ''}
-        ${i.missingEnv.length ? `<p class="hint">Falta no servidor: ${i.missingEnv.map(v => `<code>${esc(v)}</code>`).join(' ')}</p>` : ''}
-        ${!i.implemented ? '<p class="hint">Leitura de dados desta fonte: próxima etapa do projeto.</p>' : ''}
-        <details class="int-help"><summary>Como conectar</summary><p>${esc(HELP[i.id])}</p></details>
+        ${i.lastError ? notice(`<strong>Problema${i.lastErrorAt ? ' ' + esc(relative(i.lastErrorAt)) : ''}:</strong> ${esc(i.lastError)}`, 'danger') : ''}
+        ${i.missingEnv.length ? '<p class="hint">Falta terminar a ligação. Quem instala o portal vê o que falta em “Como ligar”.</p>' : ''}
+        ${!i.implemented ? '<p class="hint">Esta conexão ainda não está pronta no portal. Vem numa próxima etapa.</p>' : ''}
+        <details class="int-help"><summary>Como ligar (para quem instala o portal)</summary><p>${esc(HELP[i.id])}</p>${i.missingEnv.length ? `<p class="hint">Falta no servidor: ${i.missingEnv.map(v => `<code>${esc(v)}</code>`).join(' ')}</p>` : ''}</details>
         <div class="int-actions">
-          ${i.id === 'uniplus' && manage && !i.missingEnv.length && config.mediaAvailable ? button('Sincronizar agora', { action: 'sync-uniplus', icon: 'sync' }) : ''}
-          ${manage ? button('Preferências', { action: 'settings', icon: 'settings', variant: 'ghost', data: { id: i.id } }) : ''}
+          ${i.id === 'uniplus' && manage && !i.missingEnv.length && config.mediaAvailable ? button('Atualizar agora', { action: 'sync-uniplus', icon: 'sync' }) : ''}
+          ${manage ? button('Anotações', { action: 'settings', icon: 'settings', variant: 'ghost', data: { id: i.id } }) : ''}
         </div>
       </section>`).join('')}
     </div>`;
@@ -48,18 +47,18 @@ export default {
 
   actions: {
     async 'sync-uniplus'(ctx) {
-      toast('Sincronizando com o UniPlus…', 'info');
+      toast('Buscando os produtos no sistema da loja…', 'info');
       const r = await post('/products/sync');
-      toast(r.skipped ? 'Já havia uma sincronização em andamento.' : `${num(r.received)} produtos sincronizados.`);
+      toast(r.skipped ? 'Já tem uma atualização em andamento. Espere um pouco.' : `${num(r.received)} produtos atualizados.`);
       await ctx.refresh();
     },
     settings(ctx, el) {
       const i = ctx.data.integrations.find(x => x.id === el.dataset.id);
       openModal({
-        title: `Preferências · ${i.name}`,
+        title: `Anotações · ${i.name}`,
         body: `<form data-form="settings" id="intForm" class="form-grid" data-id="${esc(i.id)}">
           ${field('notes', 'Anotações da equipe', { type: 'textarea', full: true, rows: 3, value: i.settings.notes, max: 500 })}
-          <p class="full hint">Não escreva senhas ou tokens aqui. Credenciais vão apenas nas variáveis de ambiente do servidor.</p>
+          <p class="full hint">Não escreva senhas nem códigos de acesso aqui.</p>
           <div class="form-error full"></div>
         </form>`,
         footer: `<button type="button" class="btn ghost" data-action="close-layer">Cancelar</button><button type="submit" class="btn primary" form="intForm">Salvar</button>`
@@ -71,7 +70,7 @@ export default {
     async settings(ctx, data, form) {
       await patch(`/integrations/${form.dataset.id}`, data);
       closeTopLayer();
-      toast('Preferências salvas.');
+      toast('Anotações salvas.');
       await ctx.refresh();
     }
   }

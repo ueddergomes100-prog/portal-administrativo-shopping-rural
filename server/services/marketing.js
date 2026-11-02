@@ -21,9 +21,9 @@ const ENTITIES = {
     canCreate: ['owner', 'manager', 'marketing'], canEdit: ['owner', 'manager', 'marketing'] },
   promotions: { collection: C.promotions, statuses: PROMOTION_STATUS, transitions: PROMOTION_TRANSITIONS, label: 'promoção', initial: 'draft',
     canCreate: ['owner', 'manager'], canEdit: ['owner', 'manager'] },
-  arts: { collection: C.arts, statuses: ART_STATUS, transitions: ART_TRANSITIONS, label: 'solicitação de arte', initial: 'requested',
+  arts: { collection: C.arts, statuses: ART_STATUS, transitions: ART_TRANSITIONS, label: 'pedido de arte', initial: 'requested',
     canCreate: ['owner', 'manager', 'marketing', 'site'], canEdit: ['owner', 'manager', 'marketing'] },
-  leads: { collection: C.leads, statuses: LEAD_STATUS, transitions: null, label: 'lead', initial: 'new',
+  leads: { collection: C.leads, statuses: LEAD_STATUS, transitions: null, label: 'contato', initial: 'new',
     canCreate: ['owner', 'manager', 'marketing', 'site'], canEdit: ['owner', 'manager', 'marketing', 'site'] }
 };
 
@@ -43,7 +43,7 @@ function nameOf(entity, record) {
 async function readCampaign(input) {
   const start = clean.date(input.start, { required: true, label: 'Início' });
   const end = clean.date(input.end, { required: true, label: 'Fim' });
-  if (end < start) throw badRequest('O fim da campanha precisa ser depois do início.');
+  if (end < start) throw badRequest('A campanha precisa terminar depois de começar. Confira as datas.');
   const productIds = clean.ids(input.productIds, { label: 'Produtos' });
   // Guarda nome/SKU junto para a campanha continuar legível mesmo se o produto sair do UniPlus.
   const products = [];
@@ -67,15 +67,15 @@ async function readCampaign(input) {
 async function readPromotion(input) {
   const start = clean.date(input.start, { required: true, label: 'Início' });
   const end = clean.date(input.end, { required: true, label: 'Fim' });
-  if (end < start) throw badRequest('O fim da promoção precisa ser depois do início.');
+  if (end < start) throw badRequest('A promoção precisa terminar depois de começar. Confira as datas.');
   const rawItems = Array.isArray(input.items) ? input.items : [];
-  if (!rawItems.length) throw badRequest('Adicione ao menos um produto à promoção.');
-  if (rawItems.length > 200) throw badRequest('No máximo 200 produtos por promoção.');
+  if (!rawItems.length) throw badRequest('Coloque pelo menos um produto na promoção.');
+  if (rawItems.length > 200) throw badRequest('Uma promoção pode ter no máximo 200 produtos. Divida em duas.');
   const items = [];
   for (const raw of rawItems) {
     const product = await getProduct(String(raw.productId || ''));
     const promoPrice = clean.money(raw.promoPrice, { required: true, label: `Preço promocional de ${product.name}` });
-    if (promoPrice >= product.basePrice) throw badRequest(`${product.name}: o preço promocional precisa ser menor que ${brl(product.basePrice)}.`);
+    if (promoPrice >= product.basePrice) throw badRequest(`${product.name}: o preço da promoção precisa ser menor que o preço normal (${brl(product.basePrice)}).`);
     items.push({ productId: product.id, sku: product.sku, name: product.name, regularPrice: product.basePrice, promoPrice });
   }
   const channelIds = (await getChannels()).map(c => c.id);
@@ -96,7 +96,7 @@ async function readArt(input) {
   const store = getStore();
   const originCollection = { campaign: C.campaigns, promotion: C.promotions, product: C.products }[originType];
   const origin = await store.get(originCollection, originId);
-  if (!origin) throw badRequest('A campanha, promoção ou produto de origem não foi encontrado.');
+  if (!origin) throw badRequest('Não achamos a campanha, a promoção ou o produto escolhido em “É para”. Escolha de novo.');
   return {
     title: clean.text(input.title, { required: true, max: 140, label: 'Título' }),
     originType, originId, originName: origin.name || '',
@@ -157,7 +157,7 @@ export async function getRecord(entity, user, id) {
 
 export async function createRecord(entity, user, input) {
   const m = meta(entity);
-  if (!m.canCreate.includes(user.role)) throw forbidden(`Seu papel não cria ${m.label}.`);
+  if (!m.canCreate.includes(user.role)) throw forbidden(`Sua função não permite criar ${m.label}. Peça ao dono ou ao gerente.`);
   const data = await readers[entity](input);
   const record = {
     ...data,
@@ -193,8 +193,8 @@ export async function updateRecord(entity, user, id, input) {
   const store = getStore();
   const current = await store.get(m.collection, id);
   if (!current) throw notFound();
-  if (!m.canEdit.includes(user.role)) throw forbidden(`Seu papel não edita ${m.label}.`);
-  if (['cancelled', 'published', 'done'].includes(current.status)) throw badRequest('Registro encerrado não pode ser editado.');
+  if (!m.canEdit.includes(user.role)) throw forbidden(`Sua função não permite mudar ${m.label}. Peça ao dono ou ao gerente.`);
+  if (['cancelled', 'published', 'done'].includes(current.status)) throw badRequest('Isto já foi encerrado e não pode mais ser mudado.');
   // Promoção aprovada volta para rascunho se o preço ou período mudar — precisa de nova aprovação.
   const data = await readers[entity]({ ...current, ...input });
   const patch = { ...data, updatedAt: now(), updatedBy: user.id };
@@ -209,22 +209,22 @@ export async function updateRecord(entity, user, id, input) {
 
 export async function transitionRecord(entity, user, id, { to, note, channels, channelNote }) {
   const m = meta(entity);
-  if (!m.transitions) throw badRequest('Esta área não usa fluxo de aprovação.');
+  if (!m.transitions) throw badRequest('Esta tela não tem aprovação.');
   const store = getStore();
   const current = await store.get(m.collection, id);
   if (!current) throw notFound();
   const transition = findTransition(m.transitions, current.status, to);
-  if (!transition) throw badRequest(`Não é possível ir de "${m.statuses[current.status]?.label}" para "${m.statuses[to]?.label || to}".`);
-  if (!roleMatches(user, transition.who)) throw forbidden('Seu papel não permite esta mudança de etapa.');
+  if (!transition) throw badRequest(`Não dá para passar de "${m.statuses[current.status]?.label}" para "${m.statuses[to]?.label || to}". Atualize a página e tente de novo.`);
+  if (!roleMatches(user, transition.who)) throw forbidden('Sua função não permite fazer esta mudança. Peça ao dono ou ao gerente.');
   const cleanNote = clean.text(note, { max: 2000, label: 'Observação' });
   if (transition.requires === 'note' && !cleanNote) throw badRequest('Escreva o motivo para a equipe entender o que fazer.');
-  if (transition.requires === 'file' && !current.fileRef) throw badRequest('Indique a referência do arquivo da arte (pasta media/) antes de entregar.');
+  if (transition.requires === 'file' && !current.fileRef) throw badRequest('Envie o arquivo da arte antes de mandar para aprovação.');
   const patch = { status: to, updatedAt: now(), updatedBy: user.id };
   const noteText = `${m.statuses[current.status].label} → ${m.statuses[to].label}${cleanNote ? `: ${cleanNote}` : ''}`;
   patch.notes = [...(current.notes || []), { text: noteText, at: now(), by: user.name }].slice(-200);
   if (transition.requires === 'channels') {
     const list = clean.list(channels, PUBLICATION_CHANNELS, { label: 'Canais' });
-    if (!list.length) throw badRequest('Marque em quais canais a arte foi enviada ou publicada.');
+    if (!list.length) throw badRequest('Marque onde a arte foi publicada ou enviada.');
     patch.publications = [...(current.publications || []), ...list.map(channel => ({ channel, at: now(), by: user.name, note: clean.text(channelNote, { max: 500 }) }))];
   }
   if (to === 'approved') patch.approvedBy = { id: user.id, name: user.name, at: now() };
@@ -259,13 +259,13 @@ export async function setArtFile(user, id, fileRef) {
 
 export async function removeRecord(entity, user, id) {
   const m = meta(entity);
-  if (!['owner', 'manager'].includes(user.role)) throw forbidden('Somente dono ou gerente excluem registros.');
+  if (!['owner', 'manager'].includes(user.role)) throw forbidden('Só o dono ou o gerente podem apagar.');
   const store = getStore();
   const current = await store.get(m.collection, id);
   if (!current) throw notFound();
   if (entity === 'campaigns' || entity === 'promotions') {
     const arts = await store.list(C.arts, { where: [['originId', '==', id]] });
-    if (arts.length) throw badRequest(`Existem ${arts.length} artes ligadas a este registro. Cancele em vez de excluir.`);
+    if (arts.length) throw badRequest(`Tem ${arts.length} arte(s) ligada(s) a isto. Em vez de apagar, use “Cancelar”.`);
   }
   await store.remove(m.collection, id);
   await audit(user, { action: `${entity}.delete`, entity, entityId: id, summary: `Excluiu ${m.label}: ${nameOf(entity, current)}`, before: current });

@@ -14,7 +14,6 @@ const view = {
   id: 'promocoes',
   title: 'Promoções',
   icon: 'tag',
-  group: 'Operação',
 
   async load({ state }) {
     return get('/promotions', { status: state.status });
@@ -23,10 +22,10 @@ const view = {
   render({ user, state, data }) {
     const canCreate = ['owner', 'manager'].includes(user.role);
     const records = data.records;
-    const filter = `<div class="toolbar"><label class="select-inline"><span class="sr-only">Etapa</span><select data-change="status">
-      <option value="">Todas as etapas</option>${Object.entries(PROMOTION_STATUS).map(([k, v]) => `<option value="${k}"${state.status === k ? ' selected' : ''}>${v.label}</option>`).join('')}</select></label></div>`;
+    const filter = `<div class="toolbar"><label class="select-inline"><span class="sr-only">Situação</span><select data-change="status">
+      <option value="">Todas as situações</option>${Object.entries(PROMOTION_STATUS).map(([k, v]) => `<option value="${k}"${state.status === k ? ' selected' : ''}>${v.label}</option>`).join('')}</select></label></div>`;
     const list = records.length ? `<section class="panel flush"><div class="table-wrap"><table class="table">
-      <thead><tr><th scope="col">Promoção</th><th scope="col">Período</th><th scope="col" class="num">Produtos</th><th scope="col" class="num">Desconto</th><th scope="col">Etapa</th></tr></thead>
+      <thead><tr><th scope="col">Promoção</th><th scope="col">Período</th><th scope="col" class="num">Produtos</th><th scope="col" class="num">Desconto</th><th scope="col">Situação</th></tr></thead>
       <tbody>${records.map(p => {
         const ds = p.items.map(discount);
         const range = ds.length ? (Math.min(...ds) === Math.max(...ds) ? `${Math.min(...ds)}%` : `${Math.min(...ds)}–${Math.max(...ds)}%`) : '—';
@@ -37,8 +36,8 @@ const view = {
           <td class="num mono">${range}</td>
           <td>${statusTag(PROMOTION_STATUS, p.status)} ${phaseTag(p)}</td></tr>`;
       }).join('')}</tbody></table></div></section>`
-      : `<section class="panel">${empty({ title: 'Nenhuma promoção', text: 'Escolha produtos do catálogo e defina o preço promocional e o período.', action: canCreate ? button('Nova promoção', { action: 'new', icon: 'plus', variant: 'primary' }) : '', ic: 'tag' })}</section>`;
-    return `${pageHead({ title: 'Promoções', lead: 'O preço normal vem do UniPlus. Peça a arte junto e o marketing já recebe. Alterar preço ou período de uma promoção aprovada exige nova aprovação.', actions: canCreate ? button('Nova promoção', { action: 'new', icon: 'plus', variant: 'primary' }) : '' })}${filter}${list}`;
+      : `<section class="panel">${empty({ title: state.status ? 'Nenhuma promoção com essa situação' : 'Nenhuma promoção ainda', text: 'Escolha os produtos, o preço da promoção e as datas.', action: canCreate ? button('Nova promoção', { action: 'new', icon: 'plus', variant: 'primary' }) : '', ic: 'tag' })}</section>`;
+    return `${pageHead({ title: 'Promoções', lead: 'Peça um preço especial para alguns produtos por um período. O preço normal já vem do sistema da loja. O dono aprova antes de valer.', actions: canCreate ? button('Nova promoção', { action: 'new', icon: 'plus', variant: 'primary' }) : '' })}${filter}${list}`;
   },
 
   // Pedido vindo da ficha do produto: #/promocoes?nova=1
@@ -69,20 +68,20 @@ const view = {
         <div><dt>Situação</dt><dd>${statusTag(PROMOTION_STATUS, record.status)} ${phaseTag(record)}</dd></div>
         <div><dt>Campanha</dt><dd>${campaign ? `<a href="#/campanhas/${esc(campaign.id)}">${esc(campaign.name)}</a>` : '—'}</dd></div>
         <div><dt>Aprovada por</dt><dd>${esc(record.approvedBy?.name || '—')}</dd></div>
-        <div><dt>Canais</dt><dd>${promoChannels.length ? esc(promoChannels.map(c => c.name).join(', ')) : '—'}</dd></div>
+        <div><dt>Vale em</dt><dd>${promoChannels.length ? esc(promoChannels.map(c => c.name).join(', ')) : '—'}</dd></div>
         <div><dt>Pedida por</dt><dd>${esc(record.createdBy?.name || '—')}</dd></div>
       </dl>
       ${record.description ? `<p class="prose">${esc(record.description)}</p>` : ''}
       <section class="section"><h3>Produtos</h3>
-        <div class="table-wrap"><table class="table compact"><thead><tr><th scope="col">Produto</th><th scope="col" class="num">Normal</th><th scope="col" class="num">Promoção</th><th scope="col" class="num">Desc.</th>${promoChannels.map(c => `<th scope="col" class="num">Líquido ${esc(c.name)}</th>`).join('')}</tr></thead>
+        <div class="table-wrap"><table class="table compact"><thead><tr><th scope="col">Produto</th><th scope="col" class="num">Normal</th><th scope="col" class="num">Promoção</th><th scope="col" class="num">Desconto</th>${promoChannels.map(c => `<th scope="col" class="num">Recebe ${esc(c.name)}</th>`).join('')}</tr></thead>
         <tbody>${record.items.map(i => `<tr><td>${esc(i.name)}<span class="mono sub">${esc(i.sku)}</span></td><td class="num mono">${money(i.regularPrice)}</td><td class="num mono"><strong>${money(i.promoPrice)}</strong></td><td class="num mono">${discount(i)}%</td>${promoChannels.map(c => `<td class="num mono">${money(channelFees(i.promoPrice, c).net)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
       </section>
-      <section class="section"><div class="section-head"><h3>Artes (${num(linkedArts.length)})</h3>${button('Solicitar arte', { action: 'request-art', icon: 'art', variant: 'ghost small' })}</div>
-        ${linkedArts.length ? `<ul class="plain-list">${linkedArts.map(a => `<li><a href="#/artes/${esc(a.id)}">${esc(a.title)}</a>${statusTag(ART_STATUS, a.status)}</li>`).join('')}</ul>` : '<p class="muted">Nenhuma arte solicitada.</p>'}
+      <section class="section"><div class="section-head"><h3>Artes (${num(linkedArts.length)})</h3>${button('Pedir arte', { action: 'request-art', icon: 'art', variant: 'ghost small' })}</div>
+        ${linkedArts.length ? `<ul class="plain-list">${linkedArts.map(a => `<li><a href="#/artes/${esc(a.id)}">${esc(a.title)}</a>${statusTag(ART_STATUS, a.status)}</li>`).join('')}</ul>` : '<p class="muted">Nenhuma arte pedida ainda.</p>'}
       </section>
       ${notesSection(record)}`;
     const footer = [
-      record.can.remove ? button('Excluir', { action: 'remove', icon: 'trash', variant: 'ghost danger-text' }) : '',
+      record.can.remove ? button('Apagar', { action: 'remove', icon: 'trash', variant: 'ghost danger-text' }) : '',
       record.can.edit ? button('Editar', { action: 'edit', icon: 'edit', variant: 'ghost' }) : '',
       transitionButtons(record)
     ].join('');
@@ -110,9 +109,9 @@ const view = {
     },
     async remove(ctx) {
       const record = ctx.state.current;
-      if ((await confirmDialog({ title: 'Excluir promoção?', text: `“${esc(record.name)}” será removida.`, confirmLabel: 'Excluir', tone: 'danger' })) === null) return;
+      if ((await confirmDialog({ title: 'Apagar promoção?', text: `“${esc(record.name)}” vai ser apagada.`, confirmLabel: 'Apagar', tone: 'danger' })) === null) return;
       await del(`/promotions/${record.id}`);
-      toast('Promoção excluída.');
+      toast('Promoção apagada.');
       closeLayers({ restoreFocus: false });
       ctx.navigate('promocoes', { replace: true });
       await ctx.refresh();
@@ -132,7 +131,7 @@ const view = {
       if (!id) data.art = readArtRequest(data);
       const result = id ? await patch(`/promotions/${id}`, data) : await post('/promotions', data);
       const record = result.record;
-      toast(id ? 'Promoção atualizada.' : record.createdArtId ? 'Promoção criada e arte pedida ao marketing.' : 'Promoção criada como rascunho.');
+      toast(id ? 'Promoção salva.' : record.createdArtId ? 'Promoção salva e arte pedida ao marketing.' : 'Promoção salva. Quando estiver pronta, mande para aprovação.');
       if (!id) ctx.invalidate('promotions');
       ctx.invalidate('promotions');
       await reopen(ctx, record.id);
@@ -161,7 +160,7 @@ function updateNet(form) {
   form.querySelectorAll('[data-picker-row]').forEach(row => {
     const out = row.querySelector('[data-net]');
     const price = Number(row.querySelector('[data-promo]')?.value);
-    out.textContent = price > 0 && channels.length ? channels.map(c => `${c.name}: ${money(channelFees(price, c).net)}`).join(' · ') : '';
+    out.textContent = price > 0 && channels.length ? 'Você recebe: ' + channels.map(c => `${c.name} ${money(channelFees(price, c).net)}`).join(' · ') : '';
   });
 }
 
@@ -174,17 +173,17 @@ async function openForm(ctx, record, preset = null) {
     size: 'wide',
     body: `<form data-form="promotion" id="promotionForm" class="form-grid" data-id="${esc(record?.id || '')}" data-channels="${esc(JSON.stringify(activeChannels))}">
       ${field('name', 'Nome da promoção', { required: true, full: true, max: 120, value: r.name, placeholder: 'Ex.: Semana do pet — rações 15 kg' })}
-      ${field('start', 'Início', { type: 'date', required: true, value: r.start })}
-      ${field('end', 'Fim', { type: 'date', required: true, value: r.end })}
-      ${field('campaignId', 'Campanha', { type: 'select', full: true, value: r.campaignId, options: [['', 'Nenhuma'], ...campaigns.filter(c => c.status !== 'cancelled').map(c => [c.id, c.name])] })}
-      <fieldset class="field full"><legend>Vale em quais canais</legend><div class="chips">${activeChannels.map(c => `<label class="chip"><input type="checkbox" name="channels" value="${esc(c.id)}" data-change="promo-channel"${(r.channels || ['site']).includes(c.id) ? ' checked' : ''}><span>${esc(c.name)}</span></label>`).join('')}</div><small class="hint">O líquido de cada canal aparece ao lado do preço promocional.</small></fieldset>
-      ${productPicker({ name: 'items', label: 'Produtos e preço promocional', mode: 'price', required: true, selected: r.items.map(i => ({ id: i.productId, name: i.name, sku: i.sku, basePrice: i.regularPrice, promoPrice: i.promoPrice })), hint: 'O preço promocional precisa ser menor que o preço do UniPlus.' })}
+      ${field('start', 'Começa em', { type: 'date', required: true, value: r.start })}
+      ${field('end', 'Termina em', { type: 'date', required: true, value: r.end })}
+      ${field('campaignId', 'Faz parte de uma campanha?', { type: 'select', full: true, value: r.campaignId, options: [['', 'Não'], ...campaigns.filter(c => c.status !== 'cancelled').map(c => [c.id, c.name])] })}
+      <fieldset class="field full"><legend>Vale onde</legend><div class="chips">${activeChannels.map(c => `<label class="chip"><input type="checkbox" name="channels" value="${esc(c.id)}" data-change="promo-channel"${(r.channels || ['site']).includes(c.id) ? ' checked' : ''}><span>${esc(c.name)}</span></label>`).join('')}</div><small class="hint">Ao lado do preço da promoção aparece quanto a loja recebe em cada lugar.</small></fieldset>
+      ${productPicker({ name: 'items', label: 'Produtos e preço da promoção', mode: 'price', required: true, selected: r.items.map(i => ({ id: i.productId, name: i.name, sku: i.sku, basePrice: i.regularPrice, promoPrice: i.promoPrice })), hint: 'O preço da promoção precisa ser menor que o preço normal.' })}
       ${field('description', 'Observações', { type: 'textarea', full: true, rows: 3, max: 3000, value: r.description })}
       ${record ? '' : artRequestSection(users, { title: 'Pedir a arte desta promoção' })}
-      ${record?.status === 'approved' ? '<p class="full hint">Esta promoção está aprovada. Salvar alterações a devolve para rascunho.</p>' : ''}
+      ${record?.status === 'approved' ? '<p class="full hint">Esta promoção já foi aprovada. Se você mudar e salvar, ela volta para rascunho e precisa ser aprovada de novo.</p>' : ''}
       <div class="form-error full" aria-live="polite"></div>
     </form>`,
-    footer: `<button type="button" class="btn ghost" data-action="close-layer">Cancelar</button><button class="btn primary" type="submit" form="promotionForm">${icon('check')}<span>${record ? 'Salvar alterações' : 'Criar promoção'}</span></button>`
+    footer: `<button type="button" class="btn ghost" data-action="close-layer">Cancelar</button><button class="btn primary" type="submit" form="promotionForm">${icon('check')}<span>${record ? 'Salvar' : 'Salvar promoção'}</span></button>`
   });
   updateNet(document.getElementById('promotionForm'));
 }

@@ -10,7 +10,7 @@ export class HttpError extends Error {
 
 export const badRequest = (message, details) => new HttpError(400, message, details);
 export const unauthorized = (message = 'Entre com seu e-mail e senha para continuar.') => new HttpError(401, message);
-export const forbidden = (message = 'Seu papel não permite esta ação.') => new HttpError(403, message);
+export const forbidden = (message = 'Sua função não permite fazer isso. Peça ao dono ou ao gerente.') => new HttpError(403, message);
 export const notFound = (message = 'Registro não encontrado.') => new HttpError(404, message);
 export const conflict = message => new HttpError(409, message);
 
@@ -115,7 +115,7 @@ export const clean = {
     const text = String(value ?? '').trim().replaceAll('\\', '/');
     if (!text) return '';
     if (text.length > 300 || text.startsWith('/') || /^[a-z]:/i.test(text) || text.split('/').includes('..')) {
-      throw badRequest('Use um caminho relativo dentro da pasta media/, por exemplo: produtos/racao-15kg.jpg');
+      throw badRequest('Escolha um arquivo que esteja na pasta de fotos da loja (por exemplo: produtos/racao-15kg.jpg).');
     }
     return text;
   }
