@@ -16,7 +16,7 @@ fs.mkdirSync(path.join(mediaDir, 'produtos'));
 fs.writeFileSync(path.join(mediaDir, 'produtos', 'foto.jpg'), 'x');
 
 const products = [
-  { id_produto: 1, sku: 'T-1', nome_produto: 'Produto de teste A', nome_categoria: 'Teste', preco: 100, preco_custo: 60, estoque: 5 },
+  { id_produto: 1, sku: 'T-1', nome_produto: 'Ração Quatree 20 kg Produto de teste A', nome_categoria: 'Teste', preco: 100, preco_custo: 60, estoque: 5 },
   { id_produto: 2, sku: 'T-2', nome_produto: 'Produto de teste B', nome_categoria: 'Teste', preco: 50, estoque: 0 }
 ];
 const mock = http.createServer((req, res) => {
@@ -80,6 +80,10 @@ test('fluxo completo da fila no modo local', async () => {
   assert.equal((await call('POST', '/auth/login', { email: 'site@teste.localhost', password: 'errada' })).status, 401);
 
   await waitFor(async () => (await call('GET', '/products', null, owner)).body.total === 2);
+  const plusSearch = await call('GET', '/products?search=Racao%2Bquatree%2B20kg', null, owner);
+  assert.equal(plusSearch.status, 200);
+  assert.equal(plusSearch.body.filteredTotal, 1);
+  assert.equal(plusSearch.body.data[0].id, '1');
 
   // Site não escolhe produto; dono escolhe canais e preço em cada um.
   const channels = [{ id: 'site', price: 90, promoPrice: 80 }, { id: 'shopee', price: 110 }];

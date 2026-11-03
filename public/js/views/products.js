@@ -68,7 +68,7 @@ const view = {
 
     <div class="toolbar" role="search">
       <label class="search">${icon('search')}<span class="sr-only">Buscar produto</span>
-        <input type="search" data-input="search" value="${esc(state.search || '')}" placeholder="Nome, código ou categoria" autocomplete="off"></label>
+        <input type="search" data-input="search" value="${esc(state.search || '')}" placeholder="Nome, código ou categoria (ex.: Ração+Quatree+20kg)" autocomplete="off"></label>
       <label class="select-inline"><span class="sr-only">Situação</span><select data-change="filter">${FILTERS.map(([v, l]) => `<option value="${v}"${(state.filter || '') === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="select-inline"><span class="sr-only">Categoria</span><select data-change="category"><option value="">Todas as categorias</option>${catalog.categories.map(c => `<option${state.category === c ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
     </div>

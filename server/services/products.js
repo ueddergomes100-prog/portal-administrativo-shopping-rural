@@ -26,6 +26,9 @@ export function forUser(product, user) {
 }
 
 const normalize = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+// Aceita tanto espaço quanto "+" entre palavras: "Racao+quatree+20kg" encontra
+// "Ração Quatree 20 kg", mesmo se existirem outras palavras no nome do produto.
+const searchTerms = value => normalize(value).split(/[+\s]+/).filter(Boolean);
 
 // Situação na fila (por produto) para mostrar na lista do catálogo.
 async function queueIndex() {
@@ -38,9 +41,11 @@ async function queueIndex() {
 export async function listProducts({ search = '', filter = '', category = '', page = 1, pageSize = 25 } = {}, user = null) {
   const items = await allProducts();
   const queue = await queueIndex();
-  const term = normalize(search);
+  const terms = searchTerms(search);
   const filtered = items.filter(p => {
-    if (term && !normalize(`${p.sku} ${p.name} ${p.category}`).includes(term)) return false;
+    // "20 kg" e "20kg" são a mesma busca para quem está procurando um produto.
+    const searchable = normalize(`${p.sku} ${p.name} ${p.category}`).replace(/(\d)\s+(kg|g|mg|ml|l)\b/g, '$1$2');
+    if (terms.length && !terms.every(term => searchable.includes(term))) return false;
     if (category && p.category !== category) return false;
     const inQueue = queue.get(p.id);
     if (filter === 'in_stock' && p.stock <= 0) return false;
