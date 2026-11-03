@@ -6,15 +6,15 @@
    ========================================================================== */
 
 :root {
-  --pasto-950: #0b2219;
-  --pasto-900: #123528;
-  --pasto-800: #1a4636;
-  --pasto-700: #22573f;
-  --pasto-600: #2c6b4e;
-  --brinco: #f2bf1f;
-  --brinco-soft: #fcefc2;
-  --galv: #eceeea;
-  --galv-2: #e1e6df;
+  --pasto-950: #003b20;
+  --pasto-900: #005f31;
+  --pasto-800: #00783d;
+  --pasto-700: #008e45;
+  --pasto-600: #00a04c;
+  --brinco: #ffe500;
+  --brinco-soft: #fff7bf;
+  --galv: #f1f5ef;
+  --galv-2: #e1eadf;
   --papel: #ffffff;
   --linha: #d6dcd3;
   --linha-forte: #b4beb0;
@@ -119,11 +119,10 @@ q { quotes: '“' '”'; font-style: italic; margin-left: .35em; }
   background: var(--pasto-900); color: #cfe0d5;
   padding: 20px 14px 14px;
 }
-.brand-lockup { display: flex; align-items: center; gap: 12px; padding: 4px 8px 22px; color: inherit; text-decoration: none; }
+.brand-lockup { display: flex; align-items: center; justify-content: center; padding: 4px 8px 22px; color: inherit; text-decoration: none; }
 .brand-lockup:hover { color: inherit; }
-.brand-mark { width: 40px; height: 40px; color: var(--pasto-950); flex: none; }
-.brand-lockup strong { display: block; font: 800 19px/1.1 var(--f-display); font-stretch: 118%; letter-spacing: -.01em; color: #fff; }
-.brand-lockup small { display: block; font: 500 14px/1.4 var(--f-mono); color: #9fbfae; letter-spacing: .04em; margin-top: 3px; }
+.brand-logo { object-fit: contain; flex: none; }
+.sidebar-logo { width: 126px; height: 110px; }
 
 #nav { flex: 1; overflow-y: auto; margin: 0 -6px; padding: 0 6px; scrollbar-width: thin; scrollbar-color: var(--pasto-700) transparent; }
 .nav-group + .nav-group { margin-top: 18px; }
@@ -763,8 +762,8 @@ html.big-text { zoom: 1.15; }
 .login-wrap { min-height: 100dvh; display: grid; grid-template-columns: minmax(320px, 5fr) 6fr; }
 .login-brand { background: var(--pasto-900); color: #d4e3da; padding: clamp(28px, 5vw, 64px); display: flex; flex-direction: column; justify-content: space-between; gap: 40px; position: relative; overflow: hidden; }
 .login-brand::after { content: ''; position: absolute; inset: auto -80px -80px auto; width: 320px; height: 320px; border: 2px dashed rgb(242 191 31 / .25); border-radius: 50%; }
-.brand-lockup.big strong { font-size: 28px; }
-.brand-lockup.big .brand-mark { width: 52px; height: 52px; }
+.brand-lockup.big { justify-content: flex-start; padding: 0; }
+.login-logo { width: min(250px, 65vw); height: 220px; }
 .login-trail { list-style: none; margin: 0; padding: 0 0 0 10px; display: grid; gap: 22px; position: relative; }
 .login-trail::before { content: ''; position: absolute; left: 14px; top: 10px; bottom: 10px; border-left: 2px dashed rgb(255 255 255 / .22); }
 .login-trail li { display: grid; gap: 4px; padding-left: 26px; position: relative; }
@@ -809,7 +808,7 @@ html.big-text { zoom: 1.15; }
   .topbar { display: flex; align-items: center; gap: 8px; position: sticky; top: 0; z-index: 20; padding: 8px 12px; background: var(--pasto-900); color: #fff; }
   .topbar .btn-icon { color: #fff; width: 44px; height: 44px; }
   .topbar .btn-icon:hover { background: rgb(255 255 255 / .1); }
-  .topbar-brand { font: 800 18px var(--f-display); font-stretch: 116%; }
+  .topbar-logo { width: 50px; height: 42px; }
   main { padding-top: 22px; }
   .grid-2 { grid-template-columns: 1fr; gap: 0; }
   .grid-agenda, .grid-channels { grid-template-columns: minmax(0, 1fr); }

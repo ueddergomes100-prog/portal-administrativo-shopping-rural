@@ -9,7 +9,7 @@ function renderDemoLogin(root, { message, onSignedIn }) {
   root.innerHTML = `
   <div class="login-wrap is-demo">
     <section class="login-brand" aria-hidden="true">
-      <div class="brand-lockup big">${brandMark()}<span><strong>Shopping Rural</strong><small>Portal da loja</small></span></div>
+      <div class="brand-lockup big">${brandMark()}</div>
     </section>
     <section class="login-panel">
       <div class="login-form">
@@ -46,7 +46,7 @@ export function renderLogin(root, { config, message, onSignedIn }) {
   root.innerHTML = `
   <div class="login-wrap">
     <section class="login-brand" aria-hidden="true">
-      <div class="brand-lockup big">${brandMark()}<span><strong>Shopping Rural</strong><small>Portal da loja</small></span></div>
+      <div class="brand-lockup big">${brandMark()}</div>
       <ol class="login-trail">
         <li><span class="tag tone-neutral"><span class="tag-hole"></span>Sistema da loja</span><small>produtos e estoque</small></li>
         <li><span class="tag tone-info"><span class="tag-hole"></span>Preparar</span><small>fotos e texto</small></li>
@@ -116,6 +116,5 @@ export function renderLogin(root, { config, message, onSignedIn }) {
 }
 
 export function brandMark() {
-  // Marca: porteira estilizada (três réguas e um travessão) — referência à entrada da fazenda.
-  return `<svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="10" fill="currentColor"/><path d="M9 12v17M31 12v17M9 15h22M9 21h22M9 27h22M9 27l22-12" stroke="var(--brinco)" stroke-width="2.6" stroke-linecap="round" fill="none"/></svg>`;
+  return '<img class="brand-logo login-logo" src="/assets/shopping-rural-logo.png" alt="">';
 }
