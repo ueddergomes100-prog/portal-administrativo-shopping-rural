@@ -26,6 +26,9 @@ export function forUser(product, user) {
 }
 
 const normalize = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+// Alguns cadastros antigos do UniPlus têm "AAAA", "AAAAA" etc. como grupo. Eles
+// continuam nos produtos, mas não poluem a lista de categorias escolhida pela equipe.
+const isPlaceholderCategory = category => /^a+$/i.test(String(category ?? '').trim());
 // Aceita tanto espaço quanto "+" entre palavras: "Racao+quatree+20kg" encontra
 // "Ração Quatree 20 kg", mesmo se existirem outras palavras no nome do produto.
 const searchTerms = value => normalize(value).split(/[+\s]+/).filter(Boolean);
@@ -67,7 +70,7 @@ export async function listProducts({ search = '', filter = '', category = '', pa
     pageSize: size,
     totalPages,
     lastSyncAt: lastSync || null,
-    categories: [...new Set(items.map(p => p.category))].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    categories: [...new Set(items.map(p => p.category).filter(category => !isPlaceholderCategory(category)))].sort((a, b) => a.localeCompare(b, 'pt-BR')),
     summary: {
       stockout: items.filter(p => p.stock <= 0).length,
       inQueue: queue.size,

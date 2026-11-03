@@ -17,7 +17,7 @@ fs.writeFileSync(path.join(mediaDir, 'produtos', 'foto.jpg'), 'x');
 
 const products = [
   { id_produto: 1, sku: 'T-1', nome_produto: 'Ração Quatree 20 kg Produto de teste A', nome_categoria: 'Teste', preco: 100, preco_custo: 60, estoque: 5 },
-  { id_produto: 2, sku: 'T-2', nome_produto: 'Produto de teste B', nome_categoria: 'Teste', preco: 50, estoque: 0 }
+  { id_produto: 2, sku: 'T-2', nome_produto: 'Produto de teste B', nome_categoria: 'AAAAA', preco: 50, estoque: 0 }
 ];
 const mock = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -84,6 +84,9 @@ test('fluxo completo da fila no modo local', async () => {
   assert.equal(plusSearch.status, 200);
   assert.equal(plusSearch.body.filteredTotal, 1);
   assert.equal(plusSearch.body.data[0].id, '1');
+  const catalog = await call('GET', '/products', null, owner);
+  assert.equal(catalog.body.total, 2); // produto com categoria inválida continua disponível
+  assert.ok(!catalog.body.categories.includes('AAAAA')); // mas não aparece no filtro de categorias
 
   // Site não escolhe produto; dono escolhe canais e preço em cada um.
   const channels = [{ id: 'site', price: 90, promoPrice: 80 }, { id: 'shopee', price: 110 }];
