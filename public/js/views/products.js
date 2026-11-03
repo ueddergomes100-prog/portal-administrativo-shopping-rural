@@ -126,7 +126,11 @@ const view = {
     ...pricingInputs,
     search(ctx, el) {
       clearTimeout(searchTimer);
-      searchTimer = setTimeout(() => { ctx.state.search = el.value; ctx.state.page = 1; ctx.refresh(); }, 300);
+      searchTimer = setTimeout(() => {
+        ctx.state.search = el.value;
+        ctx.state.page = 1;
+        ctx.refresh({ preserveFocus: el });
+      }, 300);
     }
   },
 

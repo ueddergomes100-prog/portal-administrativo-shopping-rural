@@ -139,16 +139,42 @@ async function onRoute() {
   }
 }
 
-async function refresh({ scrollTop = false } = {}) {
+// Algumas telas atualizam a lista enquanto a pessoa digita. Como a renderização troca o
+// conteúdo inteiro de <main>, guardamos o campo ativo para devolvê-lo ao mesmo lugar —
+// especialmente importante no celular, onde perder o foco fecha o teclado.
+function saveInputFocus(input) {
+  if (!input || document.activeElement !== input) return null;
+  return {
+    id: input.id,
+    input: input.dataset.input,
+    start: typeof input.selectionStart === 'number' ? input.selectionStart : null,
+    end: typeof input.selectionEnd === 'number' ? input.selectionEnd : null
+  };
+}
+
+function restoreInputFocus(main, focus) {
+  if (!focus || document.activeElement !== document.body) return;
+  const selector = focus.id ? `#${CSS.escape(focus.id)}` : `[data-input="${CSS.escape(focus.input || '')}"]`;
+  const input = main.querySelector(selector);
+  if (!input) return;
+  input.focus({ preventScroll: true });
+  if (focus.start !== null && typeof input.setSelectionRange === 'function') {
+    input.setSelectionRange(focus.start, focus.end ?? focus.start);
+  }
+}
+
+async function refresh({ scrollTop = false, preserveFocus } = {}) {
   const view = BY_ID[app.route.name];
   const seq = ++renderSeq;
   const main = document.getElementById('main');
+  const focus = saveInputFocus(preserveFocus);
   if (app.data === null || scrollTop) main.innerHTML = loading();
   try {
     const data = await view.load(ctx());
     if (seq !== renderSeq) return;
     app.data = data;
     main.innerHTML = view.render(ctx());
+    restoreInputFocus(main, focus);
   } catch (error) {
     if (seq !== renderSeq) return;
     app.data = null;
