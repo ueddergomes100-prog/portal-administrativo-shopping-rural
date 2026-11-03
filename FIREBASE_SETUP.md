@@ -1,33 +1,39 @@
 # Configuração Firebase — Portal Shopping Rural
 
-Projeto: `portalspr-e0490`.
+Projeto: `portalspr-e0490`. Necessário apenas para `DATA_BACKEND=firestore` (portal na Vercel).
+No modo local (`DATA_BACKEND=local`) nada disto é preciso.
 
 ## Serviços
 
-1. Crie o **Cloud Firestore** em modo de produção, na localização mais próxima da operação da empresa. A localização não pode ser alterada depois.
-2. Ative **Authentication** com provedores E-mail/senha e Google. O primeiro administrador será cadastrado depois pelo portal.
-3. Não ative Firebase Storage neste momento. Fotos de produtos, artes e anexos serão mantidos na pasta local `media/` desta máquina.
-4. Registre um aplicativo Web chamado `Portal Administrativo Shopping Rural` e copie apenas a configuração pública do SDK para as variáveis de ambiente da Vercel. Não copie chaves de conta de serviço para o navegador.
+1. **Cloud Firestore** em modo de produção, na região mais próxima da loja (ex.: `southamerica-east1`).
+   A região não pode ser alterada depois.
+2. **Authentication** → provedor **E-mail/senha** (somente este, por enquanto).
+3. **Não** ative o Firebase Storage. Fotos e artes ficam em `media/` na máquina da loja.
+4. Registre um app **Web** chamado "Portal Administrativo Shopping Rural" e copie a configuração
+   pública para as variáveis `FIREBASE_WEB_API_KEY`, `FIREBASE_WEB_AUTH_DOMAIN`, `FIREBASE_WEB_APP_ID`.
+   Essa configuração não é segredo — vai para o navegador.
+5. Em Configurações do projeto → Contas de serviço, gere uma chave privada (JSON).
+   Ela vai **somente** em `FIREBASE_SERVICE_ACCOUNT_JSON` (Vercel) ou num arquivo fora do Git
+   apontado por `GOOGLE_APPLICATION_CREDENTIALS` (máquina da loja). Nunca no navegador nem no GitHub.
+
+## Regras e índices
+
+Arquivos: `firebase/firestore.rules` e `firebase/firestore.indexes.json` (referenciados em `firebase.json`).
+
+```bash
+npx firebase-tools deploy --only firestore --project portalspr-e0490
+```
+
+As regras bloqueiam toda escrita vinda do navegador: o portal grava pelo Admin SDK no servidor,
+onde ficam as regras de papel, aprovação e histórico.
+
+## Primeiro dono
+
+1. Defina `BOOTSTRAP_OWNER_EMAIL` na Vercel.
+2. No console do Firebase → Authentication, crie o usuário com esse e-mail e uma senha.
+3. Entre no portal: a conta vira **dono** automaticamente (só enquanto não existir outro dono).
+4. Cadastre a equipe em **Equipe e acessos** — o portal cria as contas no Firebase Auth.
 
 ## Coleções
 
-- `users`: nome, e-mail, papel, ativo e timestamps.
-- `products`: espelho de catálogo/estoque/preço vindo do UniPlus.
-- `publicationQueue`: seleção do dono, preço aprovado, conteúdo, responsável e etapa de publicação.
-- `campaigns`, `artRequests`, `leads`: operação de marketing.
-- `audit`: histórico imutável criado pelo servidor.
-
-## Papéis
-
-- `owner`: visão completa e aprovações.
-- `manager`: campanhas, fila e aprovações operacionais.
-- `marketing`: campanhas, artes, materiais e indicadores.
-- `site`: conteúdo de produto e publicação aprovada.
-
-## Arquivos locais
-
-O diretório `media/` não entra no GitHub. Ele funciona enquanto esta máquina estiver ligada e o portal local estiver disponível. A Vercel e usuários fora desta rede não conseguem acessar esses arquivos diretamente; quando for necessário acesso remoto, podemos publicar apenas as imagens aprovadas no site/Nuvemshop ou migrar os anexos para um storage em nuvem.
-
-## Segurança
-
-O arquivo `firebase/firestore.rules` contém as regras iniciais. O conector UniPlus e as ações de publicação usarão Admin SDK/Cloud Functions: credenciais privadas nunca vão para o navegador nem para o GitHub.
+Ver `docs/DADOS.md`.

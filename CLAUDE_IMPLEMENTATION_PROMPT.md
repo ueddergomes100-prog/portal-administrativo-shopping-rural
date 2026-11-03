@@ -1,6 +1,10 @@
 # Prompt para Claude — Portal Administrativo Shopping Rural
 
-Você está trabalhando em um portal administrativo já iniciado em `C:\Users\USER\Desktop\Portal Administrativo Shopping Rural`. Preserve o que já existe, melhore a arquitetura sem apagar funcionalidades prontas e faça alterações pequenas, testáveis e documentadas.
+> **Atualização (out/2026):** a loja deixou a Nuvemshop. O site agora é próprio e lê o catálogo do portal
+> (ver `docs/SITE.md`). Shopee e Mercado Livre são anunciados à mão. Onde este texto fala em Nuvemshop,
+> leia "site próprio". As regras atuais estão em `AGENTS.md`.
+
+Você está trabalhando em um portal administrativo já iniciado (repositório `portal-administrativo-shopping-rural`; regras atuais e mapa do código em `AGENTS.md`). Preserve o que já existe, melhore a arquitetura sem apagar funcionalidades prontas e faça alterações pequenas, testáveis e documentadas.
 
 ## Objetivo do produto
 

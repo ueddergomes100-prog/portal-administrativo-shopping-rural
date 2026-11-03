@@ -1,0 +1,43 @@
+# Portal Shopping Rural
+
+Centro operacional da loja: catálogo e estoque do **UniPlus**, venda em vários canais (site próprio,
+Shopee, Mercado Livre) com cálculo de taxa e valor líquido, campanhas, promoções, pedidos de arte,
+agenda, leads e indicadores de mídia — com login, papéis (dono, gerente, marketing, site) e histórico.
+
+## Começar
+
+```bash
+npm install
+copy .env.example .env      # Windows (no Linux/macOS: cp)
+npm start                   # http://localhost:4173
+```
+
+No primeiro acesso, crie a conta do dono. Sem o UniPlus por perto, use o simulador de
+desenvolvimento: `node scripts/mock-uniplus.js` e `UNIPLUS_API_URL=http://127.0.0.1:3999`.
+
+O portal roda na nuvem em `portal.shoppingrural.com`; na máquina da loja fica só o conector do
+UniPlus (`iniciar-conector.cmd` para testar, `scripts/instalar-conector.ps1` para deixar ligado).
+Passo a passo completo em [docs/DEPLOY.md](docs/DEPLOY.md).
+
+## Documentação
+
+| Arquivo | Conteúdo |
+|---|---|
+| [AGENTS.md](AGENTS.md) | Regras do projeto e mapa do código (leia primeiro) |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | Implantação: Vercel, Firebase, domínio e conector na loja |
+| [docs/SITE.md](docs/SITE.md) | Como o site próprio se liga ao portal (catálogo, fotos, pedidos, gateway) |
+| [docs/INTEGRACOES.md](docs/INTEGRACOES.md) | Passo a passo de cada integração (UniPlus, site, Google, Meta, leads) |
+| [docs/API.md](docs/API.md) | Todas as rotas da API |
+| [docs/DADOS.md](docs/DADOS.md) | Coleções e estados |
+| [docs/DESIGN.md](docs/DESIGN.md) | Identidade visual e componentes |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | O que falta, em ordem |
+| [docs/CODEX_MAQUINA_DA_LOJA.md](docs/CODEX_MAQUINA_DA_LOJA.md) | Prompt pronto para o Codex continuar na máquina da loja |
+| [FIREBASE_SETUP.md](FIREBASE_SETUP.md) | Configuração do Firebase |
+| [.env.example](.env.example) | Todas as variáveis de ambiente |
+
+## Verificar
+
+```bash
+npm run check   # sintaxe + carga do servidor
+npm test        # regras de domínio + fluxo completo da API
+```

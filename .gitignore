@@ -1,10 +1,27 @@
+# Dependências
 node_modules/
+
+# Segredos e configuração local — NUNCA versionar
 .env
 .env.*
 !.env.example
+service-account*.json
+*-firebase-adminsdk-*.json
+
+# Dados locais do portal (banco JSON, segredo de sessão, backups)
+data/
 portal-workflow.json
 portal-workflow.json.tmp
-service-account*.json
-firebase-debug.log
+
+# Fotos e artes da loja ficam só nesta máquina
 media/*
 !media/.gitkeep
+
+# Ferramentas
+.vercel/
+.claude/
+firebase-debug.log
+firestore-debug.log
+*.log
+.DS_Store
+Thumbs.db
