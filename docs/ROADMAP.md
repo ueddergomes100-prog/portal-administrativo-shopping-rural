@@ -5,14 +5,14 @@ Contrato com o site em `docs/SITE.md`; contas externas em `docs/INTEGRACOES.md`.
 
 ## 0. Conectar as contas e validar ao vivo
 - Preencher o `.env` da máquina da loja com UniPlus, `STORE_*`, GA4, Google Ads, Meta e `LEADS_WEBHOOK_TOKEN`.
-- Em Integrações, cada uma deve ficar "Conectado". Em Indicadores, "Buscar dados agora".
+- Em Ajustes → Conexões, cada uma deve ficar "Funcionando". Em Resultados, buscar os dados agora.
 - Se algum provedor responder diferente do simulado em `tests/integrations.test.js`, ajustar o mapeamento.
 
 ## 1. Ligar o site próprio
 - No portal está pronto (catálogo no formato do site, estoque, pedidos, andamento, avisos).
 - Falta o **servidor do site** (lista em `docs/SITE.md`, "O que falta construir"): checkout com gateway
   (Mercado Pago, Pagar.me ou Asaas), webhook, frete, cupons, conta do cliente, e repassar ao portal.
-- Colocar a taxa do gateway em **Canais e taxas → Site próprio**.
+- Colocar a taxa do gateway em **Ajustes → Taxas de venda → Site próprio**.
 - Fotos: enviadas pelo portal vão para o Vercel Blob (URL pública). Fotos antigas digitadas como
   caminho de `media/` só aparecem no site se o portal rodar na loja — reenviar pelo portal.
 - Pronto quando: produto publicado no portal aparece no site, uma compra de teste paga aparece em

@@ -72,7 +72,7 @@ Gerar segredo: `node -e "console.log(require('crypto').randomBytes(32).toString(
 1. Firebase → Authentication → criar o usuário com o e-mail de `BOOTSTRAP_OWNER_EMAIL`.
 2. Entrar em `https://portal.shoppingrural.com` → vira **dono**.
 3. Cadastrar a equipe em **Equipe e acessos** (o portal cria as contas no Firebase).
-4. Conferir **Canais e taxas** (inclua a taxa do gateway no "Site próprio").
+4. Conferir **Ajustes → Taxas de venda** (inclua a taxa do gateway no "Site próprio").
 
 ## 5. Máquina da loja (UniPlus) — conector
 
@@ -86,7 +86,7 @@ Gerar segredo: `node -e "console.log(require('crypto').randomBytes(32).toString(
    UNIPLUS_SYNC_SECONDS=30
    ```
 4. Testar: dois cliques em `iniciar-conector.cmd`. Deve aparecer "conferência completa: N produtos enviados".
-   No portal, **Integrações → UniPlus** fica "Conectado" e os produtos aparecem.
+   No portal, **Ajustes → Conexões → Sistema da loja (UniPlus)** fica "Funcionando" e os produtos aparecem.
 5. Deixar ligado sempre: PowerShell **como Administrador**, na pasta do projeto:
    ```
    powershell -ExecutionPolicy Bypass -File scripts\instalar-conector.ps1
@@ -116,7 +116,7 @@ site (a construir) envia pedidos e avisos com `STORE_API_TOKEN`.
 
 - [ ] `npm run check` e `npm test` passando
 - [ ] `/api/health` responde `firestore`; login do dono funciona
-- [ ] Integrações → UniPlus "Conectado", produtos com estoque certo
+- [ ] Ajustes → Conexões → Sistema da loja (UniPlus) "Funcionando", produtos com estoque certo
 - [ ] Produto de teste: colocar à venda → preparar com fotos → aprovar → **Publicar no site** →
       aparece em `https://portal.shoppingrural.com/api/catalog`
 - [ ] Mudar o estoque no UniPlus → em até ~30–60 s muda no catálogo

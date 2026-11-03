@@ -31,6 +31,7 @@ Passo a passo completo em [docs/DEPLOY.md](docs/DEPLOY.md).
 | [docs/DADOS.md](docs/DADOS.md) | Coleções e estados |
 | [docs/DESIGN.md](docs/DESIGN.md) | Identidade visual e componentes |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | O que falta, em ordem |
+| [docs/CODEX_MAQUINA_DA_LOJA.md](docs/CODEX_MAQUINA_DA_LOJA.md) | Prompt pronto para o Codex continuar na máquina da loja |
 | [FIREBASE_SETUP.md](FIREBASE_SETUP.md) | Configuração do Firebase |
 | [.env.example](.env.example) | Todas as variáveis de ambiente |
 

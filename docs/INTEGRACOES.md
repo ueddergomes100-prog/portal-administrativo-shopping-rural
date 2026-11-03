@@ -1,21 +1,21 @@
 # Integrações — o que está pronto e como ligar
 
 Regra geral: credenciais **só** no servidor (`.env` na máquina da loja ou variáveis da Vercel).
-Depois de preencher, reinicie o portal e confira em **Integrações** (status e variáveis que faltam).
+Depois de preencher, reinicie o portal e confira em **Ajustes → Conexões** (situação e, em "Como ligar", as variáveis que faltam).
 
 | Integração | Código | Situação | Como testar |
 |---|---|---|---|
 | UniPlus | `server/integrations/uniplus.js` | Pronto (lê `/api/erp/products`) | Sincronizar agora em Produtos |
 | Site próprio | `server/services/store.js` | Pronto e testado (catálogo, fotos, pedidos) | `docs/SITE.md` |
 | Shopee / Mercado Livre | — | **Manual por decisão da loja**: anuncia no painel e registra o link | Ficha da fila → Registrar anúncio |
-| Google Analytics 4 | `server/integrations/analytics.js` | Pronto, testado com respostas simuladas | Indicadores → Buscar dados agora |
+| Google Analytics 4 | `server/integrations/analytics.js` | Pronto, testado com respostas simuladas | Resultados → Buscar dados agora |
 | Google Ads | idem | Pronto, testado com respostas simuladas | idem |
 | Meta Ads | idem | Pronto, testado com respostas simuladas | idem |
-| Meta Lead Ads | idem + `services/leads-inbound.js` | Pronto | Indicadores → Importar leads do Meta |
+| Meta Lead Ads | idem + `services/leads-inbound.js` | Pronto | Resultados → Trazer contatos do Facebook e Instagram |
 | Entrada de leads (webhook) | `services/leads-inbound.js` | Pronto e testado | `POST /api/leads/inbound` |
 
 Os testes em `tests/integrations.test.js` simulam as respostas de cada API. Ao ligar uma conta real,
-se o provedor responder diferente, o erro aparece em Integrações com a mensagem original — ajuste
+se o provedor responder diferente, o erro aparece em Ajustes → Conexões com a mensagem original — ajuste
 o mapeamento na função correspondente e acrescente o caso ao teste.
 
 ---

@@ -7,34 +7,63 @@ projeto está organizado, o que já funciona e o que falta. Detalhes em `docs/`.
 
 Portal administrativo do **Shopping Rural** (loja agro/pet/jardinagem). Centraliza:
 catálogo e estoque do **UniPlus** → escolha de preço por canal (site próprio, Shopee, Mercado Livre) →
-fila de publicação → **catálogo do site próprio** (o site lê do portal e devolve os pedidos) →
-campanhas, promoções, pedidos de arte, leads e indicadores de mídia. Interface 100% em pt-BR,
-datas no fuso `America/Sao_Paulo`, moeda BRL.
+**Anúncios** (fila de publicação) → **catálogo do site próprio** (o site lê do portal e devolve os
+pedidos) → campanhas, promoções, pedidos de arte, clientes interessados (leads) e resultados de mídia.
+Interface 100% em pt-BR, datas no fuso `America/Sao_Paulo`, moeda BRL.
+
+## Quem usa (leia antes de mexer na interface)
+
+A equipe é de **pessoas mais velhas, pouco acostumadas com tecnologia**. Em nov/2026 o dono achou o
+portal "muito confuso" e ele foi simplificado. **Não desfaça isso:**
+
+- **Palavras do dia a dia, nunca jargão.** Nomes das telas: Início, Produtos, Anúncios, Pedidos,
+  Promoções, Agenda, Campanhas, Artes, Clientes interessados, Resultados e, em **Ajustes**: Taxas de
+  venda, Conexões, Equipe, Histórico, Minha conta. Na tela: "código" (não SKU), "título para o Google"
+  (não SEO), "cliente interessado" (não lead), "Conexões" (não integrações), "Pedir arte", "Apagar",
+  "Guardar" (não arquivar), "Pausar" (não bloquear). Etapas e situações ficam em `shared/domain.js`.
+  Termos técnicos (variáveis, tokens, rotas) só dentro de `<details>` "para quem instala o portal".
+- **Botão diz o que faz** ("Ver e aprovar", "Mandar para aprovação"); aviso confirma com as mesmas
+  palavras; erro diz o que fazer.
+- **Menu curto por papel** (`MENU` em `public/js/app.js`): cada pessoa vê só o que usa; o resto fica
+  em Ajustes (`views/settings-hub.js`). Tela nova entra no `MENU` do papel certo, não em todos.
+- **Início = "Para resolver agora"**: cada pendência é uma frase + o nome do botão que resolve
+  (`todo[].title/detail/action`, montados em `server/services/dashboard.js`).
+- **Letra grande**: texto base 17 px, nada abaixo de 13 px, botões ≥ 48 px, sem rótulos em caixa alta.
+  Há o botão **Letra maior** (aumenta 15%, guardado no aparelho).
+- Quadros (Anúncios, Artes) mostram as etapas **uma embaixo da outra**, a que "Precisa de você"
+  primeiro. Nada de rolar para o lado.
+- Detalhes em `docs/DESIGN.md` → "Simples de usar".
 
 ## Onde roda (decisão da loja, out/2026)
 
 Portal na **nuvem** (Vercel + Firestore + Vercel Blob) em `portal.shoppingrural.com`. Na máquina da loja
 roda só o **conector** do UniPlus (tarefa do Windows). Site em `shoppingrural.com`. Passo a passo em
-`docs/DEPLOY.md`. Cuidado com custo do Firestore: leituras do site passam pelo documento único do
+`docs/DEPLOY.md`.
+
+Hoje (nov/2026) o projeto da Vercel `portal-shopping-rural` está em **modo demonstração**
+(`DATA_BACKEND=demo`, dados fictícios de `server/demo.js`) em `https://portal-shopping-rural.vercel.app`,
+usado para apresentar ao dono. Para valer, ele passa a `DATA_BACKEND=firestore` (DEPLOY.md seção 2) —
+pergunte ao responsável antes, porque a demonstração deixa de existir nesse link. Cuidado com custo do Firestore: leituras do site passam pelo documento único do
 catálogo; o conector grava só diferenças. Não volte a ler coleções inteiras por visita do site.
 
 ## Como a loja usa o portal (visão do dono)
 
 - **Dono**: vê todo o estoque com preço (e custo, se o UniPlus mandar). Em cada produto clica
   **Colocar à venda** e um pop-up mostra os canais (Site próprio, Shopee, Mercado Livre…). Para
-  cada canal ele digita o preço e o portal já desconta a taxa do canal e mostra o **valor líquido**
-  e o **lucro** (ex.: Shopee 20% + R$ 6; Mercado Livre 17%). As taxas ficam em **Canais e taxas**.
+  cada canal ele digita o preço e o portal já desconta a taxa do canal e mostra **quanto recebe**
+  e o **lucro** (ex.: Shopee 20% + R$ 6; Mercado Livre 17%). As taxas ficam em **Ajustes → Taxas de venda**.
 - **Gerente** (ou dono): pede **promoção** de um produto — preço normal vem do UniPlus, ele
   informa o promocional, as datas, os canais, e no mesmo formulário **pede a arte** com o briefing.
   O marketing recebe o pedido já ligado à promoção e vê quem pediu.
 - **Campanhas** são planejadas com antecedência ("daqui 2 semanas", "daqui 1 mês") e aparecem na
   **Agenda** junto com promoções e prazos de arte. Campanha também pode pedir arte junto.
-- **Site**: prepara foto/descrição/SEO dos produtos escolhidos, envia para aprovação e publica em cada
-  canal depois de aprovado: **Publicar no site** coloca o produto no catálogo do site próprio;
-  na Shopee e no Mercado Livre ele anuncia à mão no painel e **registra o link** no portal.
-- **Marketing**: cria as artes, indica o arquivo em `media/`, entrega para aprovação e registra onde
-  publicou. Acompanha indicadores (GA4, Google Ads, Meta) e leads.
-- Tudo amarrado: produto ↔ fila de venda ↔ promoção ↔ campanha ↔ arte ↔ leads.
+- **Vendas na internet** (papel `site`): prepara fotos, texto e título para o Google dos produtos
+  escolhidos, manda para aprovação e coloca à venda depois de aprovado: **Colocar à venda no site**
+  põe o produto no catálogo do site próprio; na Shopee e no Mercado Livre anuncia à mão no painel e
+  marca **Já anunciei** com o link no portal.
+- **Marketing**: faz as artes, envia o arquivo, manda para aprovação e avisa onde publicou.
+  Acompanha resultados (GA4, Google Ads, Meta) e clientes interessados.
+- Tudo amarrado: produto ↔ anúncio ↔ promoção ↔ campanha ↔ arte ↔ cliente interessado.
 
 ## Projeto do site (separado)
 
@@ -51,7 +80,8 @@ Se o site mudar um campo, ajuste `server/services/store.js`, `SITE_*`/`ORDER_*` 
    com registro manual explícito (link/código + quem registrou). Sem credenciais → erro claro, item
    continua "Aprovado", tentativa registrada. O item só vira "Publicado" quando TODOS os canais estão.
 3. **Sem dados fictícios** em telas que se dizem conectadas. Sem integração → estado vazio
-   explicando o que configurar. (O único dado fictício é `scripts/mock-uniplus.js`, só para dev.)
+   explicando o que configurar. (Dados fictícios só em `scripts/mock-uniplus.js`, para dev, e em
+   `server/demo.js`, que só roda com `DATA_BACKEND=demo` e mostra a faixa "Demonstração".)
 4. **Toda escrita passa pela API** (`server/router.js` → `server/services/*`). O navegador nunca
    escreve no Firestore (regras em `firebase/firestore.rules` bloqueiam tudo).
 5. **Papel vem do banco**, nunca do navegador. Permissões são checadas no servidor.
@@ -78,7 +108,10 @@ Sem o UniPlus por perto: `node scripts/mock-uniplus.js` (porta 3999, produtos FI
 `UNIPLUS_API_URL=http://127.0.0.1:3999 npm start`.
 
 Primeiro acesso no modo local: a tela pede o cadastro do **dono**. Depois, o dono cadastra a
-equipe em **Equipe e acessos**.
+equipe em **Ajustes → Equipe**.
+
+Para ver com dados de exemplo, sem UniPlus e sem senha: `DATA_BACKEND=demo npm start` (entra
+escolhendo o papel; os dados ficam numa pasta temporária).
 
 ## Mapa do código
 
@@ -123,12 +156,14 @@ docs/                         arquitetura, API, dados, design, deploy, roteiro
 
 - JavaScript puro com ES modules, **sem build** e sem framework. Node ≥ 22.
 - Uma tela = um módulo em `public/js/views/` exportando
-  `{ id, title, icon, group, roles?, load(ctx), render(ctx), open?(ctx, id), enter?(ctx), actions, forms, inputs, changes }`.
-  Eventos usam `data-action`, `data-form`, `data-input`, `data-change` — veja `app.js`.
+  `{ id, title, icon, roles?, load(ctx), render(ctx), open?(ctx, id), enter?(ctx), actions, forms, inputs, changes }`.
+  O lugar no menu é definido em `MENU` (`app.js`), por papel. Eventos usam `data-action`,
+  `data-form`, `data-input`, `data-change` — veja `app.js`.
 - Todo texto vindo do usuário/API passa por `esc()` antes de virar HTML.
 - Regras de fluxo novas: primeiro em `public/shared/domain.js`, depois no serviço, depois na tela.
 - Toda escrita nova: valide com `clean.*` (server/http.js), cheque papel, chame `audit()`.
-- Comentários e mensagens em português, voltados a quem usa ("Informe o preço…", não "invalid input").
+- Comentários e mensagens em português, voltados a quem usa ("Informe o preço…", não "invalid input"),
+  com as palavras de "Quem usa" acima.
 - Visual: use os tokens de `styles.css` (`--pasto-*`, `--brinco`, tons `tone-*`). Status sempre com
   `tag()`/`statusTag()`. Veja `docs/DESIGN.md`.
 
@@ -139,17 +174,20 @@ docs/                         arquitetura, API, dados, design, deploy, roteiro
   para dono/gerente (o servidor remove para os demais).
 - **Venda multicanal**: pop-up "Colocar à venda" com preço por canal, taxa, líquido e lucro calculados
   na hora; tabela de taxas editável pelo dono com simulador.
-- Fila de publicação: preparação → aprovação → **Publicar no site** (entra no catálogo; preço novo vale na hora;
-  "Tirar do site" remove) e Shopee/ML com link registrado; preço alterado marca "atualizar anúncio".
-  "Publicado" quando todos os canais concluírem.
+- Anúncios (fila de publicação): Escolhido → Preparando → Esperando aprovação → Aprovado → **À venda**.
+  "Colocar à venda no site" entra no catálogo (preço novo vale na hora; "Tirar do site" remove);
+  Shopee/ML com link marcado à mão; preço alterado marca "atualizar anúncio". "À venda" quando todos
+  os canais concluírem.
 - Promoções com canais, líquido por canal e **pedido de arte no mesmo formulário**; campanhas idem.
 - Artes (quem pediu, prazo, arquivo, aprovação, canais onde saiu), **Agenda** mensal + próximos 90 dias.
-- Leads: cadastro manual, **webhook de entrada** com deduplicação, importação do Meta Lead Ads.
+- Clientes interessados (leads): cadastro manual, **webhook de entrada** com deduplicação, importação do Meta Lead Ads.
 - Indicadores GA4 / Google Ads / Meta Ads: código pronto (testado com respostas simuladas),
   atualização automática no servidor da loja.
 - Pedidos do site próprio: chegam no formato `Order` do site; a equipe move o andamento no portal
   (separando, pronto/enviado com rastreio, entregue) e o site lê de volta. Contato/newsletter/reposição viram leads.
-- Painel "Sua vez" por papel, trilha, "Vem por aí", integrações com estado real, histórico com diff.
+- Início com "Para resolver agora" por papel (frase + botão), números da loja em frase, "Próximos
+  dias"; trilha, conexões e últimas ações em "Ver mais detalhes". Histórico com diff. Botão Letra maior.
+- Modo demonstração (`DATA_BACKEND=demo`) com entrada por papel, sem senha.
 
 ## O que falta — ver `docs/ROADMAP.md` e `docs/INTEGRACOES.md`
 
@@ -160,6 +198,7 @@ decisão da loja.
 ## Antes de entregar uma mudança
 
 1. `npm run check` e `npm test` passando.
-2. Testar no navegador o fluxo afetado com o papel certo (dono, gerente, marketing, site).
+2. Testar no navegador o fluxo afetado com o papel certo (dono, gerente, marketing, site), também
+   em 375 px de largura (celular) e com **Letra maior** ligada: sem rolagem para o lado.
 3. Atualizar `docs/` se mudou rota, coleção, variável de ambiente ou fluxo.
 4. Commits pequenos e descritivos, em português.
