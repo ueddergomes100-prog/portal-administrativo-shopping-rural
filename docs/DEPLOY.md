@@ -74,6 +74,25 @@ Gerar segredo: `node -e "console.log(require('crypto').randomBytes(32).toString(
 3. Cadastrar a equipe em **Equipe e acessos** (o portal cria as contas no Firebase).
 4. Conferir **Ajustes → Taxas de venda** (inclua a taxa do gateway no "Site próprio").
 
+### Migrar os dados locais já existentes
+
+Depois de criar as contas do Firebase Authentication e cadastrar a conta de serviço na máquina,
+confira o que será enviado sem alterar nada:
+
+```bash
+npm run migrate:firestore
+```
+
+Para enviar catálogo, anúncios, campanhas, promoções, artes, leads, pedidos, ajustes e histórico,
+sem apagar o arquivo local:
+
+```bash
+npm run migrate:firestore -- --apply
+```
+
+Usuários não são migrados porque as senhas locais não podem ser transferidas para o Firebase
+Authentication. Crie primeiro o dono no Firebase e depois a equipe pelo portal.
+
 ## 5. Máquina da loja (UniPlus) — conector
 
 1. Instalar **Node.js LTS** (nodejs.org).
