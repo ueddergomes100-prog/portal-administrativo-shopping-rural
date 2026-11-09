@@ -28,13 +28,22 @@ if (-not $node) { Write-Host 'Node.js não encontrado. Instale a versão LTS em 
 $envFile = Join-Path $pasta '.env'
 if (-not (Test-Path $envFile)) { Write-Host 'Crie o arquivo .env (copie de .env.example).' -ForegroundColor Red; exit 1 }
 $envText = Get-Content $envFile -Raw
-foreach ($chave in 'UNIPLUS_API_URL', 'PORTAL_URL', 'CONNECTOR_TOKEN') {
+$connectorEnv = Join-Path $pasta '.env.connector'
+$connectorText = if (Test-Path $connectorEnv) { Get-Content $connectorEnv -Raw } else { '' }
+foreach ($chave in 'UNIPLUS_API_URL') {
   if ($envText -notmatch "(?m)^\s*$chave\s*=\s*\S+") { Write-Host "Preencha $chave no .env." -ForegroundColor Red; exit 1 }
+}
+if ($envText -notmatch '(?m)^\s*PORTAL_URL\s*=\s*\S+' -and $connectorText -notmatch '(?m)^\s*PORTAL_PUBLIC_URL\s*=\s*\S+') {
+  Write-Host 'Preencha PORTAL_URL no .env ou PORTAL_PUBLIC_URL no .env.connector.' -ForegroundColor Red; exit 1
+}
+if ($envText -notmatch '(?m)^\s*CONNECTOR_TOKEN\s*=\s*\S+' -and $connectorText -notmatch '(?m)^\s*CONNECTOR_TOKEN\s*=\s*\S+') {
+  Write-Host 'Preencha CONNECTOR_TOKEN no .env ou .env.connector.' -ForegroundColor Red; exit 1
 }
 
 New-Item -ItemType Directory -Force (Join-Path $pasta 'data') | Out-Null
 $log = Join-Path $pasta 'data\conector.log'
-$acao = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument "/c `"`"$node`" connector\uniplus-sync.js >> `"$log`" 2>&1`"" -WorkingDirectory $pasta
+$prefixo = if (Test-Path $connectorEnv) { 'set "CONNECTOR_ENV_FILE=.env.connector" && ' } else { '' }
+$acao = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument "/c `"$prefixo`"$node`" connector\uniplus-sync.js >> `"$log`" 2>&1`"" -WorkingDirectory $pasta
 $gatilho = New-ScheduledTaskTrigger -AtStartup
 $config = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable `
   -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
