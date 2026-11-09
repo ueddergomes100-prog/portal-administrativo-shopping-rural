@@ -16,7 +16,9 @@ import { config } from '../server/config.js';
 import { fetchUniplusCatalog, syncUniplusOnce, diffCatalog, productKey } from '../server/integrations/uniplus.js';
 
 const once = process.argv.includes('--once');
-const portalUrl = (process.env.PORTAL_URL || '').replace(/\/$/, '');
+// No conector em produção, PORTAL_PUBLIC_URL vem da configuração da Vercel.
+// PORTAL_URL continua aceito para instalações antigas ou configuração manual.
+const portalUrl = (process.env.PORTAL_URL || config.store.portalPublicUrl || '').replace(/\/$/, '');
 const HEARTBEAT_MS = 5 * 60_000;
 
 let lastSeen = new Map();

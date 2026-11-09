@@ -8,8 +8,8 @@ import { fileURLToPath } from 'node:url';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-function loadDotEnv() {
-  const file = path.join(ROOT, '.env');
+function loadDotEnv(fileName = '.env') {
+  const file = path.resolve(ROOT, fileName);
   if (!fs.existsSync(file)) return;
   for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
     const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
@@ -20,6 +20,9 @@ function loadDotEnv() {
   }
 }
 loadDotEnv();
+// O conector pode usar um arquivo separado, ignorado pelo Git, com o token da
+// nuvem. Assim a configuração do portal local não é substituída pela produção.
+if (process.env.CONNECTOR_ENV_FILE) loadDotEnv(process.env.CONNECTOR_ENV_FILE);
 
 const env = (name, fallback = '') => (process.env[name] ?? fallback).trim();
 const num = (name, fallback) => {
