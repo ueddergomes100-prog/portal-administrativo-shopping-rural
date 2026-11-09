@@ -571,6 +571,9 @@ details.section[open] > summary { margin-bottom: 14px; }
 .field-label { font-weight: 600; font-size: 15.5px; color: var(--terra-2); }
 .photo-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
 .photo-grid:empty { display: none; }
+.photo-studio { margin-top: 12px; align-items: flex-start; }
+.photo-status { margin: 8px 0 0; font-weight: 600; color: var(--pasto-700); }
+.photo-status:empty { display: none; }
 .photo { position: relative; border: 1px solid var(--linha); border-radius: var(--r-sm); overflow: hidden; background: var(--papel); aspect-ratio: 1; display: grid; place-items: center; }
 .photo:first-child { box-shadow: 0 0 0 3px var(--brinco); }
 .photo:first-child::after { content: 'Principal'; position: absolute; left: 6px; top: 6px; font: 600 13px var(--f-mono); background: var(--brinco); color: var(--pasto-950); padding: 1px 6px; border-radius: 4px; }

@@ -16,8 +16,11 @@ export const shardOf = id => crypto.createHash('md5').update(String(id)).digest(
 const decode = doc => (typeof doc?.data === 'string' ? JSON.parse(doc.data) : null);
 
 // Primeira vez (fatias ainda não existem): monta tudo a partir da coleção `products`.
-// Custa uma leitura por produto, uma única vez.
+// Custa uma leitura por produto, uma única vez. Se falhar (ex.: cota), espera 10 min antes de
+// tentar de novo — senão cada chamada do conector releria o catálogo inteiro.
 let building = null;
+let buildFailedAt = 0;
+const RETRY_BUILD_MS = 10 * 60_000;
 async function buildShards() {
   const store = getStore();
   const shards = new Map(ALL_SHARDS.map(n => [n, {}]));
@@ -33,7 +36,10 @@ export async function readShards(numbers = ALL_SHARDS) {
   const docs = await Promise.all(wanted.map(n => store.get(C.settings, docId(n))));
   const shards = new Map(wanted.map((n, k) => [n, decode(docs[k])]));
   if ([...shards.values()].every(Boolean)) return shards;
-  building ??= buildShards().finally(() => { building = null; });
+  if (Date.now() - buildFailedAt < RETRY_BUILD_MS) throw new Error('A lista de produtos ainda está sendo montada. Tente de novo em alguns minutos.');
+  building ??= buildShards()
+    .catch(error => { buildFailedAt = Date.now(); throw error; })
+    .finally(() => { building = null; });
   const all = await building;
   return new Map(wanted.map(n => [n, all.get(n)]));
 }

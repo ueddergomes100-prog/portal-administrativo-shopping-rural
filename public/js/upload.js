@@ -27,8 +27,9 @@ async function shrinkImage(file) {
 }
 
 // kind: 'product' | 'art'. Devolve { ref, url, name, size }.
-export async function uploadFile(file, kind) {
-  const blob = kind === 'product' ? await shrinkImage(file) : file;
+// prepared: foto que já passou pelo estúdio (photo-studio.js) — sobe como está.
+export async function uploadFile(file, kind, { prepared = false } = {}) {
+  const blob = kind === 'product' && !prepared ? await shrinkImage(file) : file;
   if (blob.size > 3 * 1024 * 1024) throw new Error(`${file.name}: arquivo maior que 3 MB.`);
   const { file: saved } = await post('/uploads', {
     kind,

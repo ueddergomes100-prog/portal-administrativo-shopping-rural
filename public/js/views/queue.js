@@ -8,6 +8,7 @@ import {
 import { QUEUE_STAGES, QUEUE_FLOW, PRIORITIES, LISTING_STATUS, SITE_CATEGORIES, SITE_PETS, SITE_UNITS, SITE_TAGS, canApprove } from '../../shared/domain.js';
 import { pricingEditor, pricingSummary, readPricing, pricingInputs, pricingChanges } from './pricing.js';
 import { uploadFile } from '../upload.js';
+import { prepareProductPhoto } from '../photo-studio.js';
 
 const TABS = [['flow', 'Em andamento'], ['blocked', 'Pausados'], ['archived', 'Guardados']];
 
@@ -122,17 +123,11 @@ const view = {
 
   changes: {
     ...pricingChanges,
-    // Fotos escolhidas no computador: reduz, envia e já entra na lista (salvar grava no anúncio).
+    // Fotos escolhidas no computador: passam pelo estúdio, sobem e já entram na lista (salvar grava no anúncio).
     async 'upload-photos'(ctx, el) {
       const files = [...el.files];
       el.value = '';
-      if (!files.length) return;
-      toast(`Enviando ${files.length} foto(s)…`, 'info');
-      for (const file of files) {
-        const saved = await uploadFile(file, 'product');
-        addPhoto(saved.ref);
-      }
-      toast('Fotos enviadas. Toque em “Salvar texto e fotos” para guardar.', 'info');
+      await addPhotos(files);
     }
   },
 
@@ -234,6 +229,23 @@ const view = {
       closeTopLayer();
       toast('Foto colocada. Toque em “Salvar texto e fotos” para guardar.', 'info');
     },
+    // Botão "Colar imagem" (celular e quem não usa Ctrl+V). O navegador pede permissão na primeira vez.
+    async 'paste-photo'() {
+      let items;
+      try {
+        items = await navigator.clipboard.read();
+      } catch {
+        toast('Não deu para ler a área de transferência. Copie a imagem e aperte Ctrl+V nesta tela.', 'warn');
+        return;
+      }
+      const files = [];
+      for (const item of items) {
+        const type = item.types.find(t => t.startsWith('image/'));
+        if (type) files.push(new File([await item.getType(type)], `colada.${type.split('/')[1] || 'png'}`, { type }));
+      }
+      if (!files.length) return toast('Nenhuma imagem copiada. Clique na imagem com o botão direito → “Copiar imagem” e tente de novo.', 'warn');
+      await addPhotos(files);
+    },
     'photo-first'(ctx, el) {
       const li = el.closest('[data-photo]');
       li.parentElement.prepend(li);
@@ -287,6 +299,50 @@ function addPhoto(ref) {
   if (!grid || grid.querySelector(`input[value="${CSS.escape(ref)}"]`)) return;
   grid.insertAdjacentHTML('beforeend', photoItem(ref));
 }
+
+// Fotos novas (enviadas ou coladas): com a opção ligada, tiram o fundo e ficam no padrão do site
+// (quadrado branco 1200 px, produto centralizado, WebP); depois sobem e entram na lista.
+let photoQueue = Promise.resolve();
+function addPhotos(files) {
+  const images = files.filter(f => f.type.startsWith('image/'));
+  if (!images.length) return photoQueue;
+  photoQueue = photoQueue.then(async () => {
+    const studio = document.querySelector('#contentForm [data-photo-studio]')?.checked ?? true;
+    const status = document.querySelector('#contentForm [data-photo-status]');
+    const say = text => { if (status) status.textContent = text; };
+    let kept = 0;
+    try {
+      for (const [k, file] of images.entries()) {
+        const n = images.length > 1 ? ` ${k + 1} de ${images.length}` : '';
+        say(studio ? `Tirando o fundo da foto${n}… (a primeira demora um pouco)` : `Enviando foto${n}…`);
+        let upload = file, prepared = false;
+        if (studio) {
+          const { blob, removed } = await prepareProductPhoto(file);
+          upload = new File([blob], `${(file.name || 'foto').replace(/\.[^.]+$/, '')}.${blob.type === 'image/webp' ? 'webp' : 'jpg'}`, { type: blob.type });
+          prepared = true;
+          if (!removed) kept++;
+        }
+        say(`Enviando foto${n}…`);
+        addPhoto((await uploadFile(upload, 'product', { prepared })).ref);
+      }
+      say('');
+      toast(kept ? `Foto(s) prontas, mas ${kept} ficou(aram) com o fundo original. Toque em “Salvar texto e fotos”.` : 'Foto(s) prontas. Toque em “Salvar texto e fotos” para guardar.', kept ? 'warn' : 'info');
+    } catch (error) {
+      say('');
+      toast(error.message, 'danger');
+    }
+  });
+  return photoQueue;
+}
+
+// Ctrl+V com a ficha do anúncio aberta: a imagem copiada vira foto do produto.
+document.addEventListener('paste', event => {
+  if (!document.querySelector('#contentForm [data-photos]')) return;
+  const files = [...(event.clipboardData?.files || [])].filter(f => f.type.startsWith('image/'));
+  if (!files.length) return;
+  event.preventDefault();
+  addPhotos(files);
+});
 
 let mediaTimer;
 async function loadMedia(search) {
@@ -386,9 +442,12 @@ function renderItem(ctx, item, entries, campaigns, channels) {
           <ul class="photo-grid" data-photos>${(c.imageRefs || []).map(photoItem).join('')}</ul>
           <div class="inline-actions">
             <label class="btn small">${icon('upload')}<span>Enviar fotos</span><input type="file" accept="image/*" multiple hidden data-change="upload-photos"></label>
+            ${button('Colar imagem', { action: 'paste-photo', icon: 'image', variant: 'small' })}
             ${ctx.config.mediaAvailable ? button('Escolher do computador da loja', { action: 'pick-media', icon: 'folder', variant: 'ghost small' }) : ''}
           </div>
-          <small class="hint">O portal diminui as fotos sozinho para o site ficar leve.</small>
+          <label class="check photo-studio"><input type="checkbox" data-photo-studio checked><span>Tirar o fundo e deixar no padrão do site (quadrado, fundo branco, mesmo tamanho)</span></label>
+          <p class="photo-status" data-photo-status role="status" aria-live="polite"></p>
+          <small class="hint">Dica: clique com o botão direito numa imagem → “Copiar imagem” e aperte Ctrl+V aqui.</small>
         </div>
         ${mediaRows.includes('Não encontrado') ? `<ul class="media-check full">${mediaRows}</ul>` : ''}
         ${field('siteNotes', 'Anotações da equipe (não aparecem no site)', { type: 'textarea', full: true, rows: 2, value: c.siteNotes, max: 2000 })}
