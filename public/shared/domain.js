@@ -30,12 +30,17 @@ export const QUEUE_STAGES = {
 };
 export const QUEUE_FLOW = ['selected', 'preparing', 'review', 'approved', 'published'];
 
+// Quem prepara o anúncio (texto, fotos) e coloca à venda. Normalmente é a pessoa das vendas na
+// internet, mas numa loja pequena o dono ou o gerente fazem tudo sozinhos — por isso entram também.
+// A aprovação continua sendo só de quem pode aprovar (canApprove).
+export const PREPARERS = ['site', 'owner', 'manager'];
+
 // Quem pode mover de qual etapa para qual. `approver` = canApprove(user).
 // A ida para `published` NÃO está aqui: acontece sozinha quando TODOS os canais escolhidos
 // estão publicados (site próprio: publicado no catálogo; marketplaces: anúncio registrado por uma pessoa).
 export const QUEUE_TRANSITIONS = [
   { from: 'selected', to: 'preparing', who: ['site', 'owner', 'manager'], label: 'Começar a preparar' },
-  { from: 'preparing', to: 'review', who: ['site'], label: 'Enviar para aprovação', requires: 'content' },
+  { from: 'preparing', to: 'review', who: PREPARERS, label: 'Mandar para aprovação', requires: 'content' },
   { from: 'review', to: 'approved', who: ['approver'], label: 'Aprovar' },
   { from: 'review', to: 'preparing', who: ['approver'], label: 'Pedir correção', requires: 'note' },
   { from: 'approved', to: 'preparing', who: ['approver'], label: 'Voltar para preparar', requires: 'note' },

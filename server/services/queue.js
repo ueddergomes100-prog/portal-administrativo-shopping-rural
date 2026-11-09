@@ -12,7 +12,7 @@ import { config } from '../config.js';
 import { siteProductUrl, touchCatalog } from './catalog.js';
 import {
   QUEUE_STAGES, QUEUE_TRANSITIONS, PRIORITIES, availableTransitions, findTransition, roleMatches, canApprove, channelFees, marginOf, slugify,
-  SITE_CATEGORIES, SITE_PETS, SITE_UNITS, SITE_TAGS
+  SITE_CATEGORIES, SITE_PETS, SITE_UNITS, SITE_TAGS, PREPARERS
 } from '../../public/shared/domain.js';
 
 const now = () => new Date().toISOString();
@@ -41,8 +41,8 @@ function decorate(item, user) {
     transitions: availableTransitions(QUEUE_TRANSITIONS, item.stage, user).map(t => ({ to: t.to, label: t.label, requires: t.requires || null })),
     can: {
       editPricing: isPricer(user) && !['archived', 'blocked'].includes(item.stage),
-      editContent: user.role === 'site' && ['selected', 'preparing'].includes(item.stage),
-      publish: ['site', 'owner'].includes(user.role) && ['approved', 'published'].includes(item.stage),
+      editContent: PREPARERS.includes(user.role) && ['selected', 'preparing'].includes(item.stage),
+      publish: PREPARERS.includes(user.role) && ['approved', 'published'].includes(item.stage),
       siteUrl: config.store.publicUrl || ''
     }
   };
@@ -171,7 +171,7 @@ export async function updateContent(user, id, input) {
   const store = getStore();
   const item = await store.get(C.queue, id);
   if (!item) throw notFound('Item da fila não encontrado.');
-  if (user.role !== 'site') throw forbidden('Quem prepara o texto e as fotos é a pessoa das vendas na internet.');
+  if (!PREPARERS.includes(user.role)) throw forbidden('Quem prepara o texto e as fotos é a pessoa das vendas na internet, o dono ou o gerente.');
   if (!['selected', 'preparing'].includes(item.stage)) throw badRequest('O texto e as fotos só podem ser mudados nas etapas "Escolhido" ou "Preparando".');
   const imageRefs = clean.ids(input.imageRefs ?? item.content.imageRefs, { label: 'Imagens', max: 10 }).map(ref => clean.fileRef(ref)).filter(Boolean);
   const content = {
@@ -300,7 +300,7 @@ async function loadForListing(user, id, channelId) {
   const store = getStore();
   const item = await store.get(C.queue, id);
   if (!item) throw notFound('Item da fila não encontrado.');
-  if (!['site', 'owner'].includes(user.role)) throw forbidden('Quem coloca à venda é a pessoa das vendas na internet ou o dono.');
+  if (!PREPARERS.includes(user.role)) throw forbidden('Quem coloca à venda é a pessoa das vendas na internet, o dono ou o gerente.');
   if (!['approved', 'published'].includes(item.stage)) throw badRequest('Só dá para colocar à venda depois de aprovado.');
   const channel = (item.channels || []).find(c => c.id === channelId);
   if (!channel) throw badRequest('Este produto não foi escolhido para vender nesse lugar.');

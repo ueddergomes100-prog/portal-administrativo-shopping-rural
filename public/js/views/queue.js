@@ -24,9 +24,9 @@ function yourStages(user) {
 // Como funciona, em quatro passos (a ordem é o próprio fluxo, por isso numerada).
 const HOW = [
   ['Escolher', 'O dono escolhe o produto e onde vender, em Produtos.'],
-  ['Preparar', 'A pessoa das vendas na internet faz as fotos e o texto.'],
+  ['Preparar', 'Fotos e texto do anúncio. Quem faz é a pessoa das vendas na internet ou o próprio dono.'],
   ['Aprovar', 'O dono ou o gerente confere e aprova.'],
-  ['Vender', 'O produto é colocado à venda no site, na Shopee e no Mercado Livre.']
+  ['Vender', 'Depois de aprovado, “Colocar à venda no site” (e anunciar na Shopee e no Mercado Livre).']
 ];
 
 function card(item) {
@@ -382,6 +382,19 @@ function renderFooter(item) {
   return buttons.join('');
 }
 
+// "Próximo passo": diz, em uma frase, o que quem está olhando precisa fazer agora — e onde fica o botão.
+function nextStep(item) {
+  const can = to => item.transitions.some(t => t.to === to);
+  const pendingSite = (item.channels || []).some(c => c.id === 'site' && item.listings?.site?.status !== 'done');
+  let text = '';
+  if (item.stage === 'selected' && can('preparing')) text = 'Toque em <strong>Começar a preparar</strong>, no rodapé.';
+  else if (item.stage === 'preparing' && item.can.editContent) text = 'Preencha <strong>Texto e fotos do anúncio</strong> aqui embaixo, toque em <strong>Salvar texto e fotos</strong> e depois em <strong>Mandar para aprovação</strong>, no rodapé.';
+  else if (item.stage === 'review' && can('approved')) text = 'Confira o texto e as fotos aqui embaixo. Se estiver tudo certo, toque em <strong>Aprovar</strong>, no rodapé.';
+  else if (item.stage === 'approved' && item.can.publish && pendingSite) text = 'Aprovado! Desça até <strong>Onde está à venda</strong> e toque em <strong>Colocar à venda no site</strong>.';
+  else if (item.stage === 'approved' && item.can.publish) text = 'Aprovado! Anuncie na Shopee e no Mercado Livre e marque <strong>Já anunciei</strong> em cada um, lá embaixo.';
+  return text ? `<div class="next-step">${notice(`<strong>Próximo passo:</strong> ${text}`, 'info')}</div>` : '';
+}
+
 function renderItem(ctx, item, entries, campaigns, channels) {
   const p = item.productSnapshot;
   const c = item.content || {};
@@ -508,5 +521,5 @@ function renderItem(ctx, item, entries, campaigns, channels) {
       </ul>` : '<p class="muted">Nada mudou ainda.</p>'}
     </section>`;
 
-  return `${steps}${item.stage === 'blocked' ? notice('Produto pausado. O motivo está no histórico, mais abaixo.', 'danger') : ''}${facts}${pricing}${content}${publication}${historyHtml}`;
+  return `${steps}${item.stage === 'blocked' ? notice('Produto pausado. O motivo está no histórico, mais abaixo.', 'danger') : nextStep(item)}${facts}${pricing}${content}${publication}${historyHtml}`;
 }

@@ -2,16 +2,16 @@
 import { getStore, C } from '../store/index.js';
 import { listIntegrations } from './integrations.js';
 import { listAudit } from '../audit.js';
-import { canApprove, promotionPhase, todayInSaoPaulo, QUEUE_STAGES } from '../../public/shared/domain.js';
+import { canApprove, promotionPhase, todayInSaoPaulo, QUEUE_STAGES, PREPARERS } from '../../public/shared/domain.js';
 
 // AAAA-MM-DD -> DD/MM/AAAA para textos prontos da lista "Sua vez".
 const br = iso => (iso ? iso.split('-').reverse().join('/') : '—');
 
 export async function dashboard(user) {
   const store = getStore();
-  const [queue, campaigns, promotions, arts, leads, integrations, productCount, orders] = await Promise.all([
+  const [queue, campaigns, promotions, arts, leads, integrations, productCount, orders, users] = await Promise.all([
     store.list(C.queue), store.list(C.campaigns), store.list(C.promotions), store.list(C.arts), store.list(C.leads),
-    listIntegrations(), store.count(C.products), store.list(C.orders)
+    listIntegrations(), store.count(C.products), store.list(C.orders), store.list(C.users)
   ]);
   const today = todayInSaoPaulo();
   const approver = canApprove(user);
@@ -28,8 +28,10 @@ export async function dashboard(user) {
     campaigns.filter(c => c.status === 'awaiting_approval').forEach(c => push('campaigns', c.id, `Aprovar a campanha ${c.name}`, `De ${br(c.start)} a ${br(c.end)}.`, `campanhas/${c.id}`, 'Ver a campanha'));
     promotions.filter(p => p.status === 'awaiting_approval').forEach(p => push('promotions', p.id, `Aprovar a promoção ${p.name}`, `${p.items.length === 1 ? '1 produto' : `${p.items.length} produtos`} com preço especial, de ${br(p.start)} a ${br(p.end)}.`, `promocoes/${p.id}`, 'Ver a promoção'));
   }
-  if (user.role === 'site') {
-    queue.filter(i => ['selected', 'preparing'].includes(i.stage)).forEach(i => push('queue', i.id, `Preparar fotos e texto de ${i.productSnapshot.name}`, i.stage === 'selected' ? 'O dono escolheu este produto para vender na internet.' : 'Você já começou. Termine e mande para aprovação.', `fila/${i.id}`, 'Preparar'));
+  // Sem ninguém na função "Vendas na internet", quem prepara e coloca à venda é o dono ou o gerente.
+  const hasSiteTeam = users.some(u => u.role === 'site' && u.active !== false);
+  if (user.role === 'site' || (!hasSiteTeam && PREPARERS.includes(user.role))) {
+    queue.filter(i => ['selected', 'preparing'].includes(i.stage)).forEach(i => push('queue', i.id, `Preparar fotos e texto de ${i.productSnapshot.name}`, i.stage === 'selected' ? 'Este produto foi escolhido para vender na internet.' : 'Já começou. Termine e mande para aprovação.', `fila/${i.id}`, 'Preparar'));
     // Aprovados (ou já à venda com marketplace a atualizar) que ainda têm canal pendente.
     queue.filter(i => ['approved', 'published'].includes(i.stage)).forEach(i => {
       const pending = (i.channels || []).filter(c => i.listings?.[c.id]?.status !== 'done' || i.listings[c.id].needsUpdate);

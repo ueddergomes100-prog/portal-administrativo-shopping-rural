@@ -64,6 +64,9 @@ do Firestore e derrubou o portal.
   escolhidos, manda para aprovação e coloca à venda depois de aprovado: **Colocar à venda no site**
   põe o produto no catálogo do site próprio; na Shopee e no Mercado Livre anuncia à mão no painel e
   marca **Já anunciei** com o link no portal.
+  Numa loja pequena o **dono ou o gerente** fazem tudo isso também (`PREPARERS` em `domain.js`); sem
+  ninguém na função "Vendas na internet", as tarefas de preparar aparecem no Início do dono. A ficha do
+  anúncio mostra sempre um **"Próximo passo"** com o que fazer e onde está o botão.
 - **Marketing**: faz as artes, envia o arquivo, manda para aprovação e avisa onde publicou.
   Acompanha resultados (GA4, Google Ads, Meta) e clientes interessados.
 - Tudo amarrado: produto ↔ anúncio ↔ promoção ↔ campanha ↔ arte ↔ cliente interessado.
