@@ -64,14 +64,18 @@ const routes = [
     return result;
   }],
   ['POST', '/api/connector/uniplus/catalog', async ({ body }) => {
-    // { items, mode: 'partial' | 'full' } — o conector envia só o que mudou; lista vazia = sinal de vida.
+    // { items, mode: 'partial' | 'full', ids? } — o conector envia só o que mudou; lista vazia = sinal de vida.
+    // Conferência completa em lotes: os produtos vão como 'partial' e, no fim, { mode: 'full', items: [], ids }
+    // com todos os códigos, para o portal marcar o que sumiu do UniPlus.
     const items = Array.isArray(body.items) ? body.items.map(i => (i.basePrice !== undefined ? i : mapProduct(i))).filter(Boolean) : null;
     if (!items) throw badRequest('Envie { items: [...] }.');
     const mode = body.mode === 'partial' ? 'partial' : 'full';
-    const result = await saveCatalog(items, { mode, source: 'connector' });
+    const allIds = mode === 'full' && Array.isArray(body.ids) ? body.ids.map(String) : null;
+    const result = await saveCatalog(items, { mode, source: 'connector', allIds });
+    if (allIds) result.received = allIds.length;
     await recordUniplusHeartbeat(result, { force: mode === 'full' });
     return result;
-  }, { auth: 'connector' }],
+  }, { auth: 'connector', bodyLimit: 4_000_000 }],
 
   // Fila de publicação
   ['GET', '/api/queue', async ({ user, query }) => ({ items: await listQueue(user, query) })],
@@ -173,10 +177,12 @@ function checkToken(req, query, expected, name) {
 }
 
 // Catálogo lido direto pelo navegador do site: libera só as origens de STORE_ALLOWED_ORIGINS.
+// "Vary: Origin" vai sempre: o catálogo fica em cache na CDN, e sem ele uma resposta guardada
+// para quem não mandou Origin seria servida ao site sem a liberação (e o navegador bloquearia).
 function corsHeaders(req) {
   const origin = req.headers.origin;
   const allowed = config.store.allowedOrigins;
-  if (!origin || !(allowed.includes('*') || allowed.includes(origin))) return {};
+  if (!origin || !(allowed.includes('*') || allowed.includes(origin))) return { Vary: 'Origin' };
   return { 'Access-Control-Allow-Origin': allowed.includes('*') ? '*' : origin, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', Vary: 'Origin' };
 }
 

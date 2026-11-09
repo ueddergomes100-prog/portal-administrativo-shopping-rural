@@ -25,14 +25,18 @@ let lastSeen = new Map();
 let lastFullAt = 0;
 let lastSentAt = 0;
 let failures = 0;
+// Depois de uma falha, espera cada vez mais antes de tentar de novo (até 15 min): repetir a cada
+// 30 s com o portal fora do ar só gasta cota do banco e chamadas da Vercel.
+let pausedUntil = 0;
+const BATCH = 500;
 
 const stamp = () => new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 
-async function send(items, mode) {
+async function send(items, mode, ids) {
   const response = await fetch(`${portalUrl}/api/connector/uniplus/catalog`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.connectorToken}` },
-    body: JSON.stringify({ items, mode }),
+    body: JSON.stringify(ids ? { items, mode, ids } : { items, mode }),
     signal: AbortSignal.timeout(120_000)
   });
   const payload = await response.json().catch(() => ({}));
@@ -47,11 +51,14 @@ async function pushToPortal() {
   const changed = full ? items : diffCatalog(lastSeen, items);
   let result = null;
   if (full) {
-    result = await send(items, 'full');
+    // Conferência completa em lotes de 500 (o portal grava só o que mudou) e, no fim, só os códigos
+    // de todos, para o portal marcar o que sumiu do UniPlus.
+    for (let i = 0; i < items.length; i += BATCH) await send(items.slice(i, i + BATCH), 'partial');
+    result = await send([], 'full', items.map(i => i.id));
     lastFullAt = Date.now();
   } else if (changed.length || Date.now() - lastSentAt > HEARTBEAT_MS) {
     // Lotes de até 500 para não passar do limite de envio.
-    for (let i = 0; i < Math.max(changed.length, 1); i += 500) result = await send(changed.slice(i, i + 500), 'partial');
+    for (let i = 0; i < Math.max(changed.length, 1); i += BATCH) result = await send(changed.slice(i, i + BATCH), 'partial');
   }
   // Só considera "visto" depois de enviado com sucesso.
   lastSeen = new Map(items.map(i => [i.id, productKey(i)]));
@@ -59,6 +66,7 @@ async function pushToPortal() {
 }
 
 async function tick() {
+  if (Date.now() < pausedUntil) return;
   const started = Date.now();
   try {
     if (portalUrl) {
@@ -72,8 +80,10 @@ async function tick() {
     failures = 0;
   } catch (error) {
     failures++;
-    // Na falha, a próxima rodada reenvia tudo o que mudou (lastSeen não foi atualizado).
-    console.error(`[conector] ${stamp()} — falha ${failures}: ${error.message}`);
+    // Na falha, a próxima tentativa reenvia tudo o que mudou (lastSeen não foi atualizado).
+    const wait = Math.min(15 * 60_000, config.uniplus.syncSeconds * 1000 * 2 ** Math.min(failures - 1, 10));
+    pausedUntil = Date.now() + wait;
+    console.error(`[conector] ${stamp()} — falha ${failures}: ${error.message} (tenta de novo em ${Math.round(wait / 1000)} s)`);
     if (once) process.exitCode = 1;
   }
 }

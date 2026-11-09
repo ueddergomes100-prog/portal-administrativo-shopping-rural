@@ -81,12 +81,24 @@ export async function touchCatalog(...items) {
   if (items.some(i => i?.listings?.site?.status === 'done')) await rebuildCatalog();
 }
 
-// Depois da sincronização do UniPlus: refaz só se mudou estoque/preço de produto que está no site.
-export async function touchCatalogProducts(productIds) {
-  if (!productIds.length) return;
-  const snapshot = await catalogSnapshot();
-  const onSite = new Set(snapshot.items.map(i => i.productId));
-  if (productIds.some(id => onSite.has(id))) await rebuildCatalog();
+// Depois da sincronização do UniPlus: do produto, o catálogo do site só usa o estoque. Atualiza esse
+// número nas entradas afetadas sem reler a fila inteira (1 leitura + 1 gravação, e só quando algum
+// produto alterado está no site). `products`: [{ id, stock?, missingFromUniplus? }].
+export async function touchCatalogProducts(products) {
+  if (!products.length) return;
+  const onSite = new Set((await catalogSnapshot()).items.map(i => i.productId));
+  const hits = new Map(products.filter(p => onSite.has(p.id)).map(p => [p.id, p]));
+  if (!hits.size) return;
+  const store = getStore();
+  const fresh = await store.get(C.settings, DOC); // lido agora: o cache pode estar 30 s atrasado
+  if (!fresh?.items) { await rebuildCatalog(); return; }
+  for (const e of fresh.items) {
+    const p = hits.get(e.productId);
+    if (p) e.stock = p.missingFromUniplus ? 0 : Math.max(0, Math.floor(p.stock || 0));
+  }
+  fresh.generatedAt = new Date().toISOString();
+  await store.set(C.settings, DOC, fresh);
+  cache = { at: Date.now(), snapshot: fresh };
 }
 
 // Produto no formato `Product` do site (src/data/products.ts do projeto do site).

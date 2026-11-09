@@ -9,6 +9,7 @@ import { getStore, C } from '../store/index.js';
 import { setIntegrationState } from '../services/integrations.js';
 import { invalidateProductCache } from '../services/products.js';
 import { touchCatalogProducts } from '../services/catalog.js';
+import { readShards, writeShards, shardOf, ALL_SHARDS } from '../services/product-shards.js';
 
 const numberOrNull = value => (value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? null : Number(value));
 
@@ -48,32 +49,44 @@ export function diffCatalog(previous, items) {
   return items.filter(item => previous.get(item.id) !== productKey(item));
 }
 
-// Grava o catálogo recebido.
-// - mode 'partial': grava só os itens enviados (o conector já filtrou o que mudou).
-// - mode 'full': compara com o banco, grava só o que mudou e marca como `missingFromUniplus`
-//   o que sumiu do UniPlus (nada é apagado — o dono decide).
-// Se mudou estoque/preço de produto que está no site, o catálogo do site é refeito.
-export async function saveCatalog(items, { mode = 'full', source = 'uniplus' } = {}) {
+// Grava o catálogo recebido. Compara com a lista em fatias (product-shards.js) e grava SÓ o que
+// mudou — nunca lê a coleção `products` inteira (cota do Firestore).
+// - mode 'partial': compara só os itens enviados.
+// - mode 'full': além disso, marca como `missingFromUniplus` o que sumiu do UniPlus (nada é
+//   apagado — o dono decide). A lista completa vem em `items` ou, quando o conector manda os
+//   produtos em lotes, só os códigos em `allIds`.
+// Se mudou o estoque de produto que está no site, o catálogo do site é atualizado.
+export async function saveCatalog(items, { mode = 'full', source = 'uniplus', allIds = null } = {}) {
   const store = getStore();
   const at = new Date().toISOString();
-  let changed = items;
+  const full = mode === 'full';
+  const shards = await readShards(full ? ALL_SHARDS : items.map(i => shardOf(i.id)));
+  const current = new Map();
+  for (const list of shards.values()) for (const p of Object.values(list)) current.set(p.id, p);
+  const changed = items.filter(item => {
+    const known = current.get(item.id);
+    return !known || known.missingFromUniplus || productKey(known) !== productKey(item);
+  });
   let missing = [];
-  if (mode === 'full') {
-    const existing = await store.list(C.products);
-    const byId = new Map(existing.map(p => [p.id, p]));
-    const incoming = new Set(items.map(i => i.id));
-    changed = items.filter(item => {
-      const current = byId.get(item.id);
-      return !current || current.missingFromUniplus || productKey(current) !== productKey(item);
-    });
-    missing = existing.filter(p => !incoming.has(p.id) && !p.missingFromUniplus)
+  if (full) {
+    const incoming = new Set((allIds || items.map(i => i.id)).map(String));
+    missing = [...current.values()].filter(p => !incoming.has(p.id) && !p.missingFromUniplus)
       .map(p => ({ id: p.id, missingFromUniplus: true, syncedAt: at }));
   }
   const docs = changed.map(item => ({ ...item, missingFromUniplus: false, syncedAt: at, source }));
-  if (docs.length || missing.length) {
-    await store.bulkSet(C.products, [...docs, ...missing]);
+  const writes = [...docs, ...missing];
+  if (writes.length) {
+    await store.bulkSet(C.products, writes);
+    const touched = new Map();
+    for (const doc of writes) {
+      const n = shardOf(doc.id);
+      const list = shards.get(n);
+      list[doc.id] = { ...list[doc.id], ...doc };
+      touched.set(n, list);
+    }
+    await writeShards(touched);
     invalidateProductCache();
-    await touchCatalogProducts([...docs, ...missing].map(d => d.id));
+    await touchCatalogProducts(writes);
   }
   return { received: items.length, written: docs.length, missing: missing.length, at, mode };
 }

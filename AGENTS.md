@@ -44,7 +44,10 @@ Hoje (nov/2026) o projeto da Vercel `portal-shopping-rural` está em **modo demo
 (`DATA_BACKEND=demo`, dados fictícios de `server/demo.js`) em `https://portal-shopping-rural.vercel.app`,
 usado para apresentar ao dono. Para valer, ele passa a `DATA_BACKEND=firestore` (DEPLOY.md seção 2) —
 pergunte ao responsável antes, porque a demonstração deixa de existir nesse link. Cuidado com custo do Firestore: leituras do site passam pelo documento único do
-catálogo; o conector grava só diferenças. Não volte a ler coleções inteiras por visita do site.
+catálogo; o conector grava só diferenças; a lista de produtos (tela Produtos e conferência do conector)
+vem de 16 "fatias" em `settings/products-shard-*` (`server/services/product-shards.js`), não da coleção
+`products`. **Nunca leia uma coleção inteira por requisição** — em 09/11/2026 isso esgotou a cota grátis
+do Firestore e derrubou o portal.
 
 ## Como a loja usa o portal (visão do dono)
 
@@ -135,6 +138,7 @@ server/
                               pedidos com andamento, avisos -> leads (docs/SITE.md)
   migrations.js               ajustes automáticos de dados antigos na inicialização
   services/catalog.js         catálogo do site em documento único (1 leitura por consulta, cache 30 s)
+  services/product-shards.js  lista de produtos em 16 fatias (listar/comparar custa 16 leituras)
 connector/uniplus-sync.js     conector da máquina da loja: envia ao portal só os produtos que mudaram
 scripts/instalar-conector.ps1 instala o conector como tarefa do Windows (liga com o computador)
 public/

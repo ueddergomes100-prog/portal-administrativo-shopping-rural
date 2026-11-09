@@ -1,8 +1,9 @@
 // Catálogo espelhado do UniPlus (somente leitura no portal).
 import { getStore, C } from '../store/index.js';
 import { notFound } from '../http.js';
+import { allShardProducts } from './product-shards.js';
 
-// Cache curto em memória para não ler o catálogo inteiro do Firestore a cada página.
+// Cache curto em memória; e a lista vem das fatias (poucas leituras), nunca da coleção inteira.
 let cache = { at: 0, items: null };
 const TTL = 60_000;
 
@@ -12,7 +13,7 @@ export function invalidateProductCache() {
 
 async function allProducts() {
   if (cache.items && Date.now() - cache.at < TTL) return cache.items;
-  const items = await getStore().list(C.products);
+  const items = await allShardProducts();
   cache = { at: Date.now(), items };
   return items;
 }

@@ -84,9 +84,9 @@ test('fluxo completo da fila no modo local', async () => {
   assert.equal(plusSearch.status, 200);
   assert.equal(plusSearch.body.filteredTotal, 1);
   assert.equal(plusSearch.body.data[0].id, '1');
-  const catalog = await call('GET', '/products', null, owner);
-  assert.equal(catalog.body.total, 2); // produto com categoria inválida continua disponível
-  assert.ok(!catalog.body.categories.includes('AAAAA')); // mas não aparece no filtro de categorias
+  const allProducts = await call('GET', '/products', null, owner);
+  assert.equal(allProducts.body.total, 2); // produto com categoria inválida continua disponível
+  assert.ok(!allProducts.body.categories.includes('AAAAA')); // mas não aparece no filtro de categorias
 
   // Site não escolhe produto; dono escolhe canais e preço em cada um.
   const channels = [{ id: 'site', price: 90, promoPrice: 80 }, { id: 'shopee', price: 110 }];
@@ -183,16 +183,24 @@ test('fluxo completo da fila no modo local', async () => {
   // Conector da loja: manda só o que mudou; estoque de produto publicado vai para o catálogo do site.
   const connector = (body, token = 'token-conector-teste') => fetch(base + '/api/connector/uniplus/catalog', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify(body) });
   assert.equal((await connector({ items: [] }, 'token-errado-do-conector-x')).status, 401);
-  const partial = await (await connector({ mode: 'partial', items: [{ id_produto: 1, sku: 'T-1', nome_produto: 'Produto de teste A', nome_categoria: 'Teste', preco: 100, preco_custo: 60, estoque: 3 }] })).json();
+  const partial = await (await connector({ mode: 'partial', items: [{ id_produto: 1, sku: 'T-1', nome_produto: 'Ração Quatree 20 kg Produto de teste A', nome_categoria: 'Teste', preco: 100, preco_custo: 60, estoque: 3 }] })).json();
   assert.equal(partial.written, 1);
   assert.equal((await call('GET', '/catalog')).body.products[0].stock, 3);
   // Conferência completa com os mesmos dados não regrava nada.
   const full = await (await connector({ mode: 'full', items: [
-    { id_produto: 1, sku: 'T-1', nome_produto: 'Produto de teste A', nome_categoria: 'Teste', preco: 100, preco_custo: 60, estoque: 3 },
-    { id_produto: 2, sku: 'T-2', nome_produto: 'Produto de teste B', nome_categoria: 'Teste', preco: 50, estoque: 0 }
+    { id_produto: 1, sku: 'T-1', nome_produto: 'Ração Quatree 20 kg Produto de teste A', nome_categoria: 'Teste', preco: 100, preco_custo: 60, estoque: 3 },
+    { id_produto: 2, sku: 'T-2', nome_produto: 'Produto de teste B', nome_categoria: 'AAAAA', preco: 50, estoque: 0 }
   ] })).json();
   assert.equal(full.written, 0);
   assert.equal(full.missing, 0);
+  // Conferência em lotes: os produtos vão antes e, no fim, só os códigos — o que não veio fica
+  // marcado como ausente do UniPlus; voltando, é regravado.
+  const idsOnly = await (await connector({ mode: 'full', items: [], ids: ['1'] })).json();
+  assert.equal(idsOnly.missing, 1);
+  assert.equal(idsOnly.received, 1);
+  const back = await (await connector({ mode: 'partial', items: [{ id_produto: 2, sku: 'T-2', nome_produto: 'Produto de teste B', nome_categoria: 'AAAAA', preco: 50, estoque: 0 }] })).json();
+  assert.equal(back.written, 1);
+  assert.equal((await (await connector({ mode: 'full', items: [], ids: ['1', '2'] })).json()).missing, 0);
 
   // Novo preço: o site lê na hora; a Shopee fica marcada para atualizar o anúncio.
   await call('PATCH', `/queue/${id}/pricing`, { channels: [{ id: 'site', price: 95, promoPrice: 80 }, { id: 'shopee', price: 120 }] }, owner);

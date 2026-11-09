@@ -123,7 +123,10 @@ site (a construir) envia pedidos e avisos com `STORE_API_TOKEN`.
 
 ## Custos e limites (referência — conferir preços atuais)
 
-- **Firestore (plano gratuito):** 50 mil leituras e 20 mil escritas por dia. O portal foi feito para
+- **Firestore (plano gratuito):** 50 mil leituras e 20 mil escritas por dia. Com milhares de produtos,
+  listar ou comparar o catálogo custa 16 leituras (fatias em `settings/products-shard-*`); a primeira vez
+  monta as fatias lendo a coleção `products` uma única vez. Se a cota acabar, tudo que usa o banco para
+  até a meia-noite do Pacífico (~4–5 h em Brasília). O portal foi feito para
   caber: o catálogo do site é um documento único com cache de 30 s na CDN, e o conector só grava
   produtos que mudaram (mais uma conferência completa a cada 6 h). Loja com milhares de produtos e
   muita venda no balcão pode passar das escritas — aí ativar o plano Blaze (paga só o excedente).
