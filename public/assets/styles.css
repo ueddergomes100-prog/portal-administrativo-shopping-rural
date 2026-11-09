@@ -722,6 +722,13 @@ details.section[open] > summary { margin-bottom: 14px; }
 [aria-pressed=true] > .hub-switch { background: var(--pasto-700); }
 [aria-pressed=true] > .hub-switch::after { transform: translateX(24px); }
 
+/* Aviso de versão nova (ver watchVersion em app.js). Fica acima da barra inferior no celular. */
+.update-bar { position: fixed; z-index: 60; left: 50%; bottom: 20px; transform: translateX(-50%); width: min(560px, calc(100% - 24px));
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 12px 12px 18px;
+  border-radius: var(--r-lg); background: var(--brinco); color: var(--pasto-950); box-shadow: var(--shadow-lg); font-weight: 700; font-size: 17px; }
+.update-bar .btn { flex: none; }
+@media (max-width: 960px) { .update-bar { bottom: calc(84px + env(safe-area-inset-bottom)); } }
+
 /* Letra maior: aumenta tudo por igual (texto, botões, espaços) neste aparelho. */
 .aa-icon { display: inline-grid; place-items: center; font: 800 15px/1 var(--f-display); stroke: none; }
 .nav-link[aria-pressed=true] { background: rgb(242 191 31 / .16); color: #fff; }
@@ -889,6 +896,35 @@ html.big-text { zoom: 1.15; }
 @media (pointer: coarse) {
   .btn { min-height: 44px; }
   .btn.small { min-height: 40px; }
+}
+
+/* --------------------------------------------------------------------------
+   Celular e telas de toque: tudo que se toca com o dedo tem pelo menos 48 px
+   (medido em 375 px: botões pequenos, campos, o X de fechar e links no texto
+   ficavam com 6–42 px).
+   -------------------------------------------------------------------------- */
+.layer-head .btn-icon { flex: none; }
+@media (pointer: coarse), (max-width: 960px) {
+  .btn, .btn.small { min-height: 48px; }
+  .btn-icon { width: 48px; height: 48px; flex: none; }
+  .link { min-height: 44px; }
+  .field input, .field select, .cell-input, .calc-money input, .search input, .toolbar select, .select-inline select { min-height: 48px; }
+  input[type=checkbox], input[type=radio] { width: 24px; height: 24px; }
+  summary { padding-block: 12px; }
+  .cal-nav .btn { min-width: 48px; }
+  .cell-input.small { min-height: 48px; }
+  .grid-channels input[type=checkbox] { width: 32px; height: 32px; }
+  /* Link no meio do texto: a área de toque cresce para cima e para baixo sem mudar o texto de lugar. */
+  :where(main, dialog) a:not([class]) { padding-block: 12px; }
+}
+@media (max-width: 640px) {
+  /* Agenda: no celular o calendário é só para olhar; a lista (que se toca) vem primeiro. */
+  .grid-agenda > :last-child { order: -1; }
+  .cal-event { pointer-events: none; }
+  /* Listas de datas: a etiqueta de situação vai para baixo do nome, sem espremer o texto. */
+  .upcoming a { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 6px 14px; }
+  .up-when { grid-row: span 2; }
+  .up-tag { grid-column: 2; justify-self: start; }
 }
 
 @media (prefers-reduced-motion: reduce) {

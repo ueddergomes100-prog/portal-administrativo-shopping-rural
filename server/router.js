@@ -25,6 +25,8 @@ import { listMedia, mediaAvailable } from './media.js';
 import { saveUpload, storageDriver } from './files.js';
 
 const ENTITY = '(campaigns|promotions|arts|leads)';
+// Muda a cada publicação na Vercel (no computador, a cada vez que o servidor liga).
+const APP_VERSION = process.env.VERCEL_DEPLOYMENT_ID || process.env.VERCEL_GIT_COMMIT_SHA || `local-${Date.now()}`;
 // Catálogo: a CDN da Vercel guarda por 30 s e serve a versão anterior enquanto atualiza.
 const CATALOG_CACHE = 'public, max-age=0, s-maxage=30, stale-while-revalidate=300';
 
@@ -32,7 +34,11 @@ const CATALOG_CACHE = 'public, max-age=0, s-maxage=30, stale-while-revalidate=30
 // auth: 'user' (padrão) | 'public' | 'connector' | 'leads' (LEADS_WEBHOOK_TOKEN) | 'store' (STORE_API_TOKEN).
 const routes = [
   ['GET', '/api/health', () => ({ ok: true, backend: config.backend, time: new Date().toISOString() }), { auth: 'public' }],
+  // Versão publicada: o app aberto no celular compara com a dele e se atualiza (ver app.js).
+  // Não lê o banco — pode ser chamado a cada poucos minutos sem custo.
+  ['GET', '/api/version', () => ({ version: APP_VERSION }), { auth: 'public' }],
   ['GET', '/api/config', async () => ({
+    version: APP_VERSION,
     backend: config.backend,
     demo: config.demo,
     needsSetup: await needsSetup(),

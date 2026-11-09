@@ -289,6 +289,7 @@ document.addEventListener('click', event => {
   if (action === 'reload') return refresh();
   if (action === 'logout') return void signOut().then(() => location.reload());
   if (action === 'toggle-menu') return toggleMenu(!document.body.classList.contains('menu-open'));
+  if (action === 'update-app') return location.reload();
   if (action === 'text-size') {
     const big = !document.documentElement.classList.contains('big-text');
     try { localStorage.setItem(TEXT_KEY, big ? '1' : '0'); } catch {}
@@ -395,6 +396,39 @@ async function start() {
   }
 }
 
+// Versão nova publicada: o app na tela inicial do celular não tem botão de recarregar e fica dias
+// aberto. O portal confere a versão a cada 3 min e quando volta para a tela. Se mudou: com o app em
+// segundo plano ou nada aberto, recarrega sozinho ao voltar; com algo aberto (formulário, ficha),
+// só mostra o aviso "Atualizar agora" — nada do que a pessoa está digitando se perde.
+function watchVersion(current) {
+  if (!current) return;
+  let outdated = false;
+  const editing = () => ['drawer', 'modal', 'confirm'].some(id => document.getElementById(id)?.open);
+  const check = async () => {
+    if (!outdated) {
+      try {
+        const { version } = await fetch('/api/version', { cache: 'no-store' }).then(r => r.json());
+        outdated = !!version && version !== current;
+      } catch { return; }
+    }
+    if (!outdated) return;
+    if (document.visibilityState === 'hidden') return; // recarrega quando a pessoa voltar
+    if (!editing() && returning) return location.reload();
+    const showBar = () => { document.getElementById('updateBar').hidden = false; };
+    // Ficha ou formulário aberto fica por cima de tudo: o aviso aparece quando ele fechar.
+    if (!editing()) return showBar();
+    if (waiting) return;
+    waiting = setInterval(() => { if (!editing()) { clearInterval(waiting); waiting = null; showBar(); } }, 1000);
+  };
+  let waiting = null;
+  let returning = false;
+  setInterval(() => { returning = false; check(); }, 180_000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') { returning = true; check(); }
+  });
+  window.addEventListener('online', () => { returning = false; check(); });
+}
+
 async function boot() {
   const bootEl = document.getElementById('boot');
   try {
@@ -402,6 +436,7 @@ async function boot() {
       if (!r.ok) throw new Error('O servidor do portal não respondeu (status ' + r.status + ').');
       return r.json();
     });
+    watchVersion(app.config.version);
     await initAuth(app.config, {
       signedOut: message => {
         if (app.user) { app.user = null; showLogin(message || 'Sua sessão terminou. Entre novamente.'); }

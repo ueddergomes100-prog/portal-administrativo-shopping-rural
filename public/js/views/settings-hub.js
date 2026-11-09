@@ -26,6 +26,11 @@ export default {
         <span><strong>Letra maior</strong><small>${big ? 'Ligada. Toque de novo para voltar ao tamanho normal.' : 'Deixa todo o portal com letras e botões maiores neste aparelho.'}</small></span>
         <span class="hub-switch" aria-hidden="true"></span>
       </button></li>
+      <li><button type="button" class="hub-card" data-action="update-app">
+        <span class="hub-icon" aria-hidden="true">${icon('refresh')}</span>
+        <span><strong>Atualizar o portal</strong><small>Carrega a versão mais nova. Use se algo parecer antigo ou travado.</small></span>
+        ${icon('arrow', 'hub-go')}
+      </button></li>
       ${cards.map(c => `<li><a class="hub-card" href="${c.href}">
         <span class="hub-icon">${icon(c.ic)}</span>
         <span><strong>${esc(c.title)}</strong><small>${esc(c.text)}</small></span>
