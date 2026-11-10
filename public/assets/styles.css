@@ -737,6 +737,7 @@ details.section[open] > summary { margin-bottom: 14px; }
 .pick input { width: 24px; height: 24px; accent-color: var(--pasto-700); cursor: pointer; }
 .pick-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: -4px 0 14px; color: var(--terra-2); }
 .pick-hint > .icon { color: var(--pasto-600); }
+.pick-hint > span { flex: 1 1 220px; }
 .pick-bar, .send-bar { position: sticky; bottom: 12px; z-index: 15; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px 14px;
   margin-top: 16px; padding: 12px 14px 12px 18px; border: 2px solid var(--brinco); border-radius: var(--r-lg); background: var(--papel); box-shadow: var(--shadow-lg); }
 .pick-bar > span:first-child, .send-bar > span:first-child { margin-right: auto; font-size: 17px; }
@@ -991,6 +992,152 @@ html.big-text { zoom: 1.15; }
   .upcoming a { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 6px 14px; }
   .up-when { grid-row: span 2; }
   .up-tag { grid-column: 2; justify-self: start; }
+}
+
+/* ==========================================================================
+   Visual 2026 — inspirado nos outros projetos do Uedder (Hennder ERP, Vôlei,
+   Conthagora, CS Suple): faixa verde da marca atrás do título de cada tela,
+   menu escuro com ícones em quadradinhos, botões em pílula, botão principal
+   amarelo (o da logo), cartões de cantos grandes com sombra longa e suave,
+   etiquetas em pílula com bolinha, números grandes. Fundo claro para leitura.
+   Fica no fim do arquivo de propósito: sobrepõe o visual anterior.
+   ========================================================================== */
+:root {
+  --galv: #f1f5ef;
+  --galv-2: #e4ece1;
+  --linha: #dde6da;
+  --linha-forte: #bccab8;
+  --terra: #0f1f17;
+  --terra-2: #33453a;
+  --muted: #475a4e;
+  --r-sm: 10px;
+  --r: 14px;
+  --r-lg: 22px;
+  --band: linear-gradient(155deg, #00321a 0%, #00512a 52%, #007a3b 100%);
+  --shadow: 0 1px 0 rgb(0 59 32 / .04), 0 18px 40px -30px rgb(0 59 32 / .45);
+  --shadow-lift: 0 2px 0 rgb(0 59 32 / .04), 0 26px 50px -28px rgb(0 59 32 / .5);
+  --shadow-lg: 0 30px 70px -28px rgb(0 32 16 / .5);
+  --ease: cubic-bezier(.16, 1, .3, 1);
+  --f-body: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --gutter: clamp(16px, 3vw, 44px);
+}
+body { background: var(--galv); }
+
+/* Menu lateral: verde-escuro, ícone em quadradinho, item ativo em pílula com o ícone amarelo. */
+.sidebar { background: linear-gradient(180deg, #00321a 0%, #002614 100%); padding-inline: 12px; }
+.nav-label { margin: 0 12px 8px; font: 700 13.5px/1 var(--f-body); letter-spacing: .06em; text-transform: uppercase; color: #8fbea2; }
+.nav-group + .nav-group { margin-top: 22px; }
+.nav-link { gap: 12px; min-height: 52px; padding: 6px 10px; border-radius: 16px; color: #d9ecdf; font-weight: 600; }
+.nav-link .icon, .nav-link .aa-icon { width: 38px; height: 38px; padding: 9px; box-sizing: border-box; border-radius: 12px; background: rgb(255 255 255 / .07); color: #b9dcc7; flex: none; }
+.nav-link .aa-icon { display: inline-grid; place-items: center; padding: 0; font: 800 15px/1 var(--f-display); }
+.nav-link:hover { background: rgb(255 255 255 / .06); }
+.nav-link:hover .icon { background: rgb(255 255 255 / .12); color: #fff; }
+.nav-link.is-active { background: rgb(255 229 0 / .13); color: #fff; }
+.nav-link.is-active::before { display: none; }
+.nav-link.is-active .icon { background: var(--brinco); color: #00321a; }
+.nav-count { border-radius: 999px; font: 800 14px/1.7 var(--f-body); padding: 0 9px; }
+.sidebar-foot { border-top-color: rgb(255 255 255 / .1); }
+.user-chip { border-radius: 16px; }
+
+/* Faixa da marca atrás do título de cada tela (padrão do Hennder ERP). */
+main { padding: 0 var(--gutter) 72px; }
+.page-head { position: relative; isolation: isolate; overflow: hidden; margin: 0 calc(-1 * var(--gutter)) 28px; padding: 40px var(--gutter) 40px;
+  background: var(--band); color: #fff; border-radius: 0 0 30px 30px; }
+.page-head::after { content: ''; position: absolute; z-index: -1; right: -120px; top: -160px; width: 420px; height: 420px; border-radius: 50%;
+  background: radial-gradient(circle, rgb(255 229 0 / .22), transparent 65%); pointer-events: none; }
+.page-head h1 { color: #fff; letter-spacing: -.03em; }
+.page-head .lead { color: rgb(255 255 255 / .88); }
+.page-head .eyebrow { color: #c4e6d1; font-weight: 700; }
+.page-head .eyebrow .tag { background: rgb(255 255 255 / .14); color: #fff; }
+.page-head .btn:not(.primary) { background: rgb(255 255 255 / .1); border-color: rgb(255 255 255 / .35); color: #fff; }
+.page-head .btn:not(.primary):hover { background: rgb(255 255 255 / .18); border-color: #fff; color: #fff; }
+
+/* Cartões: cantos grandes, borda fininha, sombra longa e suave. */
+.panel, .tile, .hub-card, .grade-card, .board-col, .q-card, .how li, .task-list .task-icon { border-color: var(--linha); }
+.panel { border-radius: var(--r-lg); box-shadow: var(--shadow); padding: 22px; }
+.panel-head h2, .block-title { font-family: var(--f-display); font-weight: 800; letter-spacing: -.015em; }
+.tile, .hub-card, .q-card { transition: transform .25s var(--ease), box-shadow .25s var(--ease), border-color .2s; }
+.tile:hover, .hub-card:hover, .q-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); border-color: var(--pasto-600); }
+.tile strong { font-size: 46px; letter-spacing: -.03em; color: #00321a; }
+.tasks-panel { border-top: 0; }
+.task-icon, .hub-icon { background: #e2f1e7; color: var(--pasto-800); border-radius: 14px; }
+
+/* Botões em pílula. O principal é o amarelo da logo, com texto verde-escuro. */
+.btn { min-height: 52px; padding: 0 24px; border-radius: 999px; border: 1.5px solid var(--linha-forte); background: var(--papel); color: var(--terra);
+  font: 700 17px/1 var(--f-body); transition: transform .2s var(--ease), box-shadow .2s var(--ease), background-color .15s, border-color .15s, color .15s; }
+.btn:hover { transform: translateY(-1px); border-color: var(--pasto-700); background: var(--papel); color: var(--terra); }
+.btn:active { transform: scale(.98); }
+.btn.primary { background: var(--brinco); border-color: var(--brinco); color: #00321a; box-shadow: 0 14px 28px -16px rgb(150 130 0 / .95); }
+.btn.primary:hover { background: #fff15a; border-color: #fff15a; color: #00321a; box-shadow: 0 0 0 5px rgb(255 229 0 / .28), 0 16px 30px -16px rgb(150 130 0 / .95); }
+.btn.primary .icon { transition: transform .2s var(--ease); }
+.btn.primary:hover .icon:last-child { transform: translateX(3px); }
+.btn.ghost { background: transparent; border-color: transparent; }
+.btn.ghost:hover { background: var(--galv-2); border-color: transparent; }
+.btn.danger { background: var(--danger-fg); border-color: var(--danger-fg); color: #fff; }
+.btn.danger:hover { background: #7d2017; border-color: #7d2017; color: #fff; }
+.btn.small { min-height: 44px; padding: 0 16px; font-size: 16px; }
+.btn:disabled, .btn:disabled:hover { transform: none; box-shadow: none; }
+.btn-icon { border-radius: 14px; }
+
+/* Etiquetas de situação: pílula sem borda, com bolinha da mesma cor. */
+.tag { gap: 7px; padding: 4px 12px 4px 10px; border: 0; border-radius: 999px; font: 700 15px/1.4 var(--f-body); }
+.tag-hole { width: 8px; height: 8px; background: currentColor; box-shadow: none; }
+.tag.tone-done .tag-hole { background: var(--brinco); }
+.count-pill, .board-count, .board-head > .mono { border-radius: 999px; font-family: var(--f-body); font-weight: 800; }
+
+/* Campos: altos, cantos arredondados, foco verde bem visível. */
+.field input, .field select, .field textarea, .search input, .toolbar select, .select-inline select, .cell-input, .calc-money input, .inline-form input, .note-form textarea {
+  border-radius: var(--r); border-width: 1.5px; border-color: var(--linha-forte); background-color: var(--papel); }
+.field input:focus, .field select:focus, .field textarea:focus, .search input:focus, .toolbar select:focus, .cell-input:focus, .calc-money input:focus {
+  outline: none; border-color: var(--pasto-700); box-shadow: 0 0 0 4px rgb(0 142 69 / .18); }
+.field > label, .field > legend, .field-label { font-weight: 700; }
+
+/* Tabelas */
+.table th { background: var(--galv); font: 700 14.5px/1.3 var(--f-body); color: var(--muted); }
+.table th, .table td { padding-inline: 12px; }
+.table td:first-child { min-width: 200px; }
+.table .btn.small { padding: 0 14px; }
+.row-link:hover td { background: #eef5ea; }
+
+/* Abas e quadros */
+.tab.is-active { border-bottom-width: 4px; }
+.board-col { border-radius: var(--r-lg); }
+.yours-pill { font-weight: 800; }
+
+/* Fichas e formulários que abrem por cima */
+.drawer { border-radius: 26px 0 0 26px; overflow: hidden; }
+.modal, .confirm { border-radius: 24px; }
+.layer-head h2 { font-family: var(--f-display); font-weight: 800; letter-spacing: -.02em; }
+.layer-foot { background: var(--galv); }
+
+/* Barra de baixo no celular: o item ativo ganha o ícone numa pílula amarela. */
+.tabbar-item.is-active .icon { background: var(--brinco); color: #00321a; border-radius: 999px; padding: 4px 16px; width: 22px; height: 22px; box-sizing: content-box; }
+.tabbar-item.is-active::before { display: none; }
+
+/* Tela de entrada */
+.login-brand { background: var(--band); }
+.role-btn { border-radius: var(--r-lg); transition: transform .2s var(--ease), box-shadow .2s var(--ease), border-color .2s; }
+.role-btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
+
+/* Entrada da tela: sobe de leve, em cascata (só ao trocar de tela — ver refresh em app.js). */
+@keyframes enter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+main.is-entering > * { animation: enter .5s var(--ease) both; }
+main.is-entering > :nth-child(2) { animation-delay: .05s; }
+main.is-entering > :nth-child(3) { animation-delay: .1s; }
+main.is-entering > :nth-child(4) { animation-delay: .15s; }
+main.is-entering > :nth-child(n + 5) { animation-delay: .2s; }
+
+@media (max-width: 960px) {
+  .topbar { background: #00321a; }
+  main { padding-top: 0; }
+  .page-head { padding: 22px var(--gutter) 30px; border-radius: 0 0 24px 24px; margin-bottom: 22px; }
+  .page-head::after { width: 280px; height: 280px; right: -110px; top: -120px; }
+}
+@media (max-width: 640px) {
+  .panel { padding: 18px; }
+  .tile strong { font-size: 38px; }
+  .page-head .page-actions { width: 100%; }
+  .page-head .page-actions .btn { flex: 1 1 auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

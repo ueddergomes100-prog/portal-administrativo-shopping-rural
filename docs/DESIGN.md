@@ -14,6 +14,24 @@ O amarelo-brinco é usado **com parcimônia**: foco do teclado, item ativo da na
 e borda de "Para resolver agora", o selo "Precisa de você" e a etapa final. O resto é verde-pasto e
 cinza galvanizado.
 
+## Visual 2026 (nov/2026)
+
+Inspirado nos outros projetos do Uedder (Hennder ERP, Vôlei, Conthagora, CS Suple) — bloco "Visual 2026"
+no fim de `styles.css`, que sobrepõe o visual anterior:
+
+- **Faixa da marca** (`--band`, gradiente verde-escuro → verde) atrás do título de cada tela (`.page-head`),
+  com brilho amarelo no canto. No celular continua por baixo da barra do topo.
+- **Menu lateral** verde-escuro; cada ícone num quadradinho; item ativo em pílula com o ícone amarelo.
+- **Botões em pílula** (52 px; 44 px os pequenos). O principal é o **amarelo da logo** (`--brinco`) com
+  texto verde-escuro e brilho; secundário branco com borda.
+- **Cartões** com cantos de 22 px, borda fininha e sombra longa e suave (`--shadow`); sobem 3 px ao passar.
+- **Etiquetas de situação** em pílula sem borda, com bolinha da mesma cor.
+- **Fontes:** Archivo 800 nos títulos (letras um pouco juntas), **Figtree** no texto, IBM Plex Mono só
+  para códigos e preços.
+- **Movimento:** ao trocar de tela, o conteúdo sobe 12 px em cascata (`main.is-entering`, só na troca de
+  tela); `prefers-reduced-motion` desliga.
+- Fundo claro de propósito (leitura fácil para a equipe); o "escuro" do gosto da casa fica na faixa e no menu.
+
 ## Simples de usar (nov/2026)
 
 Quem usa são pessoas mais velhas, pouco acostumadas com tecnologia. Toda tela nova segue:

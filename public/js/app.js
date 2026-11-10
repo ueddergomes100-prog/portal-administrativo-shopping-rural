@@ -176,6 +176,12 @@ async function refresh({ scrollTop = false, preserveFocus } = {}) {
     app.data = data;
     main.innerHTML = view.render(ctx());
     restoreInputFocus(main, focus);
+    // Animação de entrada só ao trocar de tela (não a cada clique que redesenha a mesma tela).
+    if (scrollTop) {
+      main.classList.remove('is-entering');
+      void main.offsetWidth;
+      main.classList.add('is-entering');
+    }
   } catch (error) {
     if (seq !== renderSeq) return;
     app.data = null;
