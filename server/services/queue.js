@@ -46,6 +46,12 @@ function decorate(item, user) {
       siteUrl: config.store.publicUrl || ''
     }
   };
+  // Link do produto no site: sempre com o endereço atual do site (STORE_PUBLIC_URL), não o que
+  // valia no dia em que foi publicado — o endereço do site pode mudar (ex.: .vercel.app → domínio).
+  const siteListing = item.listings?.site;
+  if (siteListing?.status === 'done' && item.slug && config.store.publicUrl) {
+    out.listings = { ...item.listings, site: { ...siteListing, url: siteProductUrl(item.slug) } };
+  }
   if (!seesCost(user)) {
     // Custo e margem são só de dono/gerente.
     out.productSnapshot = { ...item.productSnapshot, cost: undefined };
