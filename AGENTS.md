@@ -185,6 +185,9 @@ docs/                         arquitetura, API, dados, design, deploy, roteiro
   "Colocar à venda no site" entra no catálogo (preço novo vale na hora; "Tirar do site" remove);
   Shopee/ML com link marcado à mão; preço alterado marca "atualizar anúncio". "À venda" quando todos
   os canais concluírem.
+- **Cadastro em grade** (`views/catalog-grid.js`, `#/cadastro?ids=…`): marcar vários em Produtos, colar as
+  fotos e preencher em cartões, enviar tudo por `POST /api/queue/bulk` (catálogo do site refeito uma vez).
+  Rascunho guardado no aparelho (`localStorage`, chave `sr-cadastro-grade`).
 - Promoções com canais, líquido por canal e **pedido de arte no mesmo formulário**; campanhas idem.
 - Artes (quem pediu, prazo, arquivo, aprovação, canais onde saiu), **Agenda** mensal + próximos 90 dias.
 - Clientes interessados (leads): cadastro manual, **webhook de entrada** com deduplicação, importação do Meta Lead Ads.

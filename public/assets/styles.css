@@ -730,6 +730,63 @@ details.section[open] > summary { margin-bottom: 14px; }
 [aria-pressed=true] > .hub-switch { background: var(--pasto-700); }
 [aria-pressed=true] > .hub-switch::after { transform: translateX(24px); }
 
+/* --------------------------------------------------------------------------
+   Vários produtos de uma vez: marcar em Produtos e cadastrar em grade
+   -------------------------------------------------------------------------- */
+.pick { display: inline-grid; place-items: center; width: 44px; height: 44px; margin: -10px 4px -10px -10px; vertical-align: middle; float: left; cursor: pointer; }
+.pick input { width: 24px; height: 24px; accent-color: var(--pasto-700); cursor: pointer; }
+.pick-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: -4px 0 14px; color: var(--terra-2); }
+.pick-hint > .icon { color: var(--pasto-600); }
+.pick-bar, .send-bar { position: sticky; bottom: 12px; z-index: 15; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px 14px;
+  margin-top: 16px; padding: 12px 14px 12px 18px; border: 2px solid var(--brinco); border-radius: var(--r-lg); background: var(--papel); box-shadow: var(--shadow-lg); }
+.pick-bar > span:first-child, .send-bar > span:first-child { margin-right: auto; font-size: 17px; }
+
+.fill-all .panel-head { margin-bottom: 10px; }
+.fill-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 12px 16px; margin-bottom: 12px; }
+.fill-all .inline-actions { align-items: center; flex-wrap: wrap; }
+.fill-all .inline-actions .hint { flex: 1 1 240px; margin: 0; }
+.grade { list-style: none; margin: 16px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 16px; align-items: start; }
+.grade-card { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--linha); border-radius: var(--r-lg); background: var(--papel); box-shadow: var(--shadow); scroll-margin: 96px; }
+.grade-card.is-active { border: 2px solid var(--brinco); box-shadow: 0 0 0 4px var(--brinco-soft), var(--shadow); padding: 15px; }
+.grade-card.is-locked { opacity: .8; }
+.grade-card.is-locked p { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.grade-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.grade-head strong { display: block; font: 700 18px/1.3 var(--f-body); color: var(--terra); }
+.grade-head small { display: block; color: var(--terra-2); font-size: 15px; margin-top: 2px; }
+.grade-tag { display: block; margin-top: 6px; }
+.grade-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.grade-photo { position: relative; aspect-ratio: 1; border: 1px solid var(--linha); border-radius: var(--r); overflow: hidden; background: #fff; }
+.grade-photo img { width: 100%; height: 100%; object-fit: contain; }
+.grade-photo .photo-file { display: grid; place-items: center; gap: 4px; height: 100%; padding: 6px; font-size: 12px; text-align: center; color: var(--muted); }
+.grade-photo .btn-icon { position: absolute; top: 2px; right: 2px; width: 36px; height: 36px; background: rgb(255 255 255 / .92); border-radius: 50%; }
+.grade-main { position: absolute; left: 4px; bottom: 4px; padding: 1px 8px; border-radius: 999px; background: var(--brinco); color: var(--pasto-950); font: 700 12px/1.6 var(--f-body); }
+.grade-drop { display: flex; align-items: center; gap: 12px; grid-column: 1 / -1; min-height: 72px; padding: 12px 14px; border: 2px dashed var(--linha-forte); border-radius: var(--r); background: var(--galv); color: var(--pasto-800); cursor: pointer; }
+.grade-drop:hover, .grade-card.is-active .grade-drop { border-color: var(--pasto-600); background: #f1f6f2; }
+.grade-drop .icon { width: 28px; height: 28px; flex: none; }
+.grade-drop strong { display: block; font-size: 17px; }
+.grade-drop small { display: block; color: var(--terra-2); font-size: 14px; }
+.grade-photos:has(.grade-photo) .grade-drop { grid-column: auto; flex-direction: column; justify-content: center; text-align: center; aspect-ratio: 1; min-height: 0; padding: 8px; gap: 4px; }
+.grade-photos:has(.grade-photo) .grade-drop small { display: none; }
+.grade-photos:has(.grade-photo) .grade-drop strong { font-size: 14px; }
+.grade-working { margin: -4px 0 0; font-weight: 600; color: var(--pasto-700); }
+.grade-working:empty { display: none; }
+.grade-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+.grade-fields .full { grid-column: 1 / -1; }
+.grade-fields .field { margin: 0; }
+.grade-price { margin: 6px 0 0; font-size: 18px; }
+.grade-status { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 10px 12px; border-radius: var(--r); background: var(--warn-bg); color: var(--warn-fg); font-size: 15px; }
+.grade-status .icon { flex: none; margin-top: 2px; }
+.grade-status.is-ready { background: var(--ok-bg); color: var(--ok-fg); font-weight: 700; }
+.grade-status.is-error { background: var(--danger-bg); color: var(--danger-fg); }
+@media (max-width: 960px) {
+  .pick-bar, .send-bar { bottom: calc(80px + var(--safe-bottom)); }
+}
+@media (max-width: 640px) {
+  .grade-fields { grid-template-columns: minmax(0, 1fr); }
+  .pick-bar .btn, .send-bar .btn { flex: 1 1 auto; }
+  .pick { margin: -8px 2px -8px -8px; }
+}
+
 /* Aviso de versão nova (ver watchVersion em app.js). Fica acima da barra inferior no celular. */
 .update-bar { position: fixed; z-index: 60; left: 50%; bottom: 20px; transform: translateX(-50%); width: min(560px, calc(100% - 24px));
   display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 12px 12px 18px;

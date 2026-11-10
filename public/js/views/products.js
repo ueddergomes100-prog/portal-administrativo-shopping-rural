@@ -1,7 +1,7 @@
 // Produtos e estoque: espelho do UniPlus. O dono escolhe aqui o que vai à venda e por quanto em cada canal.
 import { get, post } from '../api.js';
 import { esc, icon, tag, money, num, relative, pageHead, empty, notice, button, field, openDrawer, openModal, closeLayers, toast, statusTag } from '../ui.js';
-import { QUEUE_STAGES, PRIORITIES, canApprove } from '../../shared/domain.js';
+import { QUEUE_STAGES, PRIORITIES, PREPARERS, canApprove } from '../../shared/domain.js';
 import { pricingEditor, readPricing, pricingInputs, pricingChanges } from './pricing.js';
 
 const FILTERS = [
@@ -16,6 +16,12 @@ const FILTERS = [
 let searchTimer;
 const canSell = user => user.role === 'owner' || (user.role === 'manager' && canApprove(user));
 const seesCost = user => ['owner', 'manager'].includes(user.role);
+// Pode entrar no cadastro em grade: produto novo (quem escolhe o que vender) ou já escolhido e ainda
+// em preparação (quem prepara). Vai junto para o cadastro pelo endereço #/cadastro?ids=…
+const PICK_MAX = 30;
+const canPick = (user, p) => !p.missingFromUniplus && (p.queue
+  ? ['selected', 'preparing'].includes(p.queue.stage) && PREPARERS.includes(user.role)
+  : canSell(user));
 
 const view = {
   id: 'produtos',
@@ -57,8 +63,21 @@ const view = {
       })}</section>`;
     }
 
+    // Marcados que já foram enviados (não estão mais em preparação) saem da marcação sozinhos.
+    const sentHere = new Set(catalog.data.filter(p => !canPick(user, p)).map(p => p.id));
+    state.picked = (state.picked || []).filter(id => !sentHere.has(id));
+    const picked = new Set(state.picked);
+    const pickable = catalog.data.filter(p => canPick(user, p));
+    const pickBar = picked.size ? `<div class="pick-bar" role="region" aria-label="Produtos marcados">
+      <span><strong>${num(picked.size)}</strong> ${picked.size === 1 ? 'produto marcado' : 'produtos marcados'}</span>
+      ${button('Desmarcar', { action: 'pick-clear', variant: 'ghost' })}
+      <a class="btn primary" href="#/cadastro?ids=${[...picked].map(encodeURIComponent).join(',')}">${icon('image')}<span>Cadastrar em grade</span></a>
+    </div>` : '';
+
     return `${pageHead({ eyebrow, title: 'Produtos', lead, actions })}
     ${statusLine}
+    ${pickable.length ? `<p class="pick-hint">${icon('check')}<span>Para cadastrar vários de uma vez, marque os produtos e toque em <strong>Cadastrar em grade</strong>.</span>
+      ${button('Marcar todos desta página', { action: 'pick-page', variant: 'ghost small' })}</p>` : ''}
     <div class="stat-strip">
       <span><strong>${num(catalog.total)}</strong> produtos</span>
       <span><strong>${num(catalog.summary.inQueue)}</strong> à venda ou a caminho</span>
@@ -78,7 +97,7 @@ const view = {
         <thead><tr><th scope="col">Produto</th><th scope="col">Categoria</th>${showCost ? '<th scope="col" class="num">Custo</th>' : ''}<th scope="col" class="num">Preço</th><th scope="col" class="num">Estoque</th><th scope="col">À venda</th></tr></thead>
         <tbody>${catalog.data.map(p => `
           <tr class="row-link${p.missingFromUniplus ? ' is-muted' : ''}" data-action="open" data-id="${esc(p.id)}" tabindex="0">
-            <td><strong>${esc(p.name)}</strong><span class="mono sub">código ${esc(p.sku || '—')}</span></td>
+            <td>${canPick(user, p) ? `<label class="pick" data-action="pick-label" title="Marcar para o cadastro em grade"><input type="checkbox" data-change="pick" data-id="${esc(p.id)}"${picked.has(p.id) ? ' checked' : ''}><span class="sr-only">Marcar ${esc(p.name)}</span></label>` : ''}<strong>${esc(p.name)}</strong><span class="mono sub">código ${esc(p.sku || '—')}</span></td>
             <td>${esc(p.category)}</td>
             ${showCost ? `<td class="num mono">${p.cost ? money(p.cost) : '—'}</td>` : ''}
             <td class="num mono">${money(p.basePrice)}</td>
@@ -95,7 +114,8 @@ const view = {
           ${button('Próxima', { action: 'page', data: { page: catalog.page + 1 }, disabled: catalog.page >= catalog.totalPages, variant: 'ghost', icon: 'arrow' })}
         </nav>`
         : empty({ title: 'Nenhum produto com essa busca', text: 'Mude a busca ou limpe os filtros para ver todos.', action: button('Limpar filtros', { action: 'clear' }), ic: 'search' })}
-    </section>`;
+    </section>
+    ${pickBar}`;
   },
 
   async open(ctx, id) {
@@ -137,6 +157,16 @@ const view = {
   changes: {
     ...pricingChanges,
     filter(ctx, el) { ctx.state.filter = el.value; ctx.state.page = 1; return ctx.refresh(); },
+    pick(ctx, el) {
+      const picked = new Set(ctx.state.picked);
+      if (el.checked && picked.size >= PICK_MAX) {
+        el.checked = false;
+        return toast(`Dá para cadastrar até ${PICK_MAX} produtos de cada vez.`, 'warn');
+      }
+      if (el.checked) picked.add(el.dataset.id); else picked.delete(el.dataset.id);
+      ctx.state.picked = [...picked];
+      ctx.rerender();
+    },
     category(ctx, el) { ctx.state.category = el.value; ctx.state.page = 1; return ctx.refresh(); }
   },
 
@@ -144,6 +174,13 @@ const view = {
     open(ctx, el) { ctx.navigate(`produtos/${el.dataset.id}`); },
     page(ctx, el) { ctx.state.page = Number(el.dataset.page); return ctx.refresh({ scrollTop: true }); },
     clear(ctx) { Object.assign(ctx.state, { search: '', filter: '', category: '', page: 1 }); return ctx.refresh(); },
+    'pick-clear'(ctx) { ctx.state.picked = []; ctx.rerender(); },
+    'pick-page'(ctx) {
+      const picked = new Set(ctx.state.picked);
+      for (const p of ctx.data.catalog.data) if (canPick(ctx.user, p) && picked.size < PICK_MAX) picked.add(p.id);
+      ctx.state.picked = [...picked];
+      ctx.rerender();
+    },
     async sync(ctx) {
       toast('Buscando os produtos no sistema da loja…', 'info');
       const result = await post('/products/sync');

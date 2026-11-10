@@ -21,8 +21,9 @@ import account from './views/account.js';
 import agenda from './views/agenda.js';
 import channelsView from './views/channels.js';
 import settingsHub from './views/settings-hub.js';
+import catalogGrid from './views/catalog-grid.js';
 
-const VIEWS = [dashboard, products, queue, promotions, orders, agenda, campaigns, arts, leads, media, channelsView, integrations, team, historyView, account, settingsHub];
+const VIEWS = [dashboard, products, queue, promotions, orders, agenda, campaigns, arts, leads, media, channelsView, integrations, team, historyView, account, settingsHub, catalogGrid];
 const BY_ID = Object.fromEntries(VIEWS.map(v => [v.id, v]));
 
 // Menu de cada papel: só o que a pessoa usa no dia a dia. O resto fica em "Ajustes" (e continua
@@ -357,8 +358,9 @@ document.getElementById('nav').addEventListener('click', event => { if (event.ta
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape') toggleMenu(false);
   // Linhas de tabela clicáveis respondem a Enter/Espaço como botões.
+  // (Só a própria linha: Espaço numa caixinha de marcar dentro dela marca a caixinha.)
   const row = event.target.closest?.('tr[data-action][tabindex]');
-  if (row && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); row.click(); }
+  if (row && event.target === row && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); row.click(); }
 });
 window.addEventListener('hashchange', onRoute);
 
@@ -403,7 +405,8 @@ async function start() {
 function watchVersion(current) {
   if (!current) return;
   let outdated = false;
-  const editing = () => ['drawer', 'modal', 'confirm'].some(id => document.getElementById(id)?.open);
+  // Também conta como "mexendo": o cadastro em grade aberto (data-unsaved).
+  const editing = () => ['drawer', 'modal', 'confirm'].some(id => document.getElementById(id)?.open) || !!document.querySelector('main [data-unsaved]');
   const check = async () => {
     if (!outdated) {
       try {

@@ -41,11 +41,12 @@ Fonte: `server/router.js`. Regras: `server/services/*`. Papéis: `owner`, `manag
 |---|---|---|---|
 | GET | `/queue?stage` | todos | itens com `transitions` e `can` calculados para quem pede |
 | POST | `/queue` | aprovador | coloca à venda: `{productId, channels:[{id, price, promoPrice?}], promoStart?, promoEnd?, priority, notes, campaignId}` — servidor calcula `fee`, `net`, `margin` por canal |
+| POST | `/queue/bulk` | site, dono, gerente | cadastro em grade, até 30: `{items:[{productId, price, content}], publish}` — escolhe (aprovador), grava conteúdo, manda para aprovação e, com `publish` e aprovador, aprova e coloca no site. Devolve `{results:[{productId, ok, id?, stage?, url?, error?}]}`; catálogo refeito uma vez |
 | GET | `/queue/:id` | todos | item + `mediaCheck` (fotos existem em media/?) |
 | PATCH | `/queue/:id/pricing` | aprovador | mesmos campos (canais, preços, prioridade, campanha) |
-| PATCH | `/queue/:id/content` | site | `{title, description, seoTitle, seoDescription, category, imageRefs[], siteNotes}` — muda "Selecionado" para "Em preparação" |
+| PATCH | `/queue/:id/content` | site, dono, gerente | `{title, description, seoTitle, seoDescription, category, imageRefs[], siteNotes}` — muda "Selecionado" para "Em preparação" |
 | POST | `/queue/:id/transition` | conforme `QUEUE_TRANSITIONS` | `{to, note?}` — "review" exige título, descrição ≥ 30 e foto; ajustes/bloqueio exigem `note` |
-| POST | `/queue/:id/site` | site, dono | publica no catálogo do site próprio (gera `slug` e link) |
+| POST | `/queue/:id/site` | site, dono, gerente | publica no catálogo do site próprio (gera `slug` e link) |
 | POST | `/queue/:id/listings/:channel` | site, dono | registra anúncio feito à mão em marketplace: `{url (https), externalId?, note?}` |
 | DELETE | `/queue/:id/listings/:channel` | site, dono | tira do site / desfaz registro do marketplace |
 

@@ -78,7 +78,27 @@ export async function catalogSnapshot() {
 
 // Chamado depois de mudar itens da fila: refaz o catálogo só se algum deles está (ou estava) no site.
 export async function touchCatalog(...items) {
-  if (items.some(i => i?.listings?.site?.status === 'done')) await rebuildCatalog();
+  if (!items.some(i => i?.listings?.site?.status === 'done')) return;
+  if (deferDepth) deferredDirty = true;
+  else await rebuildCatalog();
+}
+
+// Cadastro em lote: refazer o catálogo a cada produto releria a fila inteira N vezes (cota do
+// Firestore). Dentro de withDeferredCatalog, as mudanças só marcam "precisa refazer" e o catálogo é
+// refeito uma vez no fim. (Outra requisição na mesma instância nesse meio-tempo também espera o fim.)
+let deferDepth = 0;
+let deferredDirty = false;
+export async function withDeferredCatalog(fn) {
+  deferDepth++;
+  try {
+    return await fn();
+  } finally {
+    deferDepth--;
+    if (!deferDepth && deferredDirty) {
+      deferredDirty = false;
+      await rebuildCatalog();
+    }
+  }
 }
 
 // Depois da sincronização do UniPlus: do produto, o catálogo do site só usa o estoque. Atualiza esse

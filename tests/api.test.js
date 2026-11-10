@@ -278,6 +278,17 @@ test('fluxo completo da fila no modo local', async () => {
   // Só o dono altera taxas.
   assert.equal((await call('PUT', '/settings/channels', { items: [{ name: 'Site', percent: 5 }] }, site)).status, 403);
 
+  // Cadastro em grade: vários de uma vez; um produto com problema não para os outros.
+  const bulkContent = { title: 'Produto B no site', description: 'Descrição longa o bastante para passar na regra.', imageRefs: ['https://exemplo.public.blob.vercel-storage.com/b.webp'], brand: 'Marca B', siteCategory: 'petiscos', pet: 'cao', measureValue: 1, measureUnit: 'kg', short: 'Resumo B' };
+  assert.equal((await call('POST', '/queue/bulk', { items: [{ productId: '2', price: 55, content: bulkContent }] }, site)).body.results[0].ok, false); // vendas na internet não escolhe produto novo
+  const bulk = await call('POST', '/queue/bulk', { publish: true, items: [{ productId: '2', price: 55, content: bulkContent }, { productId: 'nao-existe', price: 10, content: bulkContent }] }, owner);
+  assert.equal(bulk.status, 200);
+  assert.equal(bulk.body.results[0].ok, true);
+  assert.equal(bulk.body.results[0].stage, 'published');
+  assert.equal(bulk.body.results[0].url, 'https://loja.teste/produto/produto-b-no-site');
+  assert.equal(bulk.body.results[1].ok, false);
+  assert.ok((await call('GET', '/catalog')).body.products.some(p => p.name === 'Produto B no site' && p.price === 55));
+
   // Desativar derruba a sessão na hora.
   const users = (await call('GET', '/users', null, owner)).body.users;
   const siteUser = users.find(u => u.email === 'site@teste.localhost');

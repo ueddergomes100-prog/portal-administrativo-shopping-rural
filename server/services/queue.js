@@ -9,7 +9,7 @@ import { getProduct, invalidateProductCache, seesCost } from './products.js';
 import { getChannels } from './settings.js';
 import { checkMediaRefs } from '../media.js';
 import { config } from '../config.js';
-import { siteProductUrl, touchCatalog } from './catalog.js';
+import { siteProductUrl, touchCatalog, withDeferredCatalog } from './catalog.js';
 import {
   QUEUE_STAGES, QUEUE_TRANSITIONS, PRIORITIES, availableTransitions, findTransition, roleMatches, canApprove, channelFees, marginOf, slugify,
   SITE_CATEGORIES, SITE_PETS, SITE_UNITS, SITE_TAGS, PREPARERS
@@ -314,10 +314,11 @@ async function loadForListing(user, id, channelId) {
 }
 
 // Endereço único do produto no site (usa o título; se repetir, acrescenta o SKU).
-async function uniqueSlug(store, item) {
+// `takenSlugs`: no lote, a lista de endereços já usados é lida uma vez só e reaproveitada.
+async function uniqueSlug(store, item, takenSlugs = null) {
   if (item.slug) return item.slug;
   const base = slugify(item.content?.title || item.productSnapshot.name);
-  const taken = new Set((await store.list(C.queue)).filter(i => i.id !== item.id && i.slug).map(i => i.slug));
+  const taken = takenSlugs || new Set((await store.list(C.queue)).filter(i => i.id !== item.id && i.slug).map(i => i.slug));
   let slug = taken.has(base) ? `${base}-${slugify(item.productSnapshot.sku || item.productId)}` : base;
   for (let n = 2; taken.has(slug); n++) slug = `${base}-${n}`;
   return slug;
@@ -325,12 +326,13 @@ async function uniqueSlug(store, item) {
 
 
 // Site próprio: coloca o produto no catálogo lido pelo site (GET /api/store/catalog).
-export async function publishToSite(user, id) {
+export async function publishToSite(user, id, { takenSlugs = null } = {}) {
   const { store, item, channel } = await loadForListing(user, id, 'site');
   if (channel.integration !== 'site') throw badRequest('Este lugar de venda não é o site da loja.');
   const missing = [...contentProblems(item), ...siteProblems(item)];
   if (missing.length) throw badRequest('Para colocar à venda no site, preencha em “Texto e fotos do anúncio”: ' + missing.join(', ') + '.');
-  const slug = await uniqueSlug(store, item);
+  const slug = await uniqueSlug(store, item, takenSlugs);
+  takenSlugs?.add(slug);
   const listing = { status: 'done', manual: false, publishedAt: now(), by: user.name, externalId: slug, url: siteProductUrl(slug) };
   let saved = await store.update(C.queue, id, { slug, listings: { ...item.listings, site: listing }, updatedAt: now(), updatedBy: user.id });
   saved = await settleStage(store, saved, user);
@@ -338,6 +340,45 @@ export async function publishToSite(user, id) {
   await touchCatalog(saved);
   await audit(user, { action: 'queue.publish_site', entity: 'queue', entityId: id, summary: `Publicou ${item.productSnapshot.name} no site (/${slug})` });
   return decorate(saved, user);
+}
+
+// Cadastro em grade (tela Produtos): vários produtos de uma vez. Para cada um, usa os mesmos passos
+// e regras da ficha — escolhe (se ainda não está em Anúncios), grava texto e fotos, manda para
+// aprovação e, para quem pode aprovar e pediu `publish`, aprova e coloca à venda no site.
+// Um produto com problema não para os outros: cada um volta com ok/erro. Catálogo refeito no fim.
+const BULK_MAX = 30;
+export async function bulkPrepare(user, input) {
+  const entries = Array.isArray(input.items) ? input.items : [];
+  if (!entries.length) throw badRequest('Escolha pelo menos um produto.');
+  if (entries.length > BULK_MAX) throw badRequest(`Mande no máximo ${BULK_MAX} produtos de cada vez.`);
+  const publish = input.publish === true && canApprove(user);
+  const store = getStore();
+  const queue = await store.list(C.queue);
+  const takenSlugs = new Set(queue.filter(i => i.slug).map(i => i.slug));
+  const results = [];
+  await withDeferredCatalog(async () => {
+    for (const entry of entries) {
+      const productId = String(entry?.productId ?? '');
+      try {
+        let item = queue.find(i => i.productId === productId && i.stage !== 'archived');
+        if (!item) {
+          if (!isPricer(user)) throw forbidden('O dono precisa colocar este produto à venda primeiro.');
+          item = await selectProduct(user, { productId, channels: [{ id: 'site', price: entry.price }] });
+        }
+        if (['selected', 'preparing'].includes(item.stage)) {
+          item = await updateContent(user, item.id, entry.content || {});
+          item = await transitionQueue(user, item.id, { to: 'review' });
+        }
+        if (publish && item.stage === 'review') item = await transitionQueue(user, item.id, { to: 'approved' });
+        const sitePending = (item.channels || []).some(c => c.integration === 'site') && item.listings?.site?.status !== 'done';
+        if (publish && ['approved', 'published'].includes(item.stage) && sitePending) item = await publishToSite(user, item.id, { takenSlugs });
+        results.push({ productId, ok: true, id: item.id, stage: item.stage, url: item.listings?.site?.url || '' });
+      } catch (error) {
+        results.push({ productId, ok: false, error: error.message });
+      }
+    }
+  });
+  return { results };
 }
 
 // Marketplaces: a pessoa anunciou no painel do canal e registra aqui o link/código.

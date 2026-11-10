@@ -7,7 +7,7 @@ import { HttpError, sendJson, readJsonBody, notFound, forbidden, badRequest, una
 import { authenticate, authenticateConnector, loginLocal, loginDemo, setupFirstOwner, needsSetup, publicUser, requireRole } from './auth.js';
 import { listAudit, audit } from './audit.js';
 import { listProducts, getProduct, forUser } from './services/products.js';
-import { listQueue, getQueueItem, selectProduct, updatePricing, updateContent, transitionQueue, publishToSite, recordListing, removeListing } from './services/queue.js';
+import { listQueue, getQueueItem, selectProduct, updatePricing, updateContent, transitionQueue, publishToSite, recordListing, removeListing, bulkPrepare } from './services/queue.js';
 import {
   listCatalog, getCatalogItem, stockCheck, siteImage, upsertSiteOrder, updateSiteOrder, getSiteOrder, moveOrder,
   siteContact, siteNewsletter, siteRestockAlert
@@ -86,6 +86,8 @@ const routes = [
   // Fila de publicação
   ['GET', '/api/queue', async ({ user, query }) => ({ items: await listQueue(user, query) })],
   ['POST', '/api/queue', async ({ user, body }) => ({ item: await selectProduct(user, body) })],
+  // Cadastro em grade: vários produtos de uma vez ({ items: [{ productId, price, content }], publish }).
+  ['POST', '/api/queue/bulk', ({ user, body }) => bulkPrepare(user, body), { bodyLimit: 2_000_000 }],
   ['GET', '/api/queue/:id', async ({ user, params }) => ({ item: await getQueueItem(user, params.id) })],
   ['PATCH', '/api/queue/:id/pricing', async ({ user, params, body }) => ({ item: await updatePricing(user, params.id, body) })],
   ['PATCH', '/api/queue/:id/content', async ({ user, params, body }) => ({ item: await updateContent(user, params.id, body) })],
