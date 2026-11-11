@@ -77,6 +77,10 @@ async function seed(store) {
   const products = PRODUCTS.map(([id, sku, name, category, basePrice, cost, stock]) => ({
     id, sku, name, category, basePrice, cost, stock, unit: 'UN', syncedAt: ago(1), source: 'demo', missingFromUniplus: false
   }));
+  // Exemplo de embalagem do UniPlus: o petisco também é vendido em caixa com 6.
+  Object.assign(products.find(p => p.id === '2005'), {
+    packages: [{ id: 'cx6', unit: 'CX', description: 'Caixa', factor: 6, price: 169.9, stock: Math.floor(40 / 6), cost: 99, barcode: '', ecommerce: false }]
+  });
   await store.bulkSet(C.products, products);
   const product = id => products.find(p => p.id === id);
 

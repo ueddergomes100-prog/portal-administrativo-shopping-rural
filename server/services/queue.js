@@ -105,6 +105,26 @@ function mergeListings(previous = {}, channels) {
   return listings;
 }
 
+// Forma de venda: a unidade do UniPlus ou uma embalagem dele (ex.: caixa com 3). Vendendo a caixa,
+// o preço sugerido e o custo são os da caixa e o estoque vira "quantas caixas dá para montar".
+// `packageId` vazio = unidade.
+function packageOf(product, packageId) {
+  if (packageId === undefined || packageId === null || packageId === '') return null;
+  const pack = (product.packages || []).find(p => String(p.id || p.unit) === String(packageId));
+  if (!pack) throw badRequest('Essa forma de venda não existe mais no sistema da loja. Atualize a página e escolha de novo.');
+  return pack;
+}
+const sellAsOf = pack => (pack ? { id: String(pack.id || pack.unit), unit: pack.unit, description: pack.description || pack.unit, factor: Number(pack.factor) || 1 } : null);
+function sellingNumbers(product, sellAs) {
+  if (!sellAs) return { basePrice: product.basePrice, cost: product.cost ?? null, stock: product.stock };
+  const pack = (product.packages || []).find(p => String(p.id || p.unit) === sellAs.id);
+  return {
+    basePrice: pack?.price ?? product.basePrice * sellAs.factor,
+    cost: pack?.cost ?? (product.cost != null ? product.cost * sellAs.factor : null),
+    stock: Math.max(0, Math.floor((product.stock || 0) / sellAs.factor))
+  };
+}
+
 // Dono (ou gerente aprovador) escolhe o produto, os canais e o preço em cada um.
 export async function selectProduct(user, input) {
   if (!isPricer(user)) throw forbidden('Só o dono (ou o gerente que pode aprovar) escolhe o que vender e por quanto.');
@@ -113,10 +133,13 @@ export async function selectProduct(user, input) {
   const active = await store.list(C.queue, { where: [['productId', '==', product.id]] });
   if (active.some(i => i.stage !== 'archived')) throw conflict('Este produto já está em Anúncios. Abra ele por lá.');
 
-  const pricing = await readChannels(input, product);
+  const sellAs = sellAsOf(packageOf(product, input.packageId));
+  const selling = { ...product, ...sellingNumbers(product, sellAs) };
+  const pricing = await readChannels(input, selling);
   const item = {
     productId: product.id,
-    productSnapshot: { sku: product.sku, name: product.name, category: product.category, basePrice: product.basePrice, stock: product.stock, cost: product.cost ?? null },
+    productSnapshot: { sku: product.sku, name: product.name, category: product.category, basePrice: selling.basePrice, stock: selling.stock, cost: selling.cost ?? null, unit: product.unit || '' },
+    sellAs,
     stage: 'selected',
     ...pricing,
     listings: mergeListings({}, pricing.channels),
@@ -146,7 +169,9 @@ export async function updatePricing(user, id, input) {
   if (!item) throw notFound('Item da fila não encontrado.');
   if (!isPricer(user)) throw forbidden('Só o dono (ou o gerente que pode aprovar) muda o preço.');
   const product = await getProduct(item.productId);
-  const pricing = await readChannels({ ...item, ...input }, product);
+  const sellAs = input.packageId !== undefined ? sellAsOf(packageOf(product, input.packageId)) : (item.sellAs || null);
+  const selling = { ...product, ...sellingNumbers(product, sellAs) };
+  const pricing = await readChannels({ ...item, ...input }, selling);
   // Site próprio lê o preço novo na hora. Marketplaces já anunciados ficam marcados
   // "atualizar anúncio" até a pessoa corrigir no painel e confirmar.
   const listings = mergeListings(item.listings, pricing.channels);
@@ -158,7 +183,8 @@ export async function updatePricing(user, id, input) {
   const patch = {
     ...pricing,
     listings,
-    productSnapshot: { ...item.productSnapshot, basePrice: product.basePrice, stock: product.stock, cost: product.cost ?? null },
+    productSnapshot: { ...item.productSnapshot, basePrice: selling.basePrice, stock: selling.stock, cost: selling.cost ?? null, unit: product.unit || '' },
+    sellAs,
     priority: clean.oneOf(input.priority ?? item.priority, PRIORITIES, { label: 'Prioridade' }),
     notes: clean.text(input.notes ?? item.notes, { max: 2000, label: 'Observação' }),
     campaignId: clean.text(input.campaignId ?? item.campaignId, { max: 120 }),
@@ -363,7 +389,7 @@ export async function bulkPrepare(user, input) {
         let item = queue.find(i => i.productId === productId && i.stage !== 'archived');
         if (!item) {
           if (!isPricer(user)) throw forbidden('O dono precisa colocar este produto à venda primeiro.');
-          item = await selectProduct(user, { productId, channels: [{ id: 'site', price: entry.price }] });
+          item = await selectProduct(user, { productId, packageId: entry.packageId, channels: [{ id: 'site', price: entry.price }] });
         }
         if (['selected', 'preparing'].includes(item.stage)) {
           item = await updateContent(user, item.id, entry.content || {});

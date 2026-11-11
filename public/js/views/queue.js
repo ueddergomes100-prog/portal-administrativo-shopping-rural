@@ -112,11 +112,15 @@ const view = {
       get('/audit', { entity: 'queue', entityId: id, limit: 50 }).catch(() => ({ entries: [] }))
     ]);
     ctx.state.current = item;
-    const [campaigns, channels] = await Promise.all([ctx.lookup('campaigns').catch(() => []), ctx.lookup('channels')]);
+    // Produto do UniPlus (com as embalagens) só para quem pode mudar o preço / a forma de venda.
+    const [campaigns, channels, product] = await Promise.all([
+      ctx.lookup('campaigns').catch(() => []), ctx.lookup('channels'),
+      item.can?.editPricing ? get(`/products/${encodeURIComponent(item.productId)}`).then(r => r.product).catch(() => null) : null
+    ]);
     openDrawer({
       eyebrow: `${statusTag(QUEUE_STAGES, item.stage)}`,
       title: item.productSnapshot.name,
-      body: renderItem(ctx, item, entries, campaigns, channels),
+      body: renderItem(ctx, item, entries, campaigns, channels, product),
       footer: renderFooter(item)
     });
   },
@@ -395,7 +399,7 @@ function nextStep(item) {
   return text ? `<div class="next-step">${notice(`<strong>Próximo passo:</strong> ${text}`, 'info')}</div>` : '';
 }
 
-function renderItem(ctx, item, entries, campaigns, channels) {
+function renderItem(ctx, item, entries, campaigns, channels, product = null) {
   const p = item.productSnapshot;
   const c = item.content || {};
   const campaign = campaigns.find(x => x.id === item.campaignId);
@@ -406,6 +410,7 @@ function renderItem(ctx, item, entries, campaigns, channels) {
   const facts = `<dl class="facts">
     <div><dt>Código</dt><dd class="mono">${esc(p.sku || '—')}</dd></div>
     <div><dt>Estoque</dt><dd class="mono">${num(p.stock)}</dd></div>
+    <div><dt>Vende como</dt><dd>${item.sellAs ? `${esc(item.sellAs.description)} com ${num(item.sellAs.factor)} ${esc(p.unit || 'un')}` : `Unidade${p.unit ? ` (${esc(p.unit)})` : ''}`}</dd></div>
     <div><dt>Preço na loja</dt><dd class="mono">${money(p.basePrice)}</dd></div>
     <div><dt>Período da promoção</dt><dd>${item.promoStart ? `${date(item.promoStart)} a ${date(item.promoEnd)}` : '—'}</dd></div>
     <div><dt>Prioridade</dt><dd>${esc(item.priority)}</dd></div>
@@ -419,7 +424,8 @@ function renderItem(ctx, item, entries, campaigns, channels) {
     <details class="section">
       <summary><h3>Mudar onde vender, preços e prioridade</h3></summary>
       <form data-form="pricing" class="form-grid">
-        <div class="full">${pricingEditor({ channels, product: p, selected: item.channels, promoStart: item.promoStart, promoEnd: item.promoEnd, showCost: ['owner', 'manager'].includes(ctx.user.role) })}</div>
+        <div class="full">${pricingEditor({ channels, product: p, selected: item.channels, promoStart: item.promoStart, promoEnd: item.promoEnd, showCost: ['owner', 'manager'].includes(ctx.user.role),
+          unit: product ? { price: product.basePrice, cost: product.cost, stock: product.stock, unit: product.unit } : null, packages: product?.packages || [], sellAs: item.sellAs?.id || '' })}</div>
         ${field('priority', 'Prioridade', { type: 'select', options: PRIORITIES, value: item.priority })}
         ${field('campaignId', 'Faz parte de uma campanha?', { type: 'select', value: item.campaignId, options: [['', 'Não'], ...campaigns.map(x => [x.id, x.name])] })}
         ${field('notes', 'Recado para quem prepara o anúncio', { type: 'textarea', full: true, rows: 2, value: item.notes, max: 2000 })}

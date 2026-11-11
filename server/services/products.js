@@ -23,6 +23,8 @@ export const seesCost = user => ['owner', 'manager'].includes(user?.role);
 export function forUser(product, user) {
   if (!product || seesCost(user)) return product;
   const { cost, ...rest } = product;
+  // O custo das embalagens (caixa etc.) também é só de dono/gerente.
+  if (Array.isArray(rest.packages)) rest.packages = rest.packages.map(({ cost: _cost, ...pack }) => pack);
   return rest;
 }
 

@@ -18,8 +18,21 @@ function resultCells(price, channel, cost) {
   return `<span class="calc-fee">− ${money(fees.fee)}</span><strong class="calc-net">${money(fees.net)}</strong>${margin ? `<span class="calc-margin ${margin.value < 0 ? 'is-neg' : ''}">${margin.value < 0 ? 'prejuízo' : 'lucro'} ${money(margin.value)} · ${num(margin.percent)}%</span>` : ''}`;
 }
 
+// "Vender como": unidade do UniPlus ou uma embalagem dele (ex.: caixa com 3). Cada opção leva o
+// preço, o custo e o estoque daquela forma; trocar atualiza a tabela (ver 'sell-as' abaixo).
+// unit = { price, cost, stock, unit } da unidade; packages = embalagens do produto (UniPlus).
+function sellAsSelect({ unit, packages, sellAs, showCost }) {
+  const u = unit.unit || 'un';
+  const option = (value, label, price, cost, stock) => `<option value="${esc(value)}" data-price="${esc(price)}" data-cost="${showCost && cost != null ? esc(cost) : ''}" data-stock="${esc(stock)}"${String(sellAs) === String(value) ? ' selected' : ''}>${esc(label)}</option>`;
+  return `<label class="field sell-as"><span class="calc-label">Vender como</span>
+    <select name="packageId" data-change="sell-as">
+      ${option('', `Unidade (${u}) · ${money(unit.price)} · estoque ${num(unit.stock)}`, unit.price, unit.cost, unit.stock)}
+      ${packages.map(p => option(p.id || p.unit, `${p.description || p.unit} com ${num(p.factor)} ${u} · ${money(p.price)} · estoque ${num(p.stock)}`, p.price, p.cost, p.stock)).join('')}
+    </select></label>`;
+}
+
 // selected: [{ id, price, promoPrice }] (canais já escolhidos) — vazio = sugere o site marcado.
-export function pricingEditor({ channels, product, selected = [], promoStart = '', promoEnd = '', showCost = false }) {
+export function pricingEditor({ channels, product, selected = [], promoStart = '', promoEnd = '', showCost = false, unit = null, packages = [], sellAs = '' }) {
   const cost = showCost ? product.cost ?? null : null;
   const chosen = Object.fromEntries(selected.map(c => [c.id, c]));
   const noneChosen = !selected.length;
@@ -41,10 +54,11 @@ export function pricingEditor({ channels, product, selected = [], promoStart = '
     </tr>`;
   }).join('');
   return `<div class="calc" data-cost="${cost ?? ''}">
+    ${unit && packages.length ? sellAsSelect({ unit, packages, sellAs, showCost }) : ''}
     <div class="calc-head">
-      <div><span class="calc-label">Preço na loja</span><strong class="mono">${money(product.basePrice)}</strong></div>
-      <div><span class="calc-label">Estoque</span><strong class="mono">${num(product.stock)}</strong></div>
-      ${cost ? `<div><span class="calc-label">Custo</span><strong class="mono">${money(cost)}</strong></div>` : ''}
+      <div><span class="calc-label">Preço na loja</span><strong class="mono" data-head="price">${money(product.basePrice)}</strong></div>
+      <div><span class="calc-label">Estoque</span><strong class="mono" data-head="stock">${num(product.stock)}</strong></div>
+      ${cost != null ? `<div><span class="calc-label">Custo</span><strong class="mono" data-head="cost">${money(cost)}</strong></div>` : ''}
     </div>
     <div class="table-wrap"><table class="calc-table">
       <thead><tr><th scope="col">Onde vender</th><th scope="col">Vender por</th><th scope="col">Você recebe</th><th scope="col">Na promoção</th><th scope="col">Recebe na promoção</th></tr></thead>
@@ -79,11 +93,30 @@ export function readPricing(form) {
   const channels = [...form.querySelectorAll('.calc [data-channel]')]
     .filter(row => row.querySelector('[data-calc=on]').checked)
     .map(row => ({ id: row.dataset.channel, price: row.querySelector('[data-calc=price]').value, promoPrice: row.querySelector('[data-calc=promo]').value }));
-  return { channels, promoStart: form.elements.promoStart?.value || '', promoEnd: form.elements.promoEnd?.value || '' };
+  const sellAs = form.querySelector('.calc [name=packageId]');
+  return { channels, promoStart: form.elements.promoStart?.value || '', promoEnd: form.elements.promoEnd?.value || '', ...(sellAs ? { packageId: sellAs.value } : {}) };
+}
+
+// Trocou unidade ↔ caixa: preço, custo e estoque passam a ser os da forma escolhida, e os preços
+// dos lugares de venda voltam ao preço da loja dessa forma (a promoção é apagada para conferir).
+function changeSellAs(el) {
+  const calc = el.closest('.calc');
+  const opt = el.selectedOptions[0];
+  const price = Number(opt.dataset.price) || 0;
+  calc.dataset.cost = opt.dataset.cost || '';
+  calc.querySelector('[data-head=price]').textContent = money(price);
+  calc.querySelector('[data-head=stock]').textContent = num(opt.dataset.stock);
+  const costEl = calc.querySelector('[data-head=cost]');
+  if (costEl && opt.dataset.cost) costEl.textContent = money(opt.dataset.cost);
+  calc.querySelectorAll('[data-channel]').forEach(row => {
+    row.querySelector('[data-calc=price]').value = price.toFixed(2);
+    row.querySelector('[data-calc=promo]').value = '';
+    recalcRow(row.querySelector('[data-calc=price]'));
+  });
 }
 
 export const pricingInputs = { calc: (ctx, el) => recalcRow(el) };
-export const pricingChanges = { 'calc-toggle': (ctx, el) => recalcRow(el) };
+export const pricingChanges = { 'calc-toggle': (ctx, el) => recalcRow(el), 'sell-as': (ctx, el) => changeSellAs(el) };
 
 // Tabela de leitura (ficha da fila): o que foi decidido por canal.
 export function pricingSummary(item, { showCost = false } = {}) {

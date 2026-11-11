@@ -27,6 +27,7 @@ function startingPoint(product, item) {
   const site = item?.channels?.find(ch => ch.id === 'site');
   return {
     title: c.title || product.name,
+    packageId: item?.sellAs?.id || '',
     price: site?.price ?? product.basePrice ?? '',
     brand: c.brand || '', siteCategory: c.siteCategory || '', pet: c.pet || '',
     measureValue: c.measureValue ?? '', measureUnit: c.measureUnit || 'un', weightKg: c.weightKg ?? '',
@@ -103,6 +104,11 @@ function card(row, d, error) {
     <p class="grade-working" data-working="${esc(id)}" role="status" aria-live="polite"></p>
     <div class="grade-fields">
       ${control(id, 'title', 'Nome no site', d.title, { full: true, max: 160 })}
+      ${!item && p.packages?.length ? control(id, 'packageId', 'Vender como', d.packageId, { full: true, options: [
+        ['', `Unidade (${p.unit || 'un'}) · ${money(p.basePrice)} · estoque ${num(p.stock)}`],
+        ...p.packages.map(pk => [pk.id || pk.unit, `${pk.description || pk.unit} com ${num(pk.factor)} ${p.unit || 'un'} · ${money(pk.price)} · estoque ${num(pk.stock)}`])
+      ] }) : ''}
+      ${item?.sellAs ? `<div class="field full"><span class="field-label">Vende como</span><p class="grade-price">${esc(item.sellAs.description)} com ${num(item.sellAs.factor)} ${esc(p.unit || 'un')}</p></div>` : ''}
       ${item ? `<div class="field"><span class="field-label">Preço no site</span><p class="mono grade-price">${money(item.channels?.find(c => c.id === 'site')?.price)}</p></div>`
         : control(id, 'price', 'Preço no site (R$)', d.price, { type: 'number', step: '0.01', inputmode: 'decimal' })}
       ${control(id, 'brand', 'Marca', d.brand, { max: 80 })}
@@ -256,6 +262,14 @@ export default {
       const drafts = readDrafts();
       const d = drafts[el.dataset.id] ||= {};
       d[el.dataset.key] = el.value;
+      // Trocou unidade ↔ caixa: o preço no site passa a ser o da forma escolhida.
+      if (el.dataset.key === 'packageId') {
+        const product = ctx.data.rows.find(r => r.product.id === el.dataset.id)?.product;
+        const pack = product?.packages?.find(pk => String(pk.id || pk.unit) === el.value);
+        d.price = String(pack ? pack.price : product?.basePrice ?? '');
+        const priceInput = document.querySelector(`[data-id="${CSS.escape(el.dataset.id)}"][data-key="price"]`);
+        if (priceInput) priceInput.value = d.price;
+      }
       writeDrafts(drafts);
       if (ctx.state.errors?.[el.dataset.id]) delete ctx.state.errors[el.dataset.id];
       refreshCardStatus(ctx, el.dataset.id);
@@ -322,7 +336,7 @@ export default {
           const d = drafts[product.id];
           return {
             productId: product.id,
-            ...(item ? {} : { price: Number(d.price) }),
+            ...(item ? {} : { price: Number(d.price), packageId: d.packageId || '' }),
             content: {
               title: d.title, description: d.description, brand: d.brand, siteCategory: d.siteCategory, pet: d.pet,
               measureValue: d.measureValue, measureUnit: d.measureUnit, weightKg: d.weightKg, short: d.short, imageRefs: d.imageRefs

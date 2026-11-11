@@ -51,7 +51,9 @@ function entry(item, product) {
     promoPrice: site.promoPrice ?? null,
     promoStart: item.promoStart || '',
     promoEnd: item.promoEnd || '',
-    stock: product && !product.missingFromUniplus ? Math.max(0, Math.floor(product.stock || 0)) : 0,
+    // Vendendo em embalagem (ex.: caixa com 3), o estoque do site é em caixas.
+    factor: item.sellAs?.factor || 1,
+    stock: product && !product.missingFromUniplus ? Math.max(0, Math.floor((product.stock || 0) / (item.sellAs?.factor || 1))) : 0,
     updatedAt: item.updatedAt
   };
 }
@@ -114,7 +116,7 @@ export async function touchCatalogProducts(products) {
   if (!fresh?.items) { await rebuildCatalog(); return; }
   for (const e of fresh.items) {
     const p = hits.get(e.productId);
-    if (p) e.stock = p.missingFromUniplus ? 0 : Math.max(0, Math.floor(p.stock || 0));
+    if (p) e.stock = p.missingFromUniplus ? 0 : Math.max(0, Math.floor((p.stock || 0) / (e.factor || 1)));
   }
   fresh.generatedAt = new Date().toISOString();
   await store.set(C.settings, DOC, fresh);

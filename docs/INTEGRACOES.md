@@ -29,6 +29,9 @@ o mapeamento na função correspondente e acrescente o caso ao teste.
   opção de venda com unidade, fator, preço e estoque. O estoque de uma embalagem é a quantidade
   inteira que pode ser montada a partir do estoque da unidade base. Essas opções aparecem ao abrir
   o produto, para a equipe conferir antes de preparar o anúncio.
+  Ao colocar à venda (pop-up, ficha do anúncio ou cadastro em grade), **Vender como** escolhe a unidade
+  ou a embalagem: o anúncio guarda `sellAs` ({ id, unit, description, factor }), o preço sugerido e o custo
+  passam a ser os da embalagem e o estoque do site vira `estoque da unidade ÷ fator` (ex.: 7 UN = 2 caixas de 3).
 
 ## Site próprio
 - Variáveis: `STORE_API_TOKEN`, `STORE_PUBLIC_URL`, `STORE_PRODUCT_PATH`, `STORE_ALLOWED_ORIGINS`, `PORTAL_PUBLIC_URL`.

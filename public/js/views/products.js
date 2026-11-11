@@ -236,7 +236,7 @@ async function openSellForm(ctx, productId) {
     size: 'wide',
     body: `<form data-form="sell" id="sellForm" class="form-grid">
       <input type="hidden" name="productId" value="${esc(product.id)}">
-      <div class="full">${pricingEditor({ channels, product, showCost: seesCost(ctx.user) })}</div>
+      <div class="full">${pricingEditor({ channels, product, showCost: seesCost(ctx.user), unit: { price: product.basePrice, cost: product.cost, stock: product.stock, unit: product.unit }, packages: product.packages || [] })}</div>
       ${field('priority', 'Prioridade', { type: 'select', options: PRIORITIES, value: 'Normal' })}
       ${field('campaignId', 'Faz parte de uma campanha?', { type: 'select', options: [['', 'Não'], ...campaigns.filter(c => !['cancelled', 'done'].includes(c.status)).map(c => [c.id, c.name])] })}
       ${field('notes', 'Recado para quem prepara o anúncio', { type: 'textarea', full: true, rows: 2, max: 2000, placeholder: 'Ex.: avisar que vem com brinde; usar a foto da embalagem nova.' })}
