@@ -5,7 +5,7 @@ Depois de preencher, reinicie o portal e confira em **Ajustes → Conexões** (s
 
 | Integração | Código | Situação | Como testar |
 |---|---|---|---|
-| UniPlus | `server/integrations/uniplus.js` | Pronto (lê `/api/erp/products`) | Sincronizar agora em Produtos |
+| UniPlus | `server/integrations/uniplus.js` | Pronto (lê `/api/erp/products`, incluindo embalagens) | Sincronizar agora em Produtos |
 | Site próprio | `server/services/store.js` | Pronto e testado (catálogo, fotos, pedidos) | `docs/SITE.md` |
 | Shopee / Mercado Livre | — | **Manual por decisão da loja**: anuncia no painel e registra o link | Ficha da fila → Registrar anúncio |
 | Google Analytics 4 | `server/integrations/analytics.js` | Pronto, testado com respostas simuladas | Resultados → Buscar dados agora |
@@ -25,6 +25,10 @@ o mapeamento na função correspondente e acrescente o caso ao teste.
 - Se a API usar outros nomes de campo, ajuste só `mapProduct()` em `uniplus.js`.
 - **Custo**: o portal lê `preco_custo`, `custo` ou `custo_medio`. Se o UniPlus enviar, a margem aparece
   para dono e gerente. Se não enviar, o portal funciona igual, só sem margem.
+- **Embalagens**: quando a API local enviar `embalagens` (ou `packages`), o portal guarda cada
+  opção de venda com unidade, fator, preço e estoque. O estoque de uma embalagem é a quantidade
+  inteira que pode ser montada a partir do estoque da unidade base. Essas opções aparecem ao abrir
+  o produto, para a equipe conferir antes de preparar o anúncio.
 
 ## Site próprio
 - Variáveis: `STORE_API_TOKEN`, `STORE_PUBLIC_URL`, `STORE_PRODUCT_PATH`, `STORE_ALLOWED_ORIGINS`, `PORTAL_PUBLIC_URL`.

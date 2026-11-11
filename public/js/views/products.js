@@ -118,6 +118,7 @@ const view = {
     const { product } = await get(`/products/${encodeURIComponent(id)}`);
     const row = ctx.data?.catalog?.data.find(p => p.id === id);
     const queue = row?.queue || null;
+    const packages = Array.isArray(product.packages) ? product.packages : [];
     const body = `<dl class="facts">
       <div><dt>Código</dt><dd class="mono">${esc(product.sku || '—')}</dd></div>
       <div><dt>Categoria</dt><dd>${esc(product.category)}</dd></div>
@@ -126,6 +127,10 @@ const view = {
       <div><dt>Estoque</dt><dd class="mono">${num(product.stock)} ${esc(product.unit || '')}</dd></div>
       <div><dt>Atualizado</dt><dd>${esc(relative(product.syncedAt))}</dd></div>
     </dl>
+    ${packages.length ? `<section class="section"><h3>Outras formas de venda no sistema da loja</h3>
+      <p class="hint">O estoque da caixa é calculado pelas unidades disponíveis no UniPlus.</p>
+      <ul class="plain-list">${packages.map(pack => `<li><strong>${esc(pack.description || pack.unit || 'Embalagem')}</strong><span class="mono sub">${esc(pack.unit || '')}${pack.factor ? ` · ${num(pack.factor)} unidade${Number(pack.factor) === 1 ? '' : 's'}` : ''} · ${money(pack.price)} · estoque ${num(pack.stock)}</span></li>`).join('')}</ul>
+    </section>` : ''}
     ${product.missingFromUniplus ? notice('Este produto não veio na última atualização do sistema da loja. Confira no UniPlus antes de vender.', 'warn') : ''}
     ${queue ? `<div class="callout">${statusTag(QUEUE_STAGES, queue.stage)}<p>Este produto já está em Anúncios.</p><a class="btn" href="#/fila/${esc(queue.id)}">${icon('queue')}<span>Abrir em Anúncios</span></a></div>` : ''}
     <section class="section"><h3>O que fazer com este produto</h3>

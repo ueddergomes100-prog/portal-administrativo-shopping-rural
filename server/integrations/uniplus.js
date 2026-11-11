@@ -2,7 +2,7 @@
 // O UniPlus é a fonte de SKU, estoque e preço-base — o portal nunca escreve esses campos por conta própria.
 //
 // Formato esperado de GET {UNIPLUS_API_URL}/api/erp/products:
-//   { data: [{ id_produto, sku, nome_produto, nome_categoria, preco, estoque, preco_custo?, ... }] }
+//   { data: [{ id_produto, sku, nome_produto, nome_categoria, preco, estoque, preco_custo?, embalagens?, ... }] }
 // Se a API do UniPlus da loja tiver outro formato, ajuste apenas `mapProduct`.
 import { config } from '../config.js';
 import { getStore, C } from '../store/index.js';
@@ -13,9 +13,36 @@ import { readShards, writeShards, shardOf, ALL_SHARDS } from '../services/produc
 
 const numberOrNull = value => (value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? null : Number(value));
 
+// Embalagens são alternativas de venda do mesmo produto no UniPlus. O estoque
+// continua na unidade base, portanto também calculamos uma reserva segura caso
+// uma API mais antiga não envie `estoque` para cada embalagem.
+function mapPackages(value, stock, cost) {
+  if (!Array.isArray(value)) return [];
+  return value.map(item => {
+    const factor = numberOrNull(item.fator ?? item.factor ?? item.fator_conversao);
+    const price = numberOrNull(item.preco ?? item.price);
+    const unit = String(item.unidade ?? item.unit ?? '').trim();
+    if (!unit || !factor || factor <= 0 || price === null) return null;
+    const packageStock = numberOrNull(item.estoque ?? item.stock);
+    return {
+      id: String(item.id ?? '').trim(),
+      unit,
+      description: String(item.descricao ?? item.description ?? unit).trim() || unit,
+      factor,
+      price,
+      stock: Math.max(0, Math.floor(packageStock ?? (Number(stock) / factor))),
+      barcode: String(item.codigo_barras ?? item.codigoBarras ?? item.barcode ?? '').trim(),
+      ecommerce: item.envia_ecommerce === true || item.enviaEcommerce === true || Number(item.envia_ecommerce) === 1,
+      cost: cost === null ? null : Number((cost * factor).toFixed(6))
+    };
+  }).filter(Boolean);
+}
+
 export function mapProduct(item) {
   const id = String(item.id_produto ?? item.id ?? '').trim();
   if (!id) return null;
+  const stock = Number(item.estoque ?? item.saldo ?? 0) || 0;
+  const cost = numberOrNull(item.preco_custo ?? item.custo ?? item.custo_medio);
   return {
     id,
     sku: String(item.sku ?? item.codigo ?? '').trim(),
@@ -23,9 +50,10 @@ export function mapProduct(item) {
     category: String(item.nome_categoria ?? item.categoria ?? '').trim() || 'Sem categoria',
     basePrice: Number(item.preco ?? item.preco_venda ?? 0) || 0,
     // Custo é opcional: se a API do UniPlus não enviar, o portal só não mostra a margem.
-    cost: numberOrNull(item.preco_custo ?? item.custo ?? item.custo_medio),
-    stock: Number(item.estoque ?? item.saldo ?? 0) || 0,
-    unit: String(item.unidade ?? '').trim()
+    cost,
+    stock,
+    unit: String(item.unidade ?? '').trim(),
+    packages: mapPackages(item.embalagens ?? item.packages, stock, cost)
   };
 }
 
@@ -41,8 +69,14 @@ export async function fetchUniplusCatalog() {
 }
 
 // Campos que vêm do UniPlus. Só grava no banco o produto em que algum deles mudou.
-const FIELDS = ['sku', 'name', 'category', 'basePrice', 'cost', 'stock', 'unit'];
-export const productKey = p => FIELDS.map(f => p[f] ?? '').join('|');
+const FIELDS = ['sku', 'name', 'category', 'basePrice', 'cost', 'stock', 'unit', 'packages'];
+// Objetos/arrays precisam ser serializados: `String(array)` viraria apenas
+// "[object Object]" e uma alteração de preço ou fator da embalagem passaria
+// despercebida pelo conector.
+export const productKey = p => FIELDS.map(f => {
+  const value = p[f];
+  return value && typeof value === 'object' ? JSON.stringify(value) : value ?? '';
+}).join('|');
 
 // Compara com a última leitura (Map id -> chave) e devolve só o que mudou.
 export function diffCatalog(previous, items) {
