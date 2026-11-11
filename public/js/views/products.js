@@ -68,11 +68,7 @@ const view = {
     state.picked = (state.picked || []).filter(id => !sentHere.has(id));
     const picked = new Set(state.picked);
     const pickable = catalog.data.filter(p => canPick(user, p));
-    const pickBar = picked.size ? `<div class="pick-bar" role="region" aria-label="Produtos marcados">
-      <span><strong>${num(picked.size)}</strong> ${picked.size === 1 ? 'produto marcado' : 'produtos marcados'}</span>
-      ${button('Desmarcar', { action: 'pick-clear', variant: 'ghost' })}
-      <a class="btn primary" href="#/cadastro?ids=${[...picked].map(encodeURIComponent).join(',')}">${icon('image')}<span>Cadastrar em grade</span></a>
-    </div>` : '';
+    const pickBar = `<div data-pick-slot>${pickBarHtml(picked)}</div>`;
 
     return `${pageHead({ eyebrow, title: 'Produtos', lead, actions })}
     ${statusLine}
@@ -165,7 +161,9 @@ const view = {
       }
       if (el.checked) picked.add(el.dataset.id); else picked.delete(el.dataset.id);
       ctx.state.picked = [...picked];
-      ctx.rerender();
+      // Só a barra de baixo muda: a caixinha já está marcada e o resto da tela fica parado.
+      const slot = document.querySelector('[data-pick-slot]');
+      if (slot) slot.innerHTML = pickBarHtml(picked);
     },
     category(ctx, el) { ctx.state.category = el.value; ctx.state.page = 1; return ctx.refresh(); }
   },
@@ -212,6 +210,16 @@ const view = {
   }
 };
 export default view;
+
+// Barra de baixo com os marcados para o cadastro em grade.
+function pickBarHtml(picked) {
+  if (!picked.size) return '';
+  return `<div class="pick-bar" role="region" aria-label="Produtos marcados">
+    <span><strong>${num(picked.size)}</strong> ${picked.size === 1 ? 'produto marcado' : 'produtos marcados'}</span>
+    ${button('Desmarcar', { action: 'pick-clear', variant: 'ghost' })}
+    <a class="btn primary" href="#/cadastro?ids=${[...picked].map(encodeURIComponent).join(',')}">${icon('image')}<span>Cadastrar em grade</span></a>
+  </div>`;
+}
 
 // Pop-up "Colocar à venda": canais, preço em cada um, taxa e líquido calculados na hora.
 async function openSellForm(ctx, productId) {

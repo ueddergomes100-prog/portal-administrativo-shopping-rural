@@ -49,7 +49,9 @@ export async function listProducts({ search = '', filter = '', category = '', pa
   const filtered = items.filter(p => {
     // "20 kg" e "20kg" são a mesma busca para quem está procurando um produto.
     const searchable = normalize(`${p.sku} ${p.name} ${p.category}`).replace(/(\d)\s+(kg|g|mg|ml|l)\b/g, '$1$2');
-    if (terms.length && !terms.every(term => searchable.includes(term))) return false;
+    // Também sem espaços: "nexg" acha "NEX GARD", "nexgard" acha "Nex Gard".
+    const compact = searchable.replace(/\s+/g, '');
+    if (terms.length && !terms.every(term => searchable.includes(term) || compact.includes(term))) return false;
     if (category && p.category !== category) return false;
     const inQueue = queue.get(p.id);
     if (filter === 'in_stock' && p.stock <= 0) return false;

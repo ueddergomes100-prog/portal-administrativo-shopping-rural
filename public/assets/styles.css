@@ -738,6 +738,7 @@ details.section[open] > summary { margin-bottom: 14px; }
 .pick-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: -4px 0 14px; color: var(--terra-2); }
 .pick-hint > .icon { color: var(--pasto-600); }
 .pick-hint > span { flex: 1 1 220px; }
+[data-pick-slot] { display: contents; } /* a barra continua presa embaixo da tela */
 .pick-bar, .send-bar { position: sticky; bottom: 12px; z-index: 15; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px 14px;
   margin-top: 16px; padding: 12px 14px 12px 18px; border: 2px solid var(--brinco); border-radius: var(--r-lg); background: var(--papel); box-shadow: var(--shadow-lg); }
 .pick-bar > span:first-child, .send-bar > span:first-child { margin-right: auto; font-size: 17px; }

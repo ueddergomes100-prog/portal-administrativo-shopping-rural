@@ -174,7 +174,8 @@ async function refresh({ scrollTop = false, preserveFocus } = {}) {
     const data = await view.load(ctx());
     if (seq !== renderSeq) return;
     app.data = data;
-    main.innerHTML = view.render(ctx());
+    if (scrollTop) main.innerHTML = view.render(ctx());
+    else patchMain(main, view.render(ctx()));
     restoreInputFocus(main, focus);
     // Animação de entrada só ao trocar de tela (não a cada clique que redesenha a mesma tela).
     if (scrollTop) {
@@ -195,7 +196,34 @@ async function refresh({ scrollTop = false, preserveFocus } = {}) {
 
 function rerender() {
   const view = BY_ID[app.route.name];
-  if (app.data !== null) document.getElementById('main').innerHTML = view.render(ctx());
+  if (app.data !== null) patchMain(document.getElementById('main'), view.render(ctx()));
+}
+
+// Redesenho da mesma tela (busca, filtro, marcar…): troca só os blocos que mudaram. Trocar a tela
+// inteira a cada letra fazia tudo piscar e reiniciava o campo onde a pessoa estava digitando.
+// O que a pessoa já mexeu (texto digitado, caixinha marcada, opção escolhida) vira atributo antes
+// de comparar, para não contar como "mudou".
+function syncFormAttributes(root) {
+  root.querySelectorAll('input, textarea, select').forEach(el => {
+    if (el.type === 'checkbox' || el.type === 'radio') el.toggleAttribute('checked', el.checked);
+    else if (el.tagName === 'SELECT') [...el.options].forEach(o => o.toggleAttribute('selected', o.selected));
+    else if (el.tagName === 'TEXTAREA') el.textContent = el.value;
+    else el.setAttribute('value', el.value);
+  });
+}
+function patchMain(main, html) {
+  syncFormAttributes(main);
+  const next = document.createElement('div');
+  next.innerHTML = html;
+  syncFormAttributes(next); // os dois lados do mesmo jeito (ex.: primeira opção da lista já escolhida)
+  const before = [...main.children];
+  const after = [...next.children];
+  after.forEach((node, i) => {
+    const old = before[i];
+    if (!old) main.append(node);
+    else if (!old.isEqualNode(node)) old.replaceWith(node);
+  });
+  before.slice(after.length).forEach(node => node.remove());
 }
 
 // ---------------------------------------------------------------------------
