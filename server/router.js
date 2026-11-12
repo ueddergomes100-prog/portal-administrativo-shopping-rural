@@ -17,6 +17,8 @@ import { listUsers, createUser, updateUser } from './services/users.js';
 import { listOrders } from './services/orders.js';
 import { getChannels, updateChannels } from './services/settings.js';
 import { getShippingSettings, updateShippingSettings, shippingStatus, quoteForSite, simulateShipping } from './services/shipping.js';
+import { listSiteCategories, updateSiteCategories } from './services/categories.js';
+import { promotionCandidates, markChannelTask } from './services/promotion-channels.js';
 import { listMetrics, syncMetrics } from './services/metrics.js';
 import { receiveLead, importMetaLeads } from './services/leads-inbound.js';
 import { listIntegrations, updateIntegrationSettings } from './services/integrations.js';
@@ -118,6 +120,8 @@ const routes = [
   // Canais de venda e taxas
   ['GET', '/api/settings/channels', async () => ({ channels: await getChannels() })],
   ['PUT', '/api/settings/channels', async ({ user, body }) => ({ channels: await updateChannels(user, body) })],
+  ['GET', '/api/settings/categories', ({ user }) => listSiteCategories(user)],
+  ['PUT', '/api/settings/categories', ({ user, body }) => updateSiteCategories(user, body)],
   ['GET', '/api/settings/shipping', async () => ({ settings: await getShippingSettings(), ...shippingStatus() })],
   ['PUT', '/api/settings/shipping', async ({ user, body }) => ({ settings: await updateShippingSettings(user, body), ...shippingStatus() })],
   ['POST', '/api/shipping/simulate', ({ user, body }) => simulateShipping(user, body)],
@@ -167,6 +171,13 @@ const routes = [
   ['PATCH', '/api/arts/:id/file', async ({ user, params, body }) => ({ record: await setArtFile(user, params.id, body.fileRef) })],
 
   // Campanhas, promoções, artes e leads (genérico)
+  // Promoção: anúncios à venda em cada lugar e tarefa feita à mão num marketplace (antes das rotas genéricas).
+  ['GET', '/api/promotions/candidates', ({ user, query }) => promotionCandidates(user, query)],
+  ['POST', '/api/promotions/:id/channel-task', async ({ user, params, body }) => {
+    const { text } = await markChannelTask(user, params.id, body);
+    await audit(user, { action: 'promotions.channel_task', entity: 'promotions', entityId: params.id, summary: `Promoção: ${text}` });
+    return { record: await getRecord('promotions', user, params.id) };
+  }],
   ['GET', `/api/:entity${ENTITY}`, async ({ user, params, query }) => ({ records: await listRecords(params.entity, user, query) })],
   ['POST', `/api/:entity${ENTITY}`, async ({ user, params, body }) => ({ record: await createRecord(params.entity, user, body) })],
   ['GET', `/api/:entity${ENTITY}/:id`, async ({ user, params }) => ({ record: await getRecord(params.entity, user, params.id) })],

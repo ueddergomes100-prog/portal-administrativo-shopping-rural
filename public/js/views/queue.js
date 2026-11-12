@@ -5,7 +5,7 @@ import {
   esc, icon, tag, money, num, date, dateTime, relative, pageHead, empty, notice, button, field,
   openDrawer, openModal, closeTopLayer, closeLayers, toast, confirmDialog, statusTag
 } from '../ui.js';
-import { QUEUE_STAGES, QUEUE_FLOW, PRIORITIES, LISTING_STATUS, SITE_CATEGORIES, SITE_PETS, SITE_UNITS, SITE_TAGS, canApprove } from '../../shared/domain.js';
+import { QUEUE_STAGES, QUEUE_FLOW, PRIORITIES, LISTING_STATUS, DEFAULT_SITE_CATEGORIES, SITE_PETS, SITE_UNITS, SITE_TAGS, canApprove } from '../../shared/domain.js';
 import { pricingEditor, pricingSummary, readPricing, pricingInputs, pricingChanges } from './pricing.js';
 import { uploadFile } from '../upload.js';
 import { prepareProductPhoto, photoFile, canUndoCut, rememberOriginal, originalOf, forgetOriginal } from '../photo-studio.js';
@@ -113,10 +113,12 @@ const view = {
     ]);
     ctx.state.current = item;
     // Produto do UniPlus (com as embalagens) só para quem pode mudar o preço / a forma de venda.
-    const [campaigns, channels, product] = await Promise.all([
+    const [campaigns, channels, product, categories] = await Promise.all([
       ctx.lookup('campaigns').catch(() => []), ctx.lookup('channels'),
-      item.can?.editPricing ? get(`/products/${encodeURIComponent(item.productId)}`).then(r => r.product).catch(() => null) : null
+      item.can?.editPricing ? get(`/products/${encodeURIComponent(item.productId)}`).then(r => r.product).catch(() => null) : null,
+      ctx.lookup('categories').catch(() => null)
     ]);
+    if (categories?.length) siteCategories = categories;
     openDrawer({
       eyebrow: `${statusTag(QUEUE_STAGES, item.stage)}`,
       title: item.productSnapshot.name,
@@ -305,6 +307,10 @@ const view = {
 export default view;
 
 // Foto enviada para a nuvem tem URL (mostra a miniatura); foto em media/ mostra o nome do arquivo.
+// Categorias do site editáveis (Ajustes › Categorias do site); carregadas ao abrir o anúncio.
+let siteCategories = DEFAULT_SITE_CATEGORIES;
+const categoryName = id => siteCategories.find(c => c.id === id)?.name || '';
+
 function photoItem(ref, { readonly = false } = {}) {
   const remote = /^https:\/\//.test(ref);
   const name = ref.split('/').pop();
@@ -472,7 +478,7 @@ function renderItem(ctx, item, entries, campaigns, channels, product = null) {
         <div class="field full"><label for="seoDescription">Descrição para o Google</label><textarea id="seoDescription" name="seoDescription" maxlength="320" rows="2" data-input="counter">${esc(c.seoDescription)}</textarea><small class="hint counter">${(c.seoDescription || '').length}/320</small></div>
         <fieldset class="field full site-fields"><legend>O que aparece no site</legend>
           <div class="form-grid">
-            ${field('siteCategory', 'Categoria do site', { type: 'select', value: c.siteCategory, options: [['', 'Escolha…'], ...Object.entries(SITE_CATEGORIES)] })}
+            ${field('siteCategory', 'Categoria do site', { type: 'select', value: c.siteCategory, options: [['', 'Escolha…'], ...siteCategories.map(c => [c.id, c.active === false ? `${c.name} (escondida no site)` : c.name])] })}
             ${field('pet', 'Pet', { type: 'select', value: c.pet, options: [['', 'Escolha…'], ...Object.entries(SITE_PETS)] })}
             ${field('brand', 'Marca', { value: c.brand, max: 80 })}
             ${field('tag', 'Selo na foto do produto', { type: 'select', value: c.tag, options: SITE_TAGS.map(t => [t, t || 'Nenhum (na promoção aparece “Oferta”)']) })}
@@ -514,7 +520,7 @@ function renderItem(ctx, item, entries, campaigns, channels, product = null) {
         <div><dt>Descrição</dt><dd class="prose">${c.description ? esc(c.description).replaceAll('\n', '<br>') : '<span class="muted">Ainda não escrita</span>'}</dd></div>
         <div><dt>Título para o Google</dt><dd>${esc(c.seoTitle || '—')}</dd></div>
         <div><dt>Descrição para o Google</dt><dd>${esc(c.seoDescription || '—')}</dd></div>
-        <div><dt>No site</dt><dd>${esc([SITE_CATEGORIES[c.siteCategory], SITE_PETS[c.pet], c.brand, c.measureValue ? `${c.measureValue} ${c.measureUnit}` : '', c.weightKg ? `${c.weightKg} kg para frete` : '', c.heightCm && c.widthCm && c.lengthCm ? `caixa ${c.heightCm}×${c.widthCm}×${c.lengthCm} cm` : '', c.tag].filter(Boolean).join(' · ') || '—')}</dd></div>
+        <div><dt>No site</dt><dd>${esc([categoryName(c.siteCategory), SITE_PETS[c.pet], c.brand, c.measureValue ? `${c.measureValue} ${c.measureUnit}` : '', c.weightKg ? `${c.weightKg} kg para frete` : '', c.heightCm && c.widthCm && c.lengthCm ? `caixa ${c.heightCm}×${c.widthCm}×${c.lengthCm} cm` : '', c.tag].filter(Boolean).join(' · ') || '—')}</dd></div>
         <div><dt>Resumo</dt><dd>${esc(c.short || '—')}</dd></div>
         ${(c.specs || []).length ? `<div><dt>Detalhes</dt><dd>${c.specs.map(x => `${esc(x.label)}: ${esc(x.value)}`).join('<br>')}</dd></div>` : ''}
         <div><dt>Anotações da equipe</dt><dd>${esc(c.siteNotes || '—')}</dd></div>

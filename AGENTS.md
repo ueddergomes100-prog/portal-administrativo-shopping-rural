@@ -188,6 +188,13 @@ docs/                         arquitetura, API, dados, design, deploy, roteiro
 - **Cadastro em grade** (`views/catalog-grid.js`, `#/cadastro?ids=…`): marcar vários em Produtos, colar as
   fotos e preencher em cartões, enviar tudo por `POST /api/queue/bulk` (catálogo do site refeito uma vez).
   Rascunho guardado no aparelho (`localStorage`, chave `sr-cadastro-grade`).
+- **Categorias do site** (`server/services/categories.js`, tela `#/categorias`): `settings/categories`; o
+  catálogo leva `categories` (só as visíveis, na ordem) e esconde produtos de categoria escondida. Apagar
+  categoria com produtos exige `moves` (para onde vão). `DEFAULT_SITE_CATEGORIES` é só o ponto de partida.
+- **Promoções por lugar** (`server/services/promotion-channels.js`): itens são anúncios (`queueId`) com
+  preço por canal. Aprovar aplica no site via `repriceItem` (guarda o que havia em `item.promotion.previous`);
+  Shopee/ML viram `channelTasks` (pending → done; cancelada → undo) mostradas em "Para resolver agora".
+  Um anúncio só tem um período de promoção: conflitos bloqueiam a aprovação.
 - **Frete e entrega** (`server/services/shipping.js`, tela `#/frete`): regras em `settings/shipping` (motoboy
   por cidade com pedido mínimo e grátis a partir de; Correios/Jadlog pelo Melhor Envio; retirada). O site
   cota em `POST /api/store/shipping/quote` (preço e peso sempre do catálogo do portal). Medidas da caixa

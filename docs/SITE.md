@@ -47,7 +47,7 @@ No front do site: `VITE_USE_MOCKS=false`.
 
 ## Catálogo — público
 
-### `GET /api/catalog` (também `/api/store/catalog`) → `{ products: Product[] }`
+### `GET /api/catalog` (também `/api/store/catalog`) → `{ products: Product[], categories: Category[] }`
 É a rota que `src/services/catalog.ts` do site já chama. Cada produto:
 ```json
 {
@@ -67,8 +67,14 @@ No front do site: `VITE_USE_MOCKS=false`.
 - Em promoção (dentro do período, fuso de São Paulo): `price` = preço promocional e `compareAt` = preço
   normal (riscado), como o site espera. Sem promoção, `compareAt` não vem.
 - `tag`: o selo escolhido no portal; se vazio e houver promoção, vem `"Oferta"`.
-- `category` usa as 7 chaves do site (`SITE_CATEGORIES` em `public/shared/domain.js` = `categories` em
-  `src/data/products.ts`). Categoria nova: acrescentar nos dois.
+- `categories`: as categorias do site, **na ordem do menu**, editadas no portal (Ajustes › Categorias do
+  site): `[{ "id": "racao-caes", "name": "Ração para cães", "short": "Ração cães", "icon": "dog" }]`.
+  `category` do produto é sempre um desses `id`s. Categoria escondida no portal não vem — e os produtos
+  dela também não. `icon`: `dog`, `cat`, `bug`, `pill`, `bone`, `toy`, `bed` (os de antes) e os novos
+  `bird`, `horse`, `cow`, `fish`, `leaf`, `seed`, `tool`, `bag`, `tag` (o site mostra um genérico para o
+  que ainda não desenha). O `id` nunca muda; renomear muda só `name`/`short`.
+- Promoções aprovadas no portal (Promoções) entram aqui sozinhas: o anúncio ganha o preço promocional e
+  as datas, e `price`/`compareAt` mudam no período.
 - `stock` é o do UniPlus. `images`, `promoEnds`, `seo`, `url` são extras (o site ignora o que não usa).
 
 ### `POST /api/catalog/stock-check` (também `/api/store/catalog/stock-check`)

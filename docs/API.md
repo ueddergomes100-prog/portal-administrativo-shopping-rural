@@ -72,6 +72,8 @@ Erros dessas rotas trazem `message` (campo que o site lê) além de `error`.
 |---|---|---|---|
 | GET | `/settings/channels` | todos | canais com `percent`, `fixed`, `fixedBelow`, `integration`, `active` |
 | PUT | `/settings/channels` | dono | `{items:[...]}` substitui a tabela (auditado) |
+| GET | `/settings/categories` | todos | `{ items: [{id,name,short,icon,active}], usage }` (usage só para dono/gerente) |
+| PUT | `/settings/categories` | dono, gerente | `{ items, moves: { idApagado: idDestino } }` — ordem = ordem no site (auditado) |
 | GET | `/settings/shipping` | todos | regras de frete + `melhorEnvio: {configured, sandbox, demo}` |
 | PUT | `/settings/shipping` | dono, gerente | `{originCep, pickup, motoboy:{enabled, areas[]}, carriers}` (auditado) |
 | POST | `/shipping/simulate` | dono, gerente | `{cep, subtotal, weightKg, settings?}` — testa um CEP com as regras da tela |
@@ -94,15 +96,17 @@ Erros dessas rotas trazem `message` (campo que o site lê) além de `error`.
 | GET | `/:entity?status&campaignId` | lista com `transitions` e `can` |
 | POST | `/:entity` | cria (campos em `server/services/marketing.js`, funções `read*`) |
 | GET | `/:entity/:id` | um registro |
-| PATCH | `/:entity/:id` | edita (promoção aprovada volta a rascunho) |
-| DELETE | `/:entity/:id` | dono/gerente; campanha/promoção com artes ligadas não pode |
+| PATCH | `/:entity/:id` | edita (promoção aprovada volta a rascunho e sai do site) |
+| DELETE | `/:entity/:id` | dono/gerente; campanha/promoção com artes ligadas não pode; promoção aprovada não (cancelar) |
+| GET | `/promotions/candidates?channels&search&ids&productId` | anúncios à venda nesses lugares, com o preço de cada lugar |
+| POST | `/promotions/:id/channel-task` | dono, gerente, vendas na internet — `{ channel }`: "já cadastrei/tirei" na Shopee/ML |
 | POST | `/:entity/:id/transition` | `{to, note?, channels?, channelNote?}` (`channels` ao registrar publicação de arte) |
 | POST | `/:entity/:id/notes` | `{text}` comentário |
 | PATCH | `/arts/:id/file` | `{fileRef}` caminho relativo dentro de `media/` |
 
 Campos principais:
 - **campaigns**: `name, objective, description, start, end, channels[], budget, ownerId, productIds[]` (+ `products[]` com nome/SKU guardados)
-- **promotions**: `name, description, start, end, campaignId, channels[], items[{productId, promoPrice}]` (preço normal vem do UniPlus)
+- **promotions**: `name, description, start, end, campaignId, channels[], items[{queueId, prices: {canal: preçoDaPromoção}}]` (preço normal vem do anúncio de cada lugar; salvo como `channels: {canal: {regularPrice, promoPrice}}`; `channelTasks` dos marketplaces)
 - **campaigns/promotions (criação)**: `art: {requested: true, title?, format, deadline, priority, assigneeId, briefing}` cria o pedido de arte ligado; a resposta traz `createdArtId`
 - **arts**: `title, originType ('campaign'|'promotion'|'product'), originId, briefing, format, deadline, priority, assigneeId`
 - **leads**: `name, email, phone, source, campaignId, assigneeId, value, interest, status`

@@ -265,16 +265,6 @@ test('fluxo completo da fila no modo local', async () => {
   assert.equal((await (await inbound({ name: 'Ana', phone: '(34) 98888-1111' }, 'token-leads-teste')).json()).created, true);
   assert.equal((await (await inbound({ name: 'Ana', phone: '5534988881111', message: 'de novo' }, 'token-leads-teste')).json()).merged, true);
 
-  // Promoção com pedido de arte junto: a arte nasce ligada à promoção.
-  const promo = await call('POST', '/promotions', {
-    name: 'Promo teste', start: '2026-11-01', end: '2026-11-05', channels: ['site'], items: [{ productId: '2', promoPrice: 40 }],
-    art: { requested: true, deadline: '2026-10-30', briefing: 'Post com o preço novo' }
-  }, owner);
-  assert.equal(promo.status, 200);
-  const art = await call('GET', '/arts/' + promo.body.record.createdArtId, null, owner);
-  assert.equal(art.body.record.originType, 'promotion');
-  assert.equal(art.body.record.originId, promo.body.record.id);
-
   // Só o dono altera taxas.
   assert.equal((await call('PUT', '/settings/channels', { items: [{ name: 'Site', percent: 5 }] }, site)).status, 403);
 
@@ -288,6 +278,16 @@ test('fluxo completo da fila no modo local', async () => {
   assert.equal(bulk.body.results[0].url, 'https://loja.teste/produto/produto-b-no-site');
   assert.equal(bulk.body.results[1].ok, false);
   assert.ok((await call('GET', '/catalog')).body.products.some(p => p.name === 'Produto B no site' && p.price === 55));
+
+  // Promoção (do anúncio que já está no site) com pedido de arte junto: a arte nasce ligada à promoção.
+  const promo = await call('POST', '/promotions', {
+    name: 'Promo teste', start: '2026-11-01', end: '2026-11-05', channels: ['site'], items: [{ productId: '2', promoPrice: 40 }],
+    art: { requested: true, deadline: '2026-10-30', briefing: 'Post com o preço novo' }
+  }, owner);
+  assert.equal(promo.status, 200);
+  const art = await call('GET', '/arts/' + promo.body.record.createdArtId, null, owner);
+  assert.equal(art.body.record.originType, 'promotion');
+  assert.equal(art.body.record.originId, promo.body.record.id);
 
   // Desativar derruba a sessão na hora.
   const users = (await call('GET', '/users', null, owner)).body.users;

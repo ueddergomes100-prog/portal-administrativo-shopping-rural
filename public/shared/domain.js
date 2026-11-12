@@ -223,8 +223,25 @@ export const BR_STATES = ['AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 
 
 // ---------------------------------------------------------------------------
 // Cadastro do produto no site — mesmas chaves do site (src/data/products.ts).
-// Ao criar categoria nova no site, acrescente aqui também.
+// As categorias do site são editadas em Ajustes › Categorias do site (settings/categories) e vão
+// para o site junto com o catálogo. Esta lista é só o ponto de partida (as que o site já tinha).
 // ---------------------------------------------------------------------------
+export const DEFAULT_SITE_CATEGORIES = [
+  { id: 'racao-caes', name: 'Ração para cães', short: 'Ração cães', icon: 'dog' },
+  { id: 'racao-gatos', name: 'Ração para gatos', short: 'Ração gatos', icon: 'cat' },
+  { id: 'antiparasitario', name: 'Antipulgas e carrapatos', short: 'Antipulgas', icon: 'bug' },
+  { id: 'medicamentos', name: 'Medicamentos', short: 'Medicamentos', icon: 'pill' },
+  { id: 'petiscos', name: 'Petiscos', short: 'Petiscos', icon: 'bone' },
+  { id: 'brinquedos', name: 'Brinquedos', short: 'Brinquedos', icon: 'toy' },
+  { id: 'cama-banheiro', name: 'Cama e banheiro', short: 'Cama & banheiro', icon: 'bed' }
+];
+// Ícones que o site desenha. Os 7 primeiros já existiam; os outros o site precisa desenhar
+// (enquanto não desenhar, mostra um ícone genérico).
+export const CATEGORY_ICONS = {
+  dog: 'Cachorro', cat: 'Gato', bug: 'Pulga e carrapato', pill: 'Remédio', bone: 'Osso / petisco', toy: 'Brinquedo', bed: 'Caminha',
+  bird: 'Ave', horse: 'Cavalo', cow: 'Gado', fish: 'Peixe', leaf: 'Planta e jardim', seed: 'Semente', tool: 'Ferramenta', bag: 'Saco de ração', tag: 'Outros'
+};
+// Mapa id → nome das categorias de partida (o que estiver salvo no portal vale mais; ver categories.js).
 export const SITE_CATEGORIES = {
   'racao-caes': 'Ração para cães',
   'racao-gatos': 'Ração para gatos',

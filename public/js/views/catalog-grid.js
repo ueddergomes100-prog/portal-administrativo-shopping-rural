@@ -5,7 +5,7 @@
 // se atualizar sozinho não apaga nada. As fotos sobem na hora (estúdio: tira o fundo e padroniza).
 import { get, post } from '../api.js';
 import { esc, icon, money, num, pageHead, empty, notice, button, toast, confirmDialog, statusTag } from '../ui.js';
-import { QUEUE_STAGES, SITE_CATEGORIES, SITE_PETS, SITE_UNITS, canApprove } from '../../shared/domain.js';
+import { QUEUE_STAGES, DEFAULT_SITE_CATEGORIES, SITE_PETS, SITE_UNITS, canApprove } from '../../shared/domain.js';
 import { uploadFile } from '../upload.js';
 import { prepareProductPhoto, photoFile, canUndoCut, rememberOriginal, originalOf, forgetOriginal } from '../photo-studio.js';
 
@@ -67,6 +67,9 @@ function control(id, key, label, value, { type = 'text', options = null, full = 
 }
 
 const choose = map => [['', 'Escolha…'], ...Object.entries(map)];
+// Categorias do site editáveis (Ajustes › Categorias do site); carregadas junto com a grade.
+let siteCategories = DEFAULT_SITE_CATEGORIES;
+const categoryMap = () => Object.fromEntries(siteCategories.map(c => [c.id, c.active === false ? `${c.name} (escondida no site)` : c.name]));
 
 function photosHtml(id, refs) {
   return `${refs.map((ref, k) => `<div class="grade-photo">
@@ -116,7 +119,7 @@ function card(row, d, error) {
       ${item ? `<div class="field"><span class="field-label">Preço no site</span><p class="mono grade-price">${money(item.channels?.find(c => c.id === 'site')?.price)}</p></div>`
         : control(id, 'price', 'Preço no site (R$)', d.price, { type: 'number', step: '0.01', inputmode: 'decimal' })}
       ${control(id, 'brand', 'Marca', d.brand, { max: 80 })}
-      ${control(id, 'siteCategory', 'Categoria do site', d.siteCategory, { options: choose(SITE_CATEGORIES) })}
+      ${control(id, 'siteCategory', 'Categoria do site', d.siteCategory, { options: choose(categoryMap()) })}
       ${control(id, 'pet', 'Pet', d.pet, { options: choose(SITE_PETS) })}
       ${control(id, 'measureValue', 'Medida', d.measureValue, { type: 'number', step: '0.001', inputmode: 'decimal', hint: 'Ex.: 15 (kg) ou 1 (unidade).' })}
       ${control(id, 'measureUnit', 'Unidade', d.measureUnit, { options: Object.entries(SITE_UNITS) })}
@@ -214,10 +217,12 @@ export default {
     const ids = String(route.query?.ids || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 30);
     if (state.idsKey !== ids.join(',')) Object.assign(state, { idsKey: ids.join(','), removed: [], sent: [], errors: {} });
     if (!ids.length) return { rows: [] };
-    const [{ items }, ...products] = await Promise.all([
+    const [{ items }, categories, ...products] = await Promise.all([
       get('/queue'),
+      get('/settings/categories').then(r => r.items).catch(() => null),
       ...ids.map(id => get(`/products/${encodeURIComponent(id)}`).then(r => r.product).catch(() => null))
     ]);
+    if (categories?.length) siteCategories = categories;
     const drafts = readDrafts();
     const rows = products.filter(Boolean).map(product => {
       const item = items.find(i => i.productId === product.id && i.stage !== 'archived') || null;
@@ -254,7 +259,7 @@ export default {
       <div class="panel-head"><h2 id="fillTitle">Preencher igual em todos</h2></div>
       <div class="fill-grid">
         <div class="field"><label for="fillBrand">Marca</label><input id="fillBrand" data-fill="brand" maxlength="80"></div>
-        <div class="field"><label for="fillCat">Categoria do site</label><select id="fillCat" data-fill="siteCategory">${choose(SITE_CATEGORIES).map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select></div>
+        <div class="field"><label for="fillCat">Categoria do site</label><select id="fillCat" data-fill="siteCategory">${choose(categoryMap()).map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select></div>
         <div class="field"><label for="fillPet">Pet</label><select id="fillPet" data-fill="pet">${choose(SITE_PETS).map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select></div>
         <div class="field"><label for="fillUnit">Unidade</label><select id="fillUnit" data-fill="measureUnit">${[['', 'Escolha…'], ...Object.entries(SITE_UNITS)].map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select></div>
       </div>

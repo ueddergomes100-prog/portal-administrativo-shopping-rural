@@ -23,8 +23,9 @@ import channelsView from './views/channels.js';
 import settingsHub from './views/settings-hub.js';
 import catalogGrid from './views/catalog-grid.js';
 import shippingView from './views/shipping.js';
+import categoriesView from './views/categories.js';
 
-const VIEWS = [dashboard, products, queue, promotions, orders, agenda, campaigns, arts, leads, media, channelsView, integrations, team, historyView, account, settingsHub, catalogGrid, shippingView];
+const VIEWS = [dashboard, products, queue, promotions, orders, agenda, campaigns, arts, leads, media, channelsView, integrations, team, historyView, account, settingsHub, catalogGrid, shippingView, categoriesView];
 const BY_ID = Object.fromEntries(VIEWS.map(v => [v.id, v]));
 
 // Menu de cada papel: só o que a pessoa usa no dia a dia. O resto fica em "Ajustes" (e continua
@@ -84,7 +85,8 @@ async function lookup(name) {
     users: () => get('/users').then(r => r.users),
     campaigns: () => get('/campaigns').then(r => r.records),
     promotions: () => get('/promotions').then(r => r.records),
-    channels: () => get('/settings/channels').then(r => r.channels)
+    channels: () => get('/settings/channels').then(r => r.channels),
+    categories: () => get('/settings/categories').then(r => r.items)
   };
   const value = await loaders[name]();
   app.cache.set(name, { at: Date.now(), value });

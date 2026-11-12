@@ -10,9 +10,10 @@ import { getChannels } from './settings.js';
 import { checkMediaRefs } from '../media.js';
 import { config } from '../config.js';
 import { siteProductUrl, touchCatalog, withDeferredCatalog } from './catalog.js';
+import { siteCategoryIds } from './categories.js';
 import {
   QUEUE_STAGES, QUEUE_TRANSITIONS, PRIORITIES, availableTransitions, findTransition, roleMatches, canApprove, channelFees, marginOf, slugify,
-  SITE_CATEGORIES, SITE_PETS, SITE_UNITS, SITE_TAGS, PREPARERS
+  SITE_PETS, SITE_UNITS, SITE_TAGS, PREPARERS
 } from '../../public/shared/domain.js';
 
 const now = () => new Date().toISOString();
@@ -169,6 +170,15 @@ export async function updatePricing(user, id, input) {
   const item = await store.get(C.queue, id);
   if (!item) throw notFound('Item da fila não encontrado.');
   if (!isPricer(user)) throw forbidden('Só o dono (ou o gerente que pode aprovar) muda o preço.');
+  return repriceItem(user, item, input);
+}
+
+// Troca preços/promoção de um anúncio (taxas, lucro, "atualizar anúncio" nos marketplaces e catálogo
+// do site). Sem checar permissão: quem chama já checou (updatePricing, promoções aprovadas).
+// `extra`: campos a mais gravados junto (ex.: a promoção que mudou o preço).
+export async function repriceItem(user, item, input, extra = {}) {
+  const store = getStore();
+  const id = item.id;
   const product = await getProduct(item.productId);
   const sellAs = input.packageId !== undefined ? sellAsOf(packageOf(product, input.packageId)) : (item.sellAs || null);
   const selling = { ...product, ...sellingNumbers(product, sellAs) };
@@ -178,7 +188,9 @@ export async function updatePricing(user, id, input) {
   const listings = mergeListings(item.listings, pricing.channels);
   for (const channel of pricing.channels) {
     const old = (item.channels || []).find(c => c.id === channel.id);
-    const changed = old && (old.price !== channel.price || old.promoPrice !== channel.promoPrice || item.promoStart !== pricing.promoStart || item.promoEnd !== pricing.promoEnd);
+    // Datas só contam para o canal que tem (ou tinha) preço de promoção.
+    const datesChanged = item.promoStart !== pricing.promoStart || item.promoEnd !== pricing.promoEnd;
+    const changed = old && (old.price !== channel.price || old.promoPrice !== channel.promoPrice || (datesChanged && (old.promoPrice != null || channel.promoPrice != null)));
     if (changed && !channel.integration && listings[channel.id]?.status === 'done') listings[channel.id] = { ...listings[channel.id], needsUpdate: true };
   }
   const patch = {
@@ -189,6 +201,7 @@ export async function updatePricing(user, id, input) {
     priority: clean.oneOf(input.priority ?? item.priority, PRIORITIES, { label: 'Prioridade' }),
     notes: clean.text(input.notes ?? item.notes, { max: 2000, label: 'Observação' }),
     campaignId: clean.text(input.campaignId ?? item.campaignId, { max: 120 }),
+    ...extra,
     updatedAt: now(), updatedBy: user.id
   };
   let saved = await store.update(C.queue, id, patch);
@@ -215,7 +228,7 @@ export async function updateContent(user, id, input) {
     category: clean.text(input.category ?? item.content.category, { max: 120, label: 'Categoria' }),
     imageRefs,
     siteNotes: clean.text(input.siteNotes ?? item.content.siteNotes, { max: 2000, label: 'Observações' }),
-    ...readSiteFields(input, item.content)
+    ...readSiteFields(input, item.content, await siteCategoryIds())
   };
   const patch = { content, updatedAt: now(), updatedBy: user.id };
   if (item.stage === 'selected') patch.stage = 'preparing';
@@ -242,12 +255,12 @@ const optionalNumber = (value, label) => {
   return Math.round(n * 1000) / 1000;
 };
 
-function readSiteFields(input, current = {}) {
+function readSiteFields(input, current = {}, categoryIds = []) {
   const pick = key => (input[key] !== undefined ? input[key] : current[key]);
   return {
     brand: clean.text(pick('brand'), { max: 80, label: 'Marca' }),
     pet: clean.oneOf(pick('pet') || '', ['', ...Object.keys(SITE_PETS)], { label: 'Pet' }),
-    siteCategory: clean.oneOf(pick('siteCategory') || '', ['', ...Object.keys(SITE_CATEGORIES)], { label: 'Categoria do site' }),
+    siteCategory: clean.oneOf(pick('siteCategory') || '', ['', ...categoryIds], { label: 'Categoria do site' }),
     measureValue: optionalNumber(pick('measureValue'), 'Medida'),
     measureUnit: clean.oneOf(pick('measureUnit') || 'un', Object.keys(SITE_UNITS), { label: 'Unidade da medida' }),
     weightKg: optionalNumber(pick('weightKg'), 'Peso para frete'),

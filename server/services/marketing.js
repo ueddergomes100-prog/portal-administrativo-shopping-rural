@@ -5,6 +5,7 @@ import { audit } from '../audit.js';
 import { badRequest, forbidden, notFound, clean } from '../http.js';
 import { getProduct } from './products.js';
 import { getChannels } from './settings.js';
+import { readPromotionItems, applyPromotion, withdrawPromotion } from './promotion-channels.js';
 import {
   CAMPAIGN_STATUS, CAMPAIGN_TRANSITIONS, CAMPAIGN_CHANNELS, CAMPAIGN_OBJECTIVES,
   PROMOTION_STATUS, PROMOTION_TRANSITIONS,
@@ -14,7 +15,6 @@ import {
 } from '../../public/shared/domain.js';
 
 const now = () => new Date().toISOString();
-const brl = value => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
 const ENTITIES = {
   campaigns: { collection: C.campaigns, statuses: CAMPAIGN_STATUS, transitions: CAMPAIGN_TRANSITIONS, label: 'campanha', initial: 'draft',
@@ -68,23 +68,14 @@ async function readPromotion(input) {
   const start = clean.date(input.start, { required: true, label: 'Início' });
   const end = clean.date(input.end, { required: true, label: 'Fim' });
   if (end < start) throw badRequest('A promoção precisa terminar depois de começar. Confira as datas.');
-  const rawItems = Array.isArray(input.items) ? input.items : [];
-  if (!rawItems.length) throw badRequest('Coloque pelo menos um produto na promoção.');
-  if (rawItems.length > 200) throw badRequest('Uma promoção pode ter no máximo 200 produtos. Divida em duas.');
-  const items = [];
-  for (const raw of rawItems) {
-    const product = await getProduct(String(raw.productId || ''));
-    const promoPrice = clean.money(raw.promoPrice, { required: true, label: `Preço promocional de ${product.name}` });
-    if (promoPrice >= product.basePrice) throw badRequest(`${product.name}: o preço da promoção precisa ser menor que o preço normal (${brl(product.basePrice)}).`);
-    items.push({ productId: product.id, sku: product.sku, name: product.name, regularPrice: product.basePrice, promoPrice });
-  }
-  const channelIds = (await getChannels()).map(c => c.id);
+  // Onde vale (site, Shopee, Mercado Livre…) e, de cada anúncio à venda ali, o preço da promoção.
+  const channels = clean.list(input.channels, (await getChannels()).map(c => c.id), { label: 'Canais' });
+  if (!channels.length) throw badRequest('Marque onde a promoção vale (site, Shopee, Mercado Livre…).');
+  const items = await readPromotionItems(Array.isArray(input.items) ? input.items : [], channels);
   return {
     name: clean.text(input.name, { required: true, max: 120, label: 'Nome' }),
     description: clean.text(input.description, { max: 3000, label: 'Observações' }),
-    start, end, items,
-    // Em quais canais a promoção vale (a tela mostra taxa e líquido de cada um).
-    channels: clean.list(input.channels, channelIds, { label: 'Canais' }),
+    start, end, items, channels,
     campaignId: clean.text(input.campaignId, { max: 120 })
   };
 }
@@ -198,7 +189,10 @@ export async function updateRecord(entity, user, id, input) {
   // Promoção aprovada volta para rascunho se o preço ou período mudar — precisa de nova aprovação.
   const data = await readers[entity]({ ...current, ...input });
   const patch = { ...data, updatedAt: now(), updatedBy: user.id };
-  if (entity === 'promotions' && current.status === 'approved') patch.status = 'draft';
+  if (entity === 'promotions' && current.status === 'approved') {
+    patch.status = 'draft';
+    patch.channelTasks = await withdrawPromotion(user, current);
+  }
   if (entity === 'leads' && data.status !== current.status) {
     patch.notes = [...(current.notes || []), { text: `Etapa: ${LEAD_STATUS[current.status].label} → ${LEAD_STATUS[data.status].label}`, at: now(), by: user.name }];
   }
@@ -228,6 +222,13 @@ export async function transitionRecord(entity, user, id, { to, note, channels, c
     patch.publications = [...(current.publications || []), ...list.map(channel => ({ channel, at: now(), by: user.name, note: clean.text(channelNote, { max: 500 }) }))];
   }
   if (to === 'approved') patch.approvedBy = { id: user.id, name: user.name, at: now() };
+  // Promoção: aprovada entra no site e cria as tarefas dos marketplaces; saindo de aprovada, sai do site.
+  if (entity === 'promotions' && to === 'approved') {
+    // Promoção antiga (antes dos preços por lugar): passa para o formato novo, a partir dos anúncios.
+    if ((current.items || []).some(i => !i.queueId || !i.channels)) patch.items = await readPromotionItems(current.items || [], current.channels || []);
+    patch.channelTasks = await applyPromotion(user, { ...current, ...(patch.items ? { items: patch.items } : {}), id });
+  }
+  else if (entity === 'promotions' && current.status === 'approved') patch.channelTasks = await withdrawPromotion(user, { ...current, id });
   if (entity === 'arts' && to === 'awaiting_approval') patch.deliveredAt = now();
   const saved = await store.update(m.collection, id, patch);
   await audit(user, { action: `${entity}.status`, entity, entityId: id, summary: `${m.label[0].toUpperCase()}${m.label.slice(1)} "${nameOf(entity, current)}": ${noteText}`, before: { status: current.status }, after: { status: to } });
@@ -263,6 +264,7 @@ export async function removeRecord(entity, user, id) {
   const store = getStore();
   const current = await store.get(m.collection, id);
   if (!current) throw notFound();
+  if (entity === 'promotions' && current.status === 'approved') throw badRequest('Esta promoção está aprovada (já vale no site). Use “Cancelar”: ela sai do site e a equipe é avisada.');
   if (entity === 'campaigns' || entity === 'promotions') {
     const arts = await store.list(C.arts, { where: [['originId', '==', id]] });
     if (arts.length) throw badRequest(`Tem ${arts.length} arte(s) ligada(s) a isto. Em vez de apagar, use “Cancelar”.`);

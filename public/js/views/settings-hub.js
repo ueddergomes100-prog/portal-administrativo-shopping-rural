@@ -4,6 +4,7 @@ import { esc, icon, pageHead } from '../ui.js';
 const CARDS = [
   { href: '#/conta', ic: 'user', title: 'Minha conta', text: 'Seu nome e sua senha.' },
   { href: '#/canais', ic: 'money', title: 'Taxas de venda', text: 'Quanto a Shopee, o Mercado Livre e o site cobram em cada venda.' },
+  { href: '#/categorias', ic: 'tag', title: 'Categorias do site', text: 'Criar, renomear, ordenar e esconder as categorias do site.', roles: ['owner', 'manager'] },
   { href: '#/frete', ic: 'truck', title: 'Frete e entrega', text: 'Motoboy por cidade, Correios e Jadlog, e retirada na loja.', roles: ['owner', 'manager'] },
   { href: '#/equipe', ic: 'shield', title: 'Equipe', text: 'Quem usa o portal e o que cada pessoa pode fazer.', roles: ['owner', 'manager'] },
   { href: '#/integracoes', ic: 'link', title: 'Conexões', text: 'Se o sistema da loja e o site estão funcionando.' },

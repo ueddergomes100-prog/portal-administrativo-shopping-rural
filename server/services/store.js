@@ -13,6 +13,7 @@ import { badRequest, notFound, forbidden, clean } from '../http.js';
 import { imageFile } from '../media.js';
 import { setIntegrationState } from './integrations.js';
 import { catalogSnapshot, toSiteProduct } from './catalog.js';
+import { getSiteCategories } from './categories.js';
 import { receiveLead } from './leads-inbound.js';
 import {
   todayInSaoPaulo, ORDER_STATUS, ORDER_TRANSITIONS, PAYMENT_STATUS, PAYMENT_METHODS,
@@ -22,15 +23,22 @@ import {
 const SYSTEM = { id: 'site', name: 'Site próprio', role: 'system' };
 const now = () => new Date().toISOString();
 
+// Categorias do site (só as que estão aparecendo), na ordem escolhida em Ajustes.
+const siteCategories = async () => (await getSiteCategories()).filter(c => c.active !== false).map(({ id, name, short, icon }) => ({ id, name, short, icon }));
+
 export async function listCatalog() {
   const today = todayInSaoPaulo();
-  const products = (await catalogSnapshot()).items.map(e => toSiteProduct(e, today));
+  const categories = await siteCategories();
+  const visible = new Set(categories.map(c => c.id));
+  // Produto de categoria escondida sai do site junto com ela.
+  const products = (await catalogSnapshot()).items.filter(e => visible.has(e.category)).map(e => toSiteProduct(e, today));
   products.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-  return { products };
+  return { products, categories };
 }
 
 export async function getCatalogItem(slug) {
-  const found = (await catalogSnapshot()).items.find(e => e.slug === slug);
+  const visible = new Set((await siteCategories()).map(c => c.id));
+  const found = (await catalogSnapshot()).items.find(e => e.slug === slug && visible.has(e.category));
   if (!found) throw notFound('Produto não encontrado ou fora do ar.');
   return toSiteProduct(found, todayInSaoPaulo());
 }

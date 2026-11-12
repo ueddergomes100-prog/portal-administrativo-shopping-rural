@@ -1187,3 +1187,51 @@ main.is-entering > :nth-child(n + 5) { animation-delay: .2s; }
 .ship-options li span { display: grid; gap: 2px; }
 .ship-options small { color: var(--muted); font-size: 14px; }
 .ship-options strong.mono { font-size: 18px; white-space: nowrap; }
+
+/* Categorias do site (Ajustes › Categorias do site) */
+.cat-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 10px; }
+.cat-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "order fields remove" "order usage remove"; gap: 6px 12px; align-items: center; padding: 12px; border: 1px solid var(--linha); border-radius: var(--r); background: var(--papel); }
+.cat-order { grid-area: order; display: grid; gap: 4px; }
+.cat-order .btn-icon { width: 44px; height: 44px; }
+.cat-order [data-action=cat-up] .icon { transform: rotate(-90deg); }
+.cat-order [data-action=cat-down] .icon { transform: rotate(90deg); }
+.cat-fields { grid-area: fields; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1.4fr) auto; gap: 10px; align-items: end; }
+.cat-active { min-height: 48px; white-space: nowrap; }
+.cat-usage { grid-area: usage; margin: 0; color: var(--muted); font-size: 14.5px; }
+.cat-remove { grid-area: remove; display: grid; gap: 6px; justify-items: end; }
+.cat-row.is-removing { border-color: var(--danger-bd); background: var(--danger-bg); }
+.cat-row.is-removing .cat-fields, .cat-row.is-removing .cat-order { opacity: .55; pointer-events: none; }
+@media (max-width: 900px) {
+  .cat-row { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "order fields" "order usage" "remove remove"; }
+  .cat-fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .cat-fields .field:first-child { grid-column: 1 / -1; }
+  .cat-remove { justify-items: stretch; }
+}
+
+/* Promoção por lugar de venda (formulário e ficha) */
+.promo-picker { display: grid; gap: 10px; }
+.promo-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 12px; border-radius: var(--r); background: var(--galv); }
+.promo-bulk [data-promo-count] { font-weight: 700; margin-right: auto; }
+.promo-percent { display: inline-flex; align-items: center; gap: 6px; font-size: 16px; }
+.promo-percent input { width: 72px; min-height: 44px; padding: 6px 8px; border: 1.5px solid var(--linha-forte); border-radius: var(--r-sm); font: inherit; }
+.promo-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.promo-rows:empty { display: none; }
+.promo-row { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--linha); border-radius: var(--r); background: var(--papel); }
+.promo-row-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.promo-row-head > span { display: grid; gap: 2px; }
+.promo-prices { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.promo-price { display: grid; gap: 4px; }
+.promo-price-head { display: flex; justify-content: space-between; gap: 8px; font-size: 15px; }
+.promo-price-head small { color: var(--muted); }
+.promo-price .calc-money { display: flex; align-items: center; gap: 6px; }
+.promo-price .calc-money input { width: 100%; min-height: 48px; padding: 8px 10px; border: 1.5px solid var(--linha-forte); border-radius: var(--r-sm); font: 600 18px var(--f-mono); }
+.promo-net { font-size: 14px; color: var(--pasto-700); min-height: 1.2em; }
+.promo-net.is-bad { color: var(--danger-fg); font-weight: 700; }
+.promo-off { margin: 0; font-size: 14.5px; color: var(--muted); align-self: center; }
+.promo-where { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.promo-where li { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--linha); border-radius: var(--r); }
+.promo-where li.is-todo { border-color: var(--warn-bd); background: var(--warn-bg); }
+.promo-where li .btn { justify-self: start; margin-top: 4px; }
+.promo-cell { display: grid; justify-items: end; gap: 2px; white-space: normal; text-align: right; }
+.promo-cell .sub { font-size: 14px; }
+@media (max-width: 640px) { .table td:not(:first-child) .promo-cell .sub { display: block; margin-left: 0; } }

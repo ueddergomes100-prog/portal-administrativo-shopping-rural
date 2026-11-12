@@ -2,6 +2,8 @@
 import { getStore, C } from '../store/index.js';
 import { listIntegrations } from './integrations.js';
 import { listAudit } from '../audit.js';
+import { getChannels } from './settings.js';
+import { TASK_ROLES } from './promotion-channels.js';
 import { canApprove, promotionPhase, todayInSaoPaulo, QUEUE_STAGES, PREPARERS } from '../../public/shared/domain.js';
 
 // AAAA-MM-DD -> DD/MM/AAAA para textos prontos da lista "Sua vez".
@@ -39,6 +41,21 @@ export async function dashboard(user) {
       const outdated = pending.some(c => i.listings?.[c.id]?.needsUpdate);
       push('queue', i.id, `${outdated ? 'Atualizar o anúncio de' : 'Colocar à venda:'} ${i.productSnapshot.name}`, `Falta em: ${pending.map(c => c.name).join(', ')}.`, `fila/${i.id}`, outdated ? 'Atualizar' : 'Colocar à venda');
     });
+  }
+  // Promoções aprovadas: Shopee/ML são cadastradas à mão — fica na lista até alguém marcar como feito.
+  if (TASK_ROLES.includes(user.role) && promotions.some(p => Object.keys(p.channelTasks || {}).length)) {
+    const channels = await getChannels();
+    const channelName = id => channels.find(c => c.id === id)?.name || id;
+    for (const p of promotions) {
+      for (const [ch, task] of Object.entries(p.channelTasks || {})) {
+        const count = (p.items || []).filter(i => i.channels?.[ch]).length;
+        if (task.status === 'pending' && p.status === 'approved' && p.end >= today) {
+          push('promotions', p.id, `${channelName(ch)}: cadastrar a promoção “${p.name}”`, `${count === 1 ? '1 produto' : `${count} produtos`}, de ${br(p.start)} a ${br(p.end)}. Os preços estão na promoção.`, `promocoes/${p.id}`, 'Ver os preços');
+        } else if (task.status === 'undo') {
+          push('promotions', p.id, `${channelName(ch)}: tirar a promoção “${p.name}”`, 'A promoção foi cancelada ou mudou. Volte os preços lá.', `promocoes/${p.id}`, 'Ver a promoção');
+        }
+      }
+    }
   }
   // Pedidos do site esperando a equipe da loja.
   if (['owner', 'manager', 'site'].includes(user.role)) {
