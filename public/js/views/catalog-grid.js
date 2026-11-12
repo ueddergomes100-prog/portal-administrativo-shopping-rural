@@ -7,7 +7,7 @@ import { get, post } from '../api.js';
 import { esc, icon, money, num, pageHead, empty, notice, button, toast, confirmDialog, statusTag } from '../ui.js';
 import { QUEUE_STAGES, SITE_CATEGORIES, SITE_PETS, SITE_UNITS, canApprove } from '../../shared/domain.js';
 import { uploadFile } from '../upload.js';
-import { prepareProductPhoto } from '../photo-studio.js';
+import { prepareProductPhoto, photoFile, canUndoCut, rememberOriginal, originalOf, forgetOriginal } from '../photo-studio.js';
 
 const DRAFT_KEY = 'sr-cadastro-grade';
 const CHUNK = 5; // produtos por envio: dá para mostrar o andamento e nenhum envio fica longo demais
@@ -69,9 +69,12 @@ const choose = map => [['', 'Escolha…'], ...Object.entries(map)];
 
 function photosHtml(id, refs) {
   return `${refs.map((ref, k) => `<div class="grade-photo">
-      ${/^https:\/\//.test(ref) ? `<img src="${esc(ref)}" alt="" loading="lazy">` : `<span class="photo-file">${icon('image')}<span class="mono">${esc(ref.split('/').pop())}</span></span>`}
-      ${k === 0 ? '<span class="grade-main">Principal</span>' : ''}
-      <button type="button" class="btn-icon" data-action="photo-remove" data-id="${esc(id)}" data-ref="${esc(ref)}" aria-label="Tirar esta foto">${icon('close')}</button>
+      <div class="grade-photo-img">
+        ${/^https:\/\//.test(ref) ? `<img src="${esc(ref)}" alt="" loading="lazy">` : `<span class="photo-file">${icon('image')}<span class="mono">${esc(ref.split('/').pop())}</span></span>`}
+        ${k === 0 ? '<span class="grade-main">Principal</span>' : ''}
+        <button type="button" class="btn-icon" data-action="photo-remove" data-id="${esc(id)}" data-ref="${esc(ref)}" aria-label="Tirar esta foto">${icon('close')}</button>
+      </div>
+      ${originalOf(ref) ? `<button type="button" class="photo-undo" data-action="photo-whole" data-id="${esc(id)}" data-ref="${esc(ref)}">Desfazer recorte</button>` : ''}
     </div>`).join('')}
     <label class="grade-drop">${icon('image')}<span><strong>${refs.length ? 'Mais uma foto' : 'Foto do produto'}</strong><small>Toque para escolher ou cole (Ctrl+V)</small></span>
       <input type="file" accept="image/*" multiple hidden data-change="photos" data-id="${esc(id)}"></label>`;
@@ -166,16 +169,18 @@ async function addPhotos(ctx, id, files) {
   try {
     for (const [k, file] of images.entries()) {
       const n = images.length > 1 ? ` ${k + 1} de ${images.length}` : '';
-      let upload = file, prepared = false;
+      let upload = file, prepared = false, cut = false;
       if (studio) {
         say(`Tirando o fundo da foto${n}… (a primeira demora um pouco)`);
-        const { blob, removed } = await prepareProductPhoto(file);
-        upload = new File([blob], `${(file.name || 'foto').replace(/\.[^.]+$/, '')}.${blob.type === 'image/webp' ? 'webp' : 'jpg'}`, { type: blob.type });
+        const { blob, removed, method } = await prepareProductPhoto(file);
+        upload = photoFile(blob, file);
         prepared = true;
         if (!removed) kept++;
+        cut = canUndoCut(method);
       }
       say(`Enviando foto${n}…`);
       const { ref } = await uploadFile(upload, 'product', { prepared });
+      if (cut) rememberOriginal(ref, file);
       const drafts = readDrafts();
       const d = drafts[id] ||= {};
       d.imageRefs = [...(d.imageRefs || []), ref].slice(0, 10);
@@ -297,6 +302,31 @@ export default {
       const box = document.querySelector(`[data-photos="${CSS.escape(el.dataset.id)}"]`);
       if (box) box.innerHTML = photosHtml(el.dataset.id, d.imageRefs);
       refreshCardStatus(ctx, el.dataset.id);
+    },
+    // Recorte ruim: refaz a foto inteira (com o fundo original, ainda no quadrado padrão) no mesmo lugar.
+    async 'photo-whole'(ctx, el) {
+      const { id, ref } = el.dataset;
+      const file = originalOf(ref);
+      if (!file) return;
+      el.disabled = true;
+      el.textContent = 'Refazendo…';
+      try {
+        const { blob } = await prepareProductPhoto(file, { removeBackground: false });
+        const { ref: whole } = await uploadFile(photoFile(blob, file), 'product', { prepared: true });
+        forgetOriginal(ref);
+        const drafts = readDrafts();
+        const d = drafts[id] ||= {};
+        d.imageRefs = (d.imageRefs || []).map(r => (r === ref ? whole : r));
+        writeDrafts(drafts);
+        const box = document.querySelector(`[data-photos="${CSS.escape(id)}"]`);
+        if (box) box.innerHTML = photosHtml(id, d.imageRefs);
+        refreshCardStatus(ctx, id);
+        toast('Pronto: a foto voltou inteira, com o fundo original.');
+      } catch (error) {
+        el.disabled = false;
+        el.textContent = 'Desfazer recorte';
+        throw error;
+      }
     },
     'fill-all'(ctx) {
       const values = Object.fromEntries([...document.querySelectorAll('[data-fill]')].map(el => [el.dataset.fill, el.value.trim()]).filter(([, v]) => v));

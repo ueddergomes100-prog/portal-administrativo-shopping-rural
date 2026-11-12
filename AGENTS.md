@@ -188,6 +188,10 @@ docs/                         arquitetura, API, dados, design, deploy, roteiro
 - **Cadastro em grade** (`views/catalog-grid.js`, `#/cadastro?ids=…`): marcar vários em Produtos, colar as
   fotos e preencher em cartões, enviar tudo por `POST /api/queue/bulk` (catálogo do site refeito uma vez).
   Rascunho guardado no aparelho (`localStorage`, chave `sr-cadastro-grade`).
+- **Estúdio de foto** (`public/js/photo-studio.js`, roda no navegador): fundo liso (a cor que domina a
+  borda) sai por preenchimento a partir das beiradas — nunca corta o que está dentro do contorno; só
+  fundo bagunçado vai para a IA (u2netp), com os buracos fechados depois. Toda foto recortada ganha
+  "Desfazer recorte" (refaz inteira, no quadrado padrão) enquanto a página não é recarregada.
 - Promoções com canais, líquido por canal e **pedido de arte no mesmo formulário**; campanhas idem.
 - Artes (quem pediu, prazo, arquivo, aprovação, canais onde saiu), **Agenda** mensal + próximos 90 dias.
 - Clientes interessados (leads): cadastro manual, **webhook de entrada** com deduplicação, importação do Meta Lead Ads.

@@ -8,7 +8,7 @@ import {
 import { QUEUE_STAGES, QUEUE_FLOW, PRIORITIES, LISTING_STATUS, SITE_CATEGORIES, SITE_PETS, SITE_UNITS, SITE_TAGS, canApprove } from '../../shared/domain.js';
 import { pricingEditor, pricingSummary, readPricing, pricingInputs, pricingChanges } from './pricing.js';
 import { uploadFile } from '../upload.js';
-import { prepareProductPhoto } from '../photo-studio.js';
+import { prepareProductPhoto, photoFile, canUndoCut, rememberOriginal, originalOf, forgetOriginal } from '../photo-studio.js';
 
 const TABS = [['flow', 'Em andamento'], ['blocked', 'Pausados'], ['archived', 'Guardados']];
 
@@ -256,6 +256,26 @@ const view = {
     },
     'photo-remove'(ctx, el) {
       el.closest('[data-photo]').remove();
+    },
+    // Recorte ruim: refaz a foto inteira (com o fundo original, ainda no quadrado padrão) no mesmo lugar.
+    async 'photo-whole'(ctx, el) {
+      const li = el.closest('[data-photo]');
+      const ref = li?.querySelector('input[name="imageRefs"]')?.value;
+      const file = ref && originalOf(ref);
+      if (!file) return;
+      el.disabled = true;
+      el.textContent = 'Refazendo…';
+      try {
+        const { blob } = await prepareProductPhoto(file, { removeBackground: false });
+        const { ref: whole } = await uploadFile(photoFile(blob, file), 'product', { prepared: true });
+        forgetOriginal(ref);
+        li.outerHTML = photoItem(whole);
+        toast('Pronto: a foto voltou inteira. Toque em “Salvar texto e fotos” para guardar.', 'info');
+      } catch (error) {
+        el.disabled = false;
+        el.textContent = 'Desfazer recorte';
+        throw error;
+      }
     }
   },
 
@@ -290,11 +310,14 @@ function photoItem(ref, { readonly = false } = {}) {
   const name = ref.split('/').pop();
   return `<li class="photo" data-photo>
     ${readonly ? '' : `<input type="hidden" name="imageRefs" value="${esc(ref)}">`}
-    ${remote ? `<img src="${esc(ref)}" alt="" loading="lazy">` : `<span class="photo-file">${icon('image')}<span class="mono">${esc(name)}</span></span>`}
-    ${readonly ? '' : `<span class="photo-actions">
-      <button type="button" class="btn-icon" data-action="photo-first" aria-label="Usar como foto principal" title="Usar como principal">${icon('arrow')}</button>
-      <button type="button" class="btn-icon" data-action="photo-remove" aria-label="Tirar esta foto" title="Tirar foto">${icon('close')}</button>
-    </span>`}
+    <div class="photo-box">
+      ${remote ? `<img src="${esc(ref)}" alt="" loading="lazy">` : `<span class="photo-file">${icon('image')}<span class="mono">${esc(name)}</span></span>`}
+      ${readonly ? '' : `<span class="photo-actions">
+        <button type="button" class="btn-icon" data-action="photo-first" aria-label="Usar como foto principal" title="Usar como principal">${icon('arrow')}</button>
+        <button type="button" class="btn-icon" data-action="photo-remove" aria-label="Tirar esta foto" title="Tirar foto">${icon('close')}</button>
+      </span>`}
+    </div>
+    ${!readonly && originalOf(ref) ? '<button type="button" class="photo-undo" data-action="photo-whole">Desfazer recorte</button>' : ''}
   </li>`;
 }
 
@@ -319,15 +342,18 @@ function addPhotos(files) {
       for (const [k, file] of images.entries()) {
         const n = images.length > 1 ? ` ${k + 1} de ${images.length}` : '';
         say(studio ? `Tirando o fundo da foto${n}… (a primeira demora um pouco)` : `Enviando foto${n}…`);
-        let upload = file, prepared = false;
+        let upload = file, prepared = false, cut = false;
         if (studio) {
-          const { blob, removed } = await prepareProductPhoto(file);
-          upload = new File([blob], `${(file.name || 'foto').replace(/\.[^.]+$/, '')}.${blob.type === 'image/webp' ? 'webp' : 'jpg'}`, { type: blob.type });
+          const { blob, removed, method } = await prepareProductPhoto(file);
+          upload = photoFile(blob, file);
           prepared = true;
           if (!removed) kept++;
+          cut = canUndoCut(method);
         }
         say(`Enviando foto${n}…`);
-        addPhoto((await uploadFile(upload, 'product', { prepared })).ref);
+        const { ref } = await uploadFile(upload, 'product', { prepared });
+        if (cut) rememberOriginal(ref, file);
+        addPhoto(ref);
       }
       say('');
       toast(kept ? `Foto(s) prontas, mas ${kept} ficou(aram) com o fundo original. Toque em “Salvar texto e fotos”.` : 'Foto(s) prontas. Toque em “Salvar texto e fotos” para guardar.', kept ? 'warn' : 'info');
