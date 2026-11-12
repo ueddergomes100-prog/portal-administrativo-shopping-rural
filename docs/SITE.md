@@ -97,7 +97,31 @@ reenviar o pedido; só `cancelado` sobrescreve.
 
 Etapas (iguais às do site): `aguardando_pagamento → pago → separando → pronto_retirada | enviado → entregue`
 (ou `cancelado`). No portal: **pago → separando** e **separando → pronto para retirar** (só retirada) ou
-**enviado** (exige rastreio) → **entregue**; cancelar exige motivo (dono/gerente).
+**enviado** (exige rastreio, menos motoboy) → **entregue**; cancelar exige motivo (dono/gerente).
+
+## Frete — servidor do site → portal (com o mesmo token)
+
+As regras de frete ficam no portal (**Ajustes › Frete e entrega**); o site só pergunta o preço.
+
+### `POST /api/store/shipping/quote`
+Corpo: `{ "cep": "35500001", "items": [{ "sku": "2654", "qty": 1 }], "city": "Divinópolis", "state": "MG" }`
+(`city`/`state` são opcionais — mande quando já souber pelo endereço; sem eles o portal descobre pelo CEP
+no ViaCEP, e CEP geral de cidade, terminado em 000, não traz cidade). Preço e peso vêm do catálogo do
+portal, nunca do corpo.
+
+Resposta: `{ "options": ShippingOption[], "notices": string[], "subtotal": number }`, com
+`ShippingOption = { id, label, description, price, days }`:
+
+| `id` | O que é | `days` |
+|---|---|---|
+| `motoboy` | entrega da loja na cidade do cliente (preço por cidade; some abaixo do pedido mínimo; grátis a partir do valor definido) | `[0, 0]` = hoje, `[1, 1]` = amanhã… |
+| `me-<n>` | transportadora cotada no Melhor Envio (`me-1` Correios PAC, `me-2` SEDEX, `me-17` Mini Envios, `me-3` Jadlog .Package, `me-4` Jadlog .Com) | dias úteis `[mín, máx]`, já com os dias de separação |
+| `retirada` | retirar na loja, sem custo | `null` |
+
+`notices` são frases prontas para mostrar no checkout (ex.: "Entrega de motoboy em Divinópolis para compras a
+partir de R$ 50,00. Faltam R$ 20,00."). A mesma pergunta é respondida da memória por 10 minutos — o site pode
+repetir a cotação ao fechar o pedido e conferir que a opção escolhida (`id` e `price`) continua igual.
+No pedido (`POST /api/store/orders`), `delivery.method` aceita esses mesmos `id`s.
 
 ## Avisos do site → leads (com o mesmo token)
 
@@ -118,5 +142,6 @@ Contato repetido (mesmo e-mail/telefone, lead em aberto) vira comentário no lea
 3. Webhook do gateway → `PATCH /api/store/orders/:id` no portal.
 4. `/api/orders/:id` e `/api/me/orders`: ler do portal (`GET /api/store/orders/:id`).
 5. `/api/contact`, `/api/newsletter`, `/api/restock-alerts`: repassar ao portal.
-6. Frete (`/api/shipping/quote`, ex.: Melhor Envio), cupons e conta do cliente: no próprio site.
+6. Frete: `/api/shipping/quote` e o recálculo do pedido perguntam ao portal (`POST /api/store/shipping/quote`).
+   Cupons e conta do cliente: no próprio site.
 7. Na tela **Canais e taxas** do portal, colocar a taxa do gateway no canal "Site próprio".

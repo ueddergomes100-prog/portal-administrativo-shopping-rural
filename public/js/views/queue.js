@@ -479,6 +479,13 @@ function renderItem(ctx, item, entries, campaigns, channels, product = null) {
             ${field('measureValue', 'Medida', { type: 'number', min: 0, step: '0.001', value: c.measureValue ?? '', hint: 'Ex.: 15 para 15 kg; 1 para 1 unidade.' })}
             ${field('measureUnit', 'Unidade', { type: 'select', value: c.measureUnit || 'un', options: Object.entries(SITE_UNITS) })}
             ${field('weightKg', 'Peso para frete (kg)', { type: 'number', min: 0, step: '0.001', value: c.weightKg ?? '', hint: 'Preencha quando a medida não for em kg.' })}
+            <div class="field full dims-row"><span class="field-label">Medidas da embalagem (cm) — para o frete dos Correios e Jadlog</span>
+              <div class="dims">
+                ${field('heightCm', 'Altura', { type: 'number', min: 0, step: '0.1', value: c.heightCm ?? '' })}
+                ${field('widthCm', 'Largura', { type: 'number', min: 0, step: '0.1', value: c.widthCm ?? '' })}
+                ${field('lengthCm', 'Comprimento', { type: 'number', min: 0, step: '0.1', value: c.lengthCm ?? '' })}
+              </div>
+              <small class="hint">Pode deixar em branco: o frete usa uma caixa padrão pelo peso.</small></div>
             ${field('short', 'Resumo curto (aparece na vitrine do site)', { full: true, value: c.short, max: 160, placeholder: 'Ex.: Mix de carnes, sem corantes, 4 fontes de proteína animal.' })}
             ${field('specs', 'Detalhes (um por linha, assim: Nome: valor)', { type: 'textarea', full: true, rows: 4, value: (c.specs || []).map(x => `${x.label}: ${x.value}`).join('\n'), placeholder: 'Porte: Médio e grande\nFase: Adulto' })}
           </div>
@@ -507,7 +514,7 @@ function renderItem(ctx, item, entries, campaigns, channels, product = null) {
         <div><dt>Descrição</dt><dd class="prose">${c.description ? esc(c.description).replaceAll('\n', '<br>') : '<span class="muted">Ainda não escrita</span>'}</dd></div>
         <div><dt>Título para o Google</dt><dd>${esc(c.seoTitle || '—')}</dd></div>
         <div><dt>Descrição para o Google</dt><dd>${esc(c.seoDescription || '—')}</dd></div>
-        <div><dt>No site</dt><dd>${esc([SITE_CATEGORIES[c.siteCategory], SITE_PETS[c.pet], c.brand, c.measureValue ? `${c.measureValue} ${c.measureUnit}` : '', c.weightKg ? `${c.weightKg} kg para frete` : '', c.tag].filter(Boolean).join(' · ') || '—')}</dd></div>
+        <div><dt>No site</dt><dd>${esc([SITE_CATEGORIES[c.siteCategory], SITE_PETS[c.pet], c.brand, c.measureValue ? `${c.measureValue} ${c.measureUnit}` : '', c.weightKg ? `${c.weightKg} kg para frete` : '', c.heightCm && c.widthCm && c.lengthCm ? `caixa ${c.heightCm}×${c.widthCm}×${c.lengthCm} cm` : '', c.tag].filter(Boolean).join(' · ') || '—')}</dd></div>
         <div><dt>Resumo</dt><dd>${esc(c.short || '—')}</dd></div>
         ${(c.specs || []).length ? `<div><dt>Detalhes</dt><dd>${c.specs.map(x => `${esc(x.label)}: ${esc(x.value)}`).join('<br>')}</dd></div>` : ''}
         <div><dt>Anotações da equipe</dt><dd>${esc(c.siteNotes || '—')}</dd></div>

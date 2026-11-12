@@ -31,6 +31,7 @@ function startingPoint(product, item) {
     price: site?.price ?? product.basePrice ?? '',
     brand: c.brand || '', siteCategory: c.siteCategory || '', pet: c.pet || '',
     measureValue: c.measureValue ?? '', measureUnit: c.measureUnit || 'un', weightKg: c.weightKg ?? '',
+    heightCm: c.heightCm ?? '', widthCm: c.widthCm ?? '', lengthCm: c.lengthCm ?? '',
     short: c.short || '', description: c.description || '', imageRefs: c.imageRefs || []
   };
 }
@@ -120,6 +121,13 @@ function card(row, d, error) {
       ${control(id, 'measureValue', 'Medida', d.measureValue, { type: 'number', step: '0.001', inputmode: 'decimal', hint: 'Ex.: 15 (kg) ou 1 (unidade).' })}
       ${control(id, 'measureUnit', 'Unidade', d.measureUnit, { options: Object.entries(SITE_UNITS) })}
       ${control(id, 'weightKg', 'Peso para frete (kg)', d.weightKg, { type: 'number', step: '0.001', inputmode: 'decimal', hint: 'Só se a medida não for em kg.' })}
+      <div class="field full dims-row"><span class="field-label">Medidas da embalagem (cm) — para o frete</span>
+        <div class="dims">
+          ${control(id, 'heightCm', 'Altura', d.heightCm, { type: 'number', step: '0.1', inputmode: 'decimal' })}
+          ${control(id, 'widthCm', 'Largura', d.widthCm, { type: 'number', step: '0.1', inputmode: 'decimal' })}
+          ${control(id, 'lengthCm', 'Comprimento', d.lengthCm, { type: 'number', step: '0.1', inputmode: 'decimal' })}
+        </div>
+        <small class="hint">Pode deixar em branco: o frete usa uma caixa padrão pelo peso.</small></div>
       ${control(id, 'short', 'Resumo curto (vitrine)', d.short, { full: true, max: 160 })}
       ${control(id, 'description', 'Descrição', d.description, { type: 'textarea', full: true, max: 20000, hint: 'Pelo menos 30 letras.' })}
     </div>
@@ -369,7 +377,8 @@ export default {
             ...(item ? {} : { price: Number(d.price), packageId: d.packageId || '' }),
             content: {
               title: d.title, description: d.description, brand: d.brand, siteCategory: d.siteCategory, pet: d.pet,
-              measureValue: d.measureValue, measureUnit: d.measureUnit, weightKg: d.weightKg, short: d.short, imageRefs: d.imageRefs
+              measureValue: d.measureValue, measureUnit: d.measureUnit, weightKg: d.weightKg,
+              heightCm: d.heightCm, widthCm: d.widthCm, lengthCm: d.lengthCm, short: d.short, imageRefs: d.imageRefs
             }
           };
         });

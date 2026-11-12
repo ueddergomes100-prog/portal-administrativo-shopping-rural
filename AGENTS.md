@@ -188,6 +188,10 @@ docs/                         arquitetura, API, dados, design, deploy, roteiro
 - **Cadastro em grade** (`views/catalog-grid.js`, `#/cadastro?ids=…`): marcar vários em Produtos, colar as
   fotos e preencher em cartões, enviar tudo por `POST /api/queue/bulk` (catálogo do site refeito uma vez).
   Rascunho guardado no aparelho (`localStorage`, chave `sr-cadastro-grade`).
+- **Frete e entrega** (`server/services/shipping.js`, tela `#/frete`): regras em `settings/shipping` (motoboy
+  por cidade com pedido mínimo e grátis a partir de; Correios/Jadlog pelo Melhor Envio; retirada). O site
+  cota em `POST /api/store/shipping/quote` (preço e peso sempre do catálogo do portal). Medidas da caixa
+  (`heightCm`/`widthCm`/`lengthCm`) no anúncio; em branco, caixa padrão pelo peso.
 - **Estúdio de foto** (`public/js/photo-studio.js`, roda no navegador): fundo liso (a cor que domina a
   borda) sai por preenchimento a partir das beiradas — nunca corta o que está dentro do contorno; só
   fundo bagunçado vai para a IA (u2netp), com os buracos fechados depois. Toda foto recortada ganha

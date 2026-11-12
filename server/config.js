@@ -93,6 +93,14 @@ export const config = {
     portalPublicUrl: env('PORTAL_PUBLIC_URL').replace(/\/$/, '')
   },
 
+  // Frete por transportadora (Correios e Jadlog) cotado no Melhor Envio. O token é gerado no painel do
+  // Melhor Envio; o e-mail de contato vai no cabeçalho User-Agent, que a API exige.
+  melhorEnvio: {
+    token: env('MELHOR_ENVIO_TOKEN'),
+    sandbox: env('MELHOR_ENVIO_SANDBOX') === 'true',
+    contact: env('MELHOR_ENVIO_CONTACT')
+  },
+
   // Indicadores sincronizados automaticamente a cada N horas (0 = só manual).
   metricsSyncHours: Number(process.env.METRICS_SYNC_HOURS ?? 6) || 0,
   ga4: { propertyId: env('GA4_PROPERTY_ID'), credentials: env('GOOGLE_SERVICE_ACCOUNT_JSON') },

@@ -15,8 +15,8 @@ import { setIntegrationState } from './integrations.js';
 import { catalogSnapshot, toSiteProduct } from './catalog.js';
 import { receiveLead } from './leads-inbound.js';
 import {
-  todayInSaoPaulo, ORDER_STATUS, ORDER_TRANSITIONS, PAYMENT_STATUS, PAYMENT_METHODS, DELIVERY_METHODS,
-  findTransition, roleMatches, availableTransitions
+  todayInSaoPaulo, ORDER_STATUS, ORDER_TRANSITIONS, PAYMENT_STATUS, PAYMENT_METHODS,
+  findTransition, roleMatches, availableTransitions, isDeliveryMethod
 } from '../../public/shared/domain.js';
 
 const SYSTEM = { id: 'site', name: 'Site próprio', role: 'system' };
@@ -85,7 +85,8 @@ function readSiteOrder(input) {
       unitPrice: money(i.unitPrice, 'Preço do item'), qty: Math.max(1, Math.floor(Number(i.qty) || 1))
     })),
     delivery: {
-      method: clean.oneOf(delivery.method, Object.keys(DELIVERY_METHODS), { label: 'Entrega', fallback: 'economica' }),
+      // Retirada, motoboy, as antigas econômica/expressa ou uma transportadora do Melhor Envio (me-<id>).
+      method: isDeliveryMethod(delivery.method) ? String(delivery.method) : 'economica',
       label: clean.text(delivery.label, { max: 80 }),
       price: money(delivery.price, 'Frete'),
       days: Array.isArray(delivery.days) ? delivery.days.slice(0, 2).map(Number) : null,
@@ -177,7 +178,8 @@ export async function moveOrder(user, id, { to, trackingCode, note }) {
   if (transition.delivery === 'retirada' && order.delivery?.method !== 'retirada') throw badRequest('Este pedido é para entregar, não para retirar na loja.');
   if (transition.delivery === 'entrega' && order.delivery?.method === 'retirada') throw badRequest('Este pedido é para retirada na loja.');
   const code = clean.text(trackingCode, { max: 80, label: 'Código de rastreio' });
-  if (transition.requires === 'tracking' && !code) throw badRequest('Digite o código de rastreio dos Correios ou da transportadora.');
+  // Motoboy da loja não tem código de rastreio.
+  if (transition.requires === 'tracking' && !code && order.delivery?.method !== 'motoboy') throw badRequest('Digite o código de rastreio dos Correios ou da transportadora.');
   const cleanNote = clean.text(note, { max: 500, label: 'Motivo' });
   if (transition.requires === 'note' && !cleanNote) throw badRequest('Escreva o motivo do cancelamento.');
   const patch = {
@@ -194,7 +196,7 @@ export async function moveOrder(user, id, { to, trackingCode, note }) {
 export function orderTransitions(order, user) {
   return availableTransitions(ORDER_TRANSITIONS, order.status, user)
     .filter(t => !t.delivery || (t.delivery === 'retirada') === (order.delivery?.method === 'retirada'))
-    .map(t => ({ to: t.to, label: t.label, requires: t.requires || null }));
+    .map(t => ({ to: t.to, label: t.label, requires: t.requires === 'tracking' && order.delivery?.method === 'motoboy' ? null : t.requires || null }));
 }
 
 // ---------------------------------------------------------------------------

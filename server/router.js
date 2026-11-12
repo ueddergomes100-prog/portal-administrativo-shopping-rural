@@ -16,6 +16,7 @@ import { listRecords, getRecord, createRecord, updateRecord, transitionRecord, a
 import { listUsers, createUser, updateUser } from './services/users.js';
 import { listOrders } from './services/orders.js';
 import { getChannels, updateChannels } from './services/settings.js';
+import { getShippingSettings, updateShippingSettings, shippingStatus, quoteForSite, simulateShipping } from './services/shipping.js';
 import { listMetrics, syncMetrics } from './services/metrics.js';
 import { receiveLead, importMetaLeads } from './services/leads-inbound.js';
 import { listIntegrations, updateIntegrationSettings } from './services/integrations.js';
@@ -111,10 +112,15 @@ const routes = [
   ['POST', '/api/store/contact', ({ body }) => siteContact(body), { auth: 'store' }],
   ['POST', '/api/store/newsletter', ({ body }) => siteNewsletter(body), { auth: 'store' }],
   ['POST', '/api/store/restock-alerts', ({ body }) => siteRestockAlert(body), { auth: 'store' }],
+  // Frete do checkout: motoboy por cidade, Correios/Jadlog (Melhor Envio) e retirada (docs/SITE.md).
+  ['POST', '/api/store/shipping/quote', ({ body }) => quoteForSite(body), { auth: 'store' }],
 
   // Canais de venda e taxas
   ['GET', '/api/settings/channels', async () => ({ channels: await getChannels() })],
   ['PUT', '/api/settings/channels', async ({ user, body }) => ({ channels: await updateChannels(user, body) })],
+  ['GET', '/api/settings/shipping', async () => ({ settings: await getShippingSettings(), ...shippingStatus() })],
+  ['PUT', '/api/settings/shipping', async ({ user, body }) => ({ settings: await updateShippingSettings(user, body), ...shippingStatus() })],
+  ['POST', '/api/shipping/simulate', ({ user, body }) => simulateShipping(user, body)],
 
   // Indicadores de mídia (GA4, Google Ads, Meta Ads)
   ['GET', '/api/metrics', async () => ({ metrics: await listMetrics() })],

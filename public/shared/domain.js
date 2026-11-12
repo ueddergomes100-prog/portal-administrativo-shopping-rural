@@ -205,7 +205,21 @@ export const ORDER_TRANSITIONS = [
 ];
 export const PAYMENT_STATUS = { pendente: 'Pendente', aprovado: 'Aprovado', recusado: 'Recusado', expirado: 'Expirado' };
 export const PAYMENT_METHODS = { pix: 'Pix', cartao: 'Cartão', boleto: 'Boleto' };
-export const DELIVERY_METHODS = { retirada: 'Retirada na loja', economica: 'Entrega econômica', expressa: 'Entrega expressa' };
+export const DELIVERY_METHODS = { retirada: 'Retirada na loja', motoboy: 'Entrega de motoboy', economica: 'Entrega econômica', expressa: 'Entrega expressa' };
+// Entregas por transportadora cotadas no Melhor Envio: 'me-<id do serviço>' (ex.: me-1 = Correios PAC).
+export const isDeliveryMethod = method => Object.hasOwn(DELIVERY_METHODS, method) || /^me-\d{1,4}$/.test(String(method));
+
+// Serviços do Melhor Envio que a loja pode oferecer no site (ids da API do Melhor Envio).
+export const CARRIER_SERVICES = {
+  1: 'Correios PAC',
+  2: 'Correios SEDEX',
+  17: 'Correios Mini Envios',
+  3: 'Jadlog .Package',
+  4: 'Jadlog .Com'
+};
+
+// Estados do Brasil (para as cidades da entrega de motoboy).
+export const BR_STATES = ['AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT', 'PA', 'PB', 'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO'];
 
 // ---------------------------------------------------------------------------
 // Cadastro do produto no site — mesmas chaves do site (src/data/products.ts).

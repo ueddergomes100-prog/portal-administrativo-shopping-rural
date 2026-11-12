@@ -62,6 +62,7 @@ Fonte: `server/router.js`. Regras: `server/services/*`. Papéis: `owner`, `manag
 | GET | `/store/orders/:id` | `STORE_API_TOKEN` | pedido com andamento atual (para o site) |
 | PATCH | `/store/orders/:id` | `STORE_API_TOKEN` | `{ status?, payment? }` vindo do gateway |
 | POST | `/store/contact`, `/store/newsletter`, `/store/restock-alerts` | `STORE_API_TOKEN` | viram leads |
+| POST | `/store/shipping/quote` | `STORE_API_TOKEN` | `{cep, items:[{sku,qty}], city?, state?}` → `{options, notices, subtotal}` (docs/SITE.md) |
 
 Erros dessas rotas trazem `message` (campo que o site lê) além de `error`.
 
@@ -71,6 +72,9 @@ Erros dessas rotas trazem `message` (campo que o site lê) além de `error`.
 |---|---|---|---|
 | GET | `/settings/channels` | todos | canais com `percent`, `fixed`, `fixedBelow`, `integration`, `active` |
 | PUT | `/settings/channels` | dono | `{items:[...]}` substitui a tabela (auditado) |
+| GET | `/settings/shipping` | todos | regras de frete + `melhorEnvio: {configured, sandbox, demo}` |
+| PUT | `/settings/shipping` | dono, gerente | `{originCep, pickup, motoboy:{enabled, areas[]}, carriers}` (auditado) |
+| POST | `/shipping/simulate` | dono, gerente | `{cep, subtotal, weightKg, settings?}` — testa um CEP com as regras da tela |
 
 ## Indicadores e entrada de leads
 

@@ -149,7 +149,8 @@ export async function selectProduct(user, input) {
     content: {
       title: product.name, description: '', seoTitle: '', seoDescription: '', category: product.category, imageRefs: [], siteNotes: '',
       // Campos que o site próprio exibe (ver docs/SITE.md).
-      brand: '', pet: '', siteCategory: '', measureValue: null, measureUnit: 'un', weightKg: null, tag: '', short: '', specs: []
+      brand: '', pet: '', siteCategory: '', measureValue: null, measureUnit: 'un', weightKg: null,
+      heightCm: null, widthCm: null, lengthCm: null, tag: '', short: '', specs: []
     },
     requestedBy: { id: user.id, name: user.name },
     createdAt: now(), updatedAt: now(), updatedBy: user.id
@@ -250,6 +251,10 @@ function readSiteFields(input, current = {}) {
     measureValue: optionalNumber(pick('measureValue'), 'Medida'),
     measureUnit: clean.oneOf(pick('measureUnit') || 'un', Object.keys(SITE_UNITS), { label: 'Unidade da medida' }),
     weightKg: optionalNumber(pick('weightKg'), 'Peso para frete'),
+    // Medidas da embalagem (cm), para o frete dos Correios e Jadlog. Em branco: caixa padrão pelo peso.
+    heightCm: optionalNumber(pick('heightCm'), 'Altura da embalagem'),
+    widthCm: optionalNumber(pick('widthCm'), 'Largura da embalagem'),
+    lengthCm: optionalNumber(pick('lengthCm'), 'Comprimento da embalagem'),
     tag: clean.oneOf(pick('tag') || '', SITE_TAGS, { label: 'Selo' }),
     short: clean.text(pick('short'), { max: 160, label: 'Resumo' }),
     specs: readSpecs(pick('specs'))

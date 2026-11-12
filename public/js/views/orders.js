@@ -40,7 +40,7 @@ const view = {
       <tbody>${list.map(o => `<tr class="row-link" data-action="open" data-id="${esc(o.id)}" tabindex="0">
         <td class="mono">${esc(o.number)}</td><td>${esc(o.customer?.name || '—')}<span class="sub">${esc(o.customer?.phone || o.customer?.email || '')}</span></td>
         <td class="nowrap">${dateTime(o.createdAt)}</td>
-        <td>${esc(DELIVERY_METHODS[o.delivery?.method] || '—')}</td>
+        <td>${esc(DELIVERY_METHODS[o.delivery?.method] || o.delivery?.label || '—')}</td>
         <td class="num mono">${money(total(o))}<span class="sub">${esc(PAYMENT_METHODS[o.payment?.method] || '')}</span></td>
         <td>${statusTag(ORDER_STATUS, o.status)}</td></tr>`).join('')}
       </tbody></table></div></section>`;

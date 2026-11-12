@@ -40,6 +40,8 @@ function entry(item, product) {
     pet: c.pet || 'ambos',
     measure: { value: c.measureValue || 1, unit: c.measureUnit || 'un' },
     weightKg: c.weightKg || null,
+    // Medidas da embalagem para cotar frete (só no portal; o site não precisa delas).
+    dims: c.heightCm && c.widthCm && c.lengthCm ? { heightCm: c.heightCm, widthCm: c.widthCm, lengthCm: c.lengthCm } : null,
     tag: c.tag || '',
     short: c.short || '',
     description: c.description || '',

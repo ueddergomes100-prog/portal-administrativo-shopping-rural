@@ -37,6 +37,17 @@ o mapeamento na função correspondente e acrescente o caso ao teste.
 - Variáveis: `STORE_API_TOKEN`, `STORE_PUBLIC_URL`, `STORE_PRODUCT_PATH`, `STORE_ALLOWED_ORIGINS`, `PORTAL_PUBLIC_URL`.
 - Contrato completo (catálogo, fotos, pedidos, fluxo do gateway): `docs/SITE.md`.
 
+## Frete: Melhor Envio (Correios e Jadlog)
+- Uma conta no Melhor Envio cota Correios (PAC, SEDEX, Mini Envios) e Jadlog (.Package, .Com) sem contrato
+  com cada transportadora. As regras (motoboy por cidade, pedido mínimo, frete grátis, retirada) ficam em
+  **Ajustes › Frete e entrega**; o site pergunta o preço ao portal (`docs/SITE.md`, seção Frete).
+- Variáveis: `MELHOR_ENVIO_TOKEN` (gerado no painel do Melhor Envio, em Integrações › Permissões de acesso,
+  com a permissão de calcular frete), `MELHOR_ENVIO_CONTACT` (e-mail da loja — a API exige no cabeçalho
+  User-Agent) e `MELHOR_ENVIO_SANDBOX=true` para testar no ambiente de teste (o token precisa ser de lá).
+- Sem token, o site mostra só motoboy e retirada. Na demonstração, os preços das transportadoras são de exemplo.
+- Medidas da caixa: campos Altura/Largura/Comprimento do anúncio; em branco, uma caixa padrão pelo peso
+  (`defaultBox` em `server/services/shipping.js`).
+
 ## Shopee e Mercado Livre
 - Sem integração por decisão da loja. O dono define preço por canal (com taxa e líquido) e o
   responsável anuncia no painel de cada marketplace e registra o link na ficha do produto.
