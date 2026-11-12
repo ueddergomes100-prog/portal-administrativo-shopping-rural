@@ -54,9 +54,12 @@ o mapeamento na função correspondente e acrescente o caso ao teste.
 - Taxas: ajuste em **Canais e taxas** (comissão, tarifa fixa e "tarifa só abaixo de").
 
 ## Google Analytics 4
-1. Google Cloud → criar conta de serviço → gerar chave JSON. Ativar a "Google Analytics Data API".
+1. Ativar a "Google Analytics Data API" no projeto do Google Cloud da conta de serviço. Sem
+   `GOOGLE_SERVICE_ACCOUNT_JSON`, o portal usa a conta do Firebase (`FIREBASE_SERVICE_ACCOUNT_JSON`,
+   projeto `portalspr-e0490`) — não precisa criar outra chave. O cartão em Conexões mostra o e-mail.
 2. GA4 → Administrador → Gerenciamento de acesso à propriedade → adicionar o e-mail da conta de serviço como **Leitor**.
-3. Variáveis: `GA4_PROPERTY_ID` (número da propriedade), `GOOGLE_SERVICE_ACCOUNT_JSON` (JSON em uma linha).
+3. Variáveis: `GA4_PROPERTY_ID` (número da propriedade, não o `G-…`) e, só se for outra conta,
+   `GOOGLE_SERVICE_ACCOUNT_JSON` (JSON em uma linha).
 4. Métricas usadas: `sessions`, `totalUsers`, `keyEvents`, `totalRevenue`, por `sessionDefaultChannelGroup`.
 5. No site próprio, instale a tag do GA4 e marque a compra (`purchase`) como evento-chave.
 

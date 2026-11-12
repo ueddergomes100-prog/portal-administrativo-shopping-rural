@@ -6,9 +6,9 @@ import { INTEGRATION_STATUS } from '../../shared/domain.js';
 const HELP = {
   uniplus: 'O servidor da loja lê a API local do UniPlus e atualiza o catálogo no intervalo de UNIPLUS_SYNC_SECONDS. Com o portal na Vercel, rode `npm run connector` na máquina do UniPlus.',
   site: 'O site próprio lê o catálogo publicado em /api/store/catalog e envia os pedidos (com a situação do pagamento) para /api/store/orders usando STORE_API_TOKEN. Contrato completo em docs/SITE.md.',
-  ga4: 'Crie uma conta de serviço no Google Cloud, dê acesso de leitor à propriedade GA4 e informe o JSON no servidor.',
+  ga4: '1) No Google Cloud do projeto do portal, ative a “Google Analytics Data API”. 2) No Google Analytics, em Administrador › Gerenciamento de acesso à propriedade, dê acesso de Leitor ao e-mail mostrado acima. 3) Coloque o número da propriedade (Administrador › Detalhes da propriedade) em GA4_PROPERTY_ID na Vercel e publique de novo. O site precisa ter a tag do Analytics instalada.',
   googleads: 'Requer developer token aprovado, ID do cliente, app OAuth (client id/secret) e refresh token da conta de anúncios.',
-  metaads: 'Gere um token de usuário do sistema no Gerenciador de Negócios com acesso à conta de anúncios (permissão ads_read). Para leads, um token da página com leads_retrieval.',
+  metaads: 'No Gerenciador de Negócios da Meta, crie um usuário do sistema, dê a ele acesso à conta de anúncios e gere um token com a permissão ads_read. Coloque na Vercel META_AD_ACCOUNT_ID (o número da conta de anúncios) e META_ACCESS_TOKEN, e publique de novo. Para trazer os contatos dos formulários do Facebook/Instagram, um token da página com leads_retrieval.',
   leads: 'Defina LEADS_WEBHOOK_TOKEN no servidor. Ferramentas externas enviam leads para /api/leads/inbound com esse token (detalhes em Resultados).'
 };
 
@@ -34,6 +34,7 @@ export default {
           ${i.settings?.storeUrl ? `<div><dt>Endereço</dt><dd><a href="${esc(i.settings.storeUrl)}" target="_blank" rel="noopener noreferrer">${esc(i.settings.storeUrl)} ${icon('external')}</a></dd></div>` : ''}
         </dl>
         ${i.lastError ? notice(`<strong>Problema${i.lastErrorAt ? ' ' + esc(relative(i.lastErrorAt)) : ''}:</strong> ${esc(i.lastError)}`, 'danger') : ''}
+        ${i.accessEmail && i.status !== 'connected' ? notice(`No Google Analytics, dê acesso de <strong>Leitor</strong> para este e-mail:<br><code class="int-email">${esc(i.accessEmail)}</code>`, 'info') : ''}
         ${i.missingEnv.length ? '<p class="hint">Falta terminar a ligação. Quem instala o portal vê o que falta em “Como ligar”.</p>' : ''}
         ${!i.implemented ? '<p class="hint">Esta conexão ainda não está pronta no portal. Vem numa próxima etapa.</p>' : ''}
         <details class="int-help"><summary>Como ligar (para quem instala o portal)</summary><p>${esc(HELP[i.id])}</p>${i.missingEnv.length ? `<p class="hint">Falta no servidor: ${i.missingEnv.map(v => `<code>${esc(v)}</code>`).join(' ')}</p>` : ''}</details>

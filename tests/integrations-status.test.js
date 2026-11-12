@@ -11,6 +11,9 @@ process.env.DATA_BACKEND = 'local';
 process.env.DATA_DIR = dir;
 process.env.CONNECTOR_TOKEN = 'conector-de-teste';
 process.env.UNIPLUS_API_URL = '';
+process.env.GOOGLE_SERVICE_ACCOUNT_JSON = '';
+process.env.GA4_PROPERTY_ID = '';
+process.env.FIREBASE_SERVICE_ACCOUNT_JSON = JSON.stringify({ client_email: 'portal@projeto-teste.iam.gserviceaccount.com', private_key: 'x' });
 
 const { config } = await import('../server/config.js');
 const { getStore } = await import('../server/store/index.js');
@@ -31,6 +34,14 @@ test('UniPlus pelo conector: funcionando, sem nada faltando; parado há horas: c
   const quiet = await uniplus();
   assert.equal(quiet.status, 'error');
   assert.match(quiet.lastError, /computador da loja parou/);
+});
+
+test('Google Analytics usa a conta do Firebase: falta só o número da propriedade e mostra o e-mail para dar acesso', async () => {
+  const ga4 = (await listIntegrations()).find(i => i.id === 'ga4');
+  assert.equal(ga4.status, 'not_connected');
+  assert.deepEqual(ga4.missingEnv, ['GA4_PROPERTY_ID']);
+  assert.equal(ga4.accessEmail, 'portal@projeto-teste.iam.gserviceaccount.com');
+  assert.equal(config.ga4.credentials, process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
 });
 
 test.after(() => fs.rmSync(dir, { recursive: true, force: true }));

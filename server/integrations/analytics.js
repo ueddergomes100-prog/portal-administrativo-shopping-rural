@@ -32,12 +32,26 @@ export const ga4Configured = () => !!(config.ga4.propertyId && config.ga4.creden
 
 async function ga4Report(token, body) {
   const url = `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(config.ga4.propertyId)}:runReport`;
-  return json(await fetch(url, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(30_000)
-  }), 'Google Analytics');
+  try {
+    return await json(await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(30_000)
+    }), 'Google Analytics');
+  } catch (error) {
+    // Os dois tropeços mais comuns, em português e dizendo o que fazer.
+    const text = String(error.message);
+    if (/has not been used|SERVICE_DISABLED|is disabled/i.test(text)) {
+      throw codedError('A "Google Analytics Data API" está desligada no projeto do Google Cloud. Ative em console.cloud.google.com › APIs e serviços › Biblioteca e tente de novo em alguns minutos.', 'GA4_API_DISABLED');
+    }
+    if (/PERMISSION_DENIED|sufficient permissions|403/i.test(text)) {
+      let email = '';
+      try { email = JSON.parse(config.ga4.credentials).client_email || ''; } catch { /* sem e-mail */ }
+      throw codedError(`O Google Analytics não deixou ler os números. Confira o número da propriedade (GA4_PROPERTY_ID) e dê acesso de Leitor${email ? ` para ${email}` : ''} em Administrador › Gerenciamento de acesso à propriedade.`, 'GA4_NO_ACCESS');
+    }
+    throw error;
+  }
 }
 
 export async function fetchGa4() {

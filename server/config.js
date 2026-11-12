@@ -103,7 +103,13 @@ export const config = {
 
   // Indicadores sincronizados automaticamente a cada N horas (0 = só manual).
   metricsSyncHours: Number(process.env.METRICS_SYNC_HOURS ?? 6) || 0,
-  ga4: { propertyId: env('GA4_PROPERTY_ID'), credentials: env('GOOGLE_SERVICE_ACCOUNT_JSON') },
+  // GA4: sem GOOGLE_SERVICE_ACCOUNT_JSON, usa a mesma conta de serviço do Firebase (é só dar a ela
+  // acesso de Leitor na propriedade do Analytics e ativar a "Google Analytics Data API" no projeto).
+  ga4: {
+    propertyId: env('GA4_PROPERTY_ID').replace(/^properties\//, '').trim(),
+    credentials: env('GOOGLE_SERVICE_ACCOUNT_JSON') || env('FIREBASE_SERVICE_ACCOUNT_JSON'),
+    sharedWithFirebase: !env('GOOGLE_SERVICE_ACCOUNT_JSON') && !!env('FIREBASE_SERVICE_ACCOUNT_JSON')
+  },
   googleAds: {
     customerId: env('GOOGLE_ADS_CUSTOMER_ID').replaceAll('-', ''),
     loginCustomerId: env('GOOGLE_ADS_LOGIN_CUSTOMER_ID').replaceAll('-', ''),

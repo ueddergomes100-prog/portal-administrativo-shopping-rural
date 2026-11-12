@@ -12,6 +12,12 @@ import { badRequest } from '../http.js';
 const uniplusEnv = () => (config.isVercel ? ['CONNECTOR_TOKEN'] : ['UNIPLUS_API_URL']);
 // Conector ligado manda sinal de vida a cada poucos minutos; sem notícia por mais tempo que isso, avisa.
 const UNIPLUS_SILENCE_MS = 2 * 3600_000;
+// GA4: com a conta de serviço do Firebase, falta só o número da propriedade.
+const ga4Env = () => (config.ga4.credentials ? ['GA4_PROPERTY_ID'] : ['GA4_PROPERTY_ID', 'GOOGLE_SERVICE_ACCOUNT_JSON']);
+// E-mail da conta de serviço que precisa de acesso de Leitor no Analytics (não é segredo).
+function serviceEmail(json) {
+  try { return JSON.parse(json)?.client_email || ''; } catch { return ''; }
+}
 
 const configured = {
   uniplus: () => !!(config.isVercel ? config.connectorToken : config.uniplus.apiUrl),
@@ -58,7 +64,7 @@ export async function listIntegrations() {
     }
     // Demonstração: mostra o estado gravado pelos dados de exemplo.
     if (config.demo && state.status) status = state.status;
-    const env = id === 'uniplus' ? uniplusEnv() : meta.env;
+    const env = id === 'uniplus' ? uniplusEnv() : id === 'ga4' ? ga4Env() : meta.env;
     return {
       id,
       ...meta,
@@ -71,7 +77,8 @@ export async function listIntegrations() {
       itemCount: state.itemCount ?? null,
       settings: state.settings || {},
       // Só os NOMES das variáveis que faltam, nunca valores. Ligado = nada faltando.
-      missingEnv: hasCredentials ? [] : env.filter(name => !process.env[name])
+      missingEnv: hasCredentials ? [] : env.filter(name => !process.env[name]),
+      ...(id === 'ga4' && config.ga4.credentials ? { accessEmail: serviceEmail(config.ga4.credentials) } : {})
     };
   });
 }
