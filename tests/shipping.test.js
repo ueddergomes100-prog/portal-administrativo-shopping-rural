@@ -28,7 +28,9 @@ const entry = (sku, price, extra = {}) => ({
 const calls = [];
 globalThis.fetch = async (url, init = {}) => {
   calls.push({ url: String(url), init });
+  if (String(url).includes('viacep.com.br/ws/36900000')) return new Response(JSON.stringify({ erro: 'true' }), { status: 200 });
   if (String(url).includes('viacep.com.br/ws/369')) return new Response(JSON.stringify({ localidade: 'Manhuaçu', uf: 'MG', ibge: '3139409' }), { status: 200 });
+  if (String(url).includes('viacep.com.br/ws/01001')) return new Response(JSON.stringify({ localidade: 'São Paulo', uf: 'SP', ibge: '3550308' }), { status: 200 });
   if (String(url).includes('viacep.com.br')) return new Response(JSON.stringify({ localidade: 'Divinópolis', uf: 'MG' }), { status: 200 });
   if (String(url).includes('servicodados.ibge.gov.br')) {
     return new Response(JSON.stringify([
@@ -166,6 +168,13 @@ test('motoboy por faixa de valor: R$ 7 abaixo de R$ 70, R$ 5 de R$ 70 em diante,
 
   // Sem cidade no pedido: o portal descobre pelo CEP (com o código do IBGE).
   assert.equal((await quoteForSite({ cep: '36900-111', items: [{ sku: 'A', qty: 3 }] })).options[0].price, 5);
+  // O CEP manda: nome escrito de qualquer jeito (ou estragado no caminho) não tira o motoboy.
+  assert.equal((await quoteForSite({ cep: '36900-222', city: 'Manhua�u', state: 'MG', items: [{ sku: 'A', qty: 1 }] })).options[0].id, 'motoboy');
+  // CEP geral (ViaCEP não diz a cidade): vale o nome, com ou sem acento, maiúsculo ou decomposto.
+  for (const name of ['MANHUAÇU', 'Manhuaçu', 'manhuacu']) {
+    const r = await quoteForSite({ cep: '36900-000', city: name, state: 'MG', items: [{ sku: 'A', qty: 2 }] });
+    assert.equal(r.options[0]?.id, 'motoboy', name);
+  }
   // Outra tabela: pedido mínimo e faixas próprias, prazo de 1 dia.
   const div = await quoteForSite({ cep: '35500-010', city: 'Divinópolis', state: 'MG', items: [{ sku: 'R15', qty: 1 }, { sku: 'A', qty: 1 }] });
   assert.deepEqual([div.options[0].price, div.options[0].days], [15, [1, 1]]);

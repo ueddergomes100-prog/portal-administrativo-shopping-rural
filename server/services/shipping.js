@@ -33,7 +33,11 @@ export const MAX_TIERS = 10;
 
 const digits = value => String(value ?? '').replace(/\D/g, '');
 const money = n => `R$ ${Number(n).toFixed(2).replace('.', ',')}`;
-const norm = value => String(value ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+// Nome de cidade sem acento e sem diferença de maiúscula ("Manhuaçu" = "manhuacu"). Troca as letras
+// acentuadas do português pela tabela e ainda tira as marcas que sobrarem (forma decomposta).
+const FOLD = { á: 'a', à: 'a', â: 'a', ã: 'a', ä: 'a', é: 'e', è: 'e', ê: 'e', ë: 'e', í: 'i', ì: 'i', î: 'i', ï: 'i', ó: 'o', ò: 'o', ô: 'o', õ: 'o', ö: 'o', ú: 'u', ù: 'u', û: 'u', ü: 'u', ç: 'c', ñ: 'n' };
+const norm = value => String(value ?? '').toLowerCase().replace(/[^\x00-\x7f]/g, ch => FOLD[ch] ?? ch)
+  .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
 const round2 = n => Math.round(n * 100) / 100;
 
 function intIn(value, { min, max, label, fallback }) {
@@ -197,12 +201,12 @@ const unitWeight = e => (e.measure?.unit === 'kg' ? Number(e.measure.value) || 0
 
 // Cidade do CEP (ViaCEP, grátis). Guardada em memória por um dia.
 const cityCache = new Map();
-async function cityOf(cep) {
+async function cityOf(cep, { timeoutMs = 5000 } = {}) {
   const hit = cityCache.get(cep);
   if (hit && Date.now() - hit.at < 86_400_000) return hit.value;
   let value = null;
   try {
-    const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`, { signal: AbortSignal.timeout(5000) });
+    const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`, { signal: AbortSignal.timeout(timeoutMs) });
     const data = response.ok ? await response.json() : null;
     if (data && !data.erro && data.localidade) value = { city: data.localidade, state: data.uf, ...(/^\d{7}$/.test(String(data.ibge ?? '')) ? { ibge: String(data.ibge) } : {}) };
   } catch { /* sem cidade: o motoboy não aparece, o resto segue */ }
@@ -266,7 +270,10 @@ async function quoteLines(settings, { cep, city, state, ibge, lines }) {
   let carrierError = '';
 
   if (settings.motoboy.enabled && settings.motoboy.zones.length) {
-    const where = city && state ? { city, state, ibge } : await cityOf(cep);
+    // Pelo CEP primeiro (código do IBGE, sem depender de como o nome foi escrito); o nome que o site
+    // mandou só vale se o CEP não disser a cidade (CEP geral, ViaCEP fora do ar).
+    const named = city && state ? { city, state, ibge } : null;
+    const where = (await cityOf(cep, { timeoutMs: named ? 2500 : 5000 })) || named;
     const hit = zoneFor(settings.motoboy.zones, where);
     if (hit) {
       const { zone, city: name } = hit;

@@ -7,8 +7,14 @@ import { getStore, C } from '../store/index.js';
 import { INTEGRATIONS } from '../../public/shared/domain.js';
 import { badRequest } from '../http.js';
 
+// UniPlus: no servidor da loja o portal lê a API direto (UNIPLUS_API_URL); na Vercel quem manda os
+// produtos é o conector na máquina da loja, autenticado com CONNECTOR_TOKEN.
+const uniplusEnv = () => (config.isVercel ? ['CONNECTOR_TOKEN'] : ['UNIPLUS_API_URL']);
+// Conector ligado manda sinal de vida a cada poucos minutos; sem notícia por mais tempo que isso, avisa.
+const UNIPLUS_SILENCE_MS = 2 * 3600_000;
+
 const configured = {
-  uniplus: () => !!config.uniplus.apiUrl,
+  uniplus: () => !!(config.isVercel ? config.connectorToken : config.uniplus.apiUrl),
   site: () => !!(config.store.apiToken && config.store.publicUrl && config.store.portalPublicUrl),
   ga4: () => !!(config.ga4.propertyId && config.ga4.credentials),
   googleads: () => !!(config.googleAds.customerId && config.googleAds.developerToken && config.googleAds.clientId && config.googleAds.clientSecret && config.googleAds.refreshToken),
@@ -44,20 +50,28 @@ export async function listIntegrations() {
     else if (hasCredentials && state.status === 'connected') status = 'connected';
     else if (hasCredentials) status = 'awaiting_auth';
     else if (partially[id]()) status = 'awaiting_auth';
+    let lastError = hasCredentials ? state.lastError || '' : '';
+    // UniPlus "funcionando" mas o computador da loja parou de mandar notícias.
+    if (id === 'uniplus' && status === 'connected' && state.lastSyncAt && Date.now() - Date.parse(state.lastSyncAt) > UNIPLUS_SILENCE_MS) {
+      status = 'error';
+      lastError = 'O computador da loja parou de mandar os produtos. Confira se ele está ligado, com internet, e se o conector do UniPlus está aberto.';
+    }
     // Demonstração: mostra o estado gravado pelos dados de exemplo.
     if (config.demo && state.status) status = state.status;
+    const env = id === 'uniplus' ? uniplusEnv() : meta.env;
     return {
       id,
       ...meta,
+      env,
       status,
       implemented: IMPLEMENTED.has(id),
       lastSyncAt: state.lastSyncAt || null,
-      lastError: hasCredentials ? state.lastError || '' : '',
+      lastError,
       lastErrorAt: state.lastErrorAt || null,
       itemCount: state.itemCount ?? null,
       settings: state.settings || {},
-      // Só os NOMES das variáveis que faltam, nunca valores.
-      missingEnv: meta.env.filter(name => !process.env[name])
+      // Só os NOMES das variáveis que faltam, nunca valores. Ligado = nada faltando.
+      missingEnv: hasCredentials ? [] : env.filter(name => !process.env[name])
     };
   });
 }
