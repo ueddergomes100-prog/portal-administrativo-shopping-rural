@@ -2,6 +2,9 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "outputDirectory": "public",
+  "crons": [
+    { "path": "/api/cron/metrics", "schedule": "0 9 * * *" }
+  ],
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/index?path=:path*" },
     { "source": "/((?!api/|assets/|js/|shared/).*)", "destination": "/index.html" }

@@ -86,5 +86,7 @@ o mapeamento na função correspondente e acrescente o caso ao teste.
 
 ## Atualização automática dos indicadores
 - No servidor da loja: a cada `METRICS_SYNC_HOURS` (padrão 6). `0` desliga.
-- Na Vercel: criar um Cron Job que chame uma rota protegida por `CRON_SECRET` — ainda não existe;
-  sugestão: `GET /api/cron/metrics` validando `Authorization: Bearer ${CRON_SECRET}` e chamando `syncMetrics()`.
+- Na Vercel: o Cron Job de `vercel.json` chama `GET /api/cron/metrics` todo dia às 9h UTC (6h em Brasília)
+  e atualiza as fontes ligadas. Com `CRON_SECRET` na Vercel, a rota exige esse segredo (a Vercel manda
+  sozinha); sem ele, só aceita o agendador da Vercel (`user-agent: vercel-cron/…`) e não repete em menos de 6 h.
+  O botão "Buscar dados agora" em Resultados continua valendo a qualquer hora.

@@ -49,6 +49,8 @@ export const config = {
   sessionSecret: env('SESSION_SECRET'),
   sessionHours: num('SESSION_HOURS', 12),
   connectorToken: env('CONNECTOR_TOKEN'),
+  // Opcional: a Vercel manda "Authorization: Bearer <CRON_SECRET>" nas chamadas do Cron Job.
+  cronSecret: env('CRON_SECRET'),
   bootstrapOwnerEmail: env('BOOTSTRAP_OWNER_EMAIL').toLowerCase(),
 
   firebase: {

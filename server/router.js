@@ -19,7 +19,7 @@ import { getChannels, updateChannels } from './services/settings.js';
 import { updateShippingSettings, shippingStatus, quoteForSite, simulateShipping, shippingScreen, citiesOf, placeOf } from './services/shipping.js';
 import { listSiteCategories, updateSiteCategories } from './services/categories.js';
 import { promotionCandidates, markChannelTask } from './services/promotion-channels.js';
-import { listMetrics, syncMetrics } from './services/metrics.js';
+import { listMetrics, syncMetrics, syncAllMetrics } from './services/metrics.js';
 import { receiveLead, importMetaLeads } from './services/leads-inbound.js';
 import { listIntegrations, updateIntegrationSettings } from './services/integrations.js';
 import { dashboard } from './services/dashboard.js';
@@ -134,6 +134,14 @@ const routes = [
     requireRole(user, ['owner', 'manager', 'marketing']);
     return { report: await syncMetrics(params.source, user) };
   }],
+
+  // Cron Job da Vercel (vercel.json): atualiza GA4/Meta/Google Ads uma vez por dia. Com CRON_SECRET,
+  // exige o segredo; sem ele, só aceita o agendador da Vercel e nunca repete em menos de 6 h (inofensivo).
+  ['GET', '/api/cron/metrics', async ({ req }) => {
+    if (config.cronSecret) checkToken(req, {}, config.cronSecret, 'CRON_SECRET');
+    else if (!String(req.headers['user-agent'] || '').startsWith('vercel-cron/')) throw forbidden('Esta rota é do agendador da Vercel.');
+    return { synced: await syncAllMetrics({ minAgeHours: config.cronSecret ? 1 : 6 }) };
+  }, { auth: 'public' }],
 
   // Entrada de leads: ferramentas externas e Meta Lead Ads
   ['POST', '/api/leads/inbound', ({ body }) => receiveLead(body, { source: 'Site' }), { auth: 'leads' }],

@@ -36,21 +36,32 @@ export async function syncMetrics(source, actor = null) {
   }
 }
 
-// Atualização automática no servidor local (a cada METRICS_SYNC_HOURS). Na Vercel use um Cron Job
-// chamando POST /api/metrics/{fonte}/sync (ver docs/INTEGRACOES.md).
+// Atualiza todas as fontes ligadas. `minAgeHours`: pula a fonte atualizada há menos tempo que isso.
+// Devolve { fonte: 'ok' | 'pulado' | mensagem de erro } — usado pelo laço local e pelo Cron da Vercel.
+export async function syncAllMetrics({ minAgeHours = 0, log = console } = {}) {
+  const saved = minAgeHours ? await listMetrics() : {};
+  const result = {};
+  for (const [source, def] of Object.entries(SOURCES)) {
+    if (!def.configured()) continue;
+    const last = Date.parse(saved[source]?.syncedAt || '');
+    if (minAgeHours && Number.isFinite(last) && Date.now() - last < minAgeHours * 3600_000) { result[source] = 'pulado'; continue; }
+    try {
+      await syncMetrics(source);
+      result[source] = 'ok';
+      log.info?.(`[indicadores] ${source} atualizado.`);
+    } catch (error) {
+      result[source] = error.message;
+      log.error?.(`[indicadores] ${source}: ${error.message}`);
+    }
+  }
+  return result;
+}
+
+// Atualização automática no servidor local (a cada METRICS_SYNC_HOURS). Na Vercel, o Cron Job
+// (vercel.json) chama GET /api/cron/metrics uma vez por dia.
 export function startMetricsLoop(log = console) {
   if (!config.metricsSyncHours) return () => {};
-  const tick = async () => {
-    for (const [source, def] of Object.entries(SOURCES)) {
-      if (!def.configured()) continue;
-      try {
-        await syncMetrics(source);
-        log.info?.(`[indicadores] ${source} atualizado.`);
-      } catch (error) {
-        log.error?.(`[indicadores] ${source}: ${error.message}`);
-      }
-    }
-  };
+  const tick = () => syncAllMetrics({ log });
   setTimeout(tick, 15_000);
   const timer = setInterval(tick, config.metricsSyncHours * 3600_000);
   return () => clearInterval(timer);
