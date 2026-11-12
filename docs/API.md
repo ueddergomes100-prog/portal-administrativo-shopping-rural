@@ -74,9 +74,11 @@ Erros dessas rotas trazem `message` (campo que o site lê) além de `error`.
 | PUT | `/settings/channels` | dono | `{items:[...]}` substitui a tabela (auditado) |
 | GET | `/settings/categories` | todos | `{ items: [{id,name,short,icon,active}], usage }` (usage só para dono/gerente) |
 | PUT | `/settings/categories` | dono, gerente | `{ items, moves: { idApagado: idDestino } }` — ordem = ordem no site (auditado) |
-| GET | `/settings/shipping` | todos | regras de frete + `melhorEnvio: {configured, sandbox, demo}` |
-| PUT | `/settings/shipping` | dono, gerente | `{originCep, pickup, motoboy:{enabled, areas[]}, carriers}` (auditado) |
+| GET | `/settings/shipping` | todos | regras de frete + `storeCity` (cidade do CEP da loja) + `melhorEnvio: {configured, sandbox, demo}` |
+| PUT | `/settings/shipping` | dono, gerente | `{originCep, pickup, motoboy:{enabled, zones:[{cities:[{city,state,ibge?}], tiers:[{from,price}], minOrder, freeFrom, days}]}, carriers}` (auditado; `areas[]` antigo ainda aceito) |
 | POST | `/shipping/simulate` | dono, gerente | `{cep, subtotal, weightKg, settings?}` — testa um CEP com as regras da tela |
+| GET | `/shipping/cities?uf=MG` | dono, gerente | `{state, items:[{ibge, city, near}]}` — cidades do IBGE (`near` = região imediata); sem internet, `offline: true` |
+| GET | `/shipping/place?cep=` | dono, gerente | `{place: {city, state, ibge} ou null}` — cidade de um CEP (ViaCEP) |
 
 ## Indicadores e entrada de leads
 

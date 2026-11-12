@@ -196,7 +196,9 @@ docs/                         arquitetura, API, dados, design, deploy, roteiro
   Shopee/ML viram `channelTasks` (pending → done; cancelada → undo) mostradas em "Para resolver agora".
   Um anúncio só tem um período de promoção: conflitos bloqueiam a aprovação.
 - **Frete e entrega** (`server/services/shipping.js`, tela `#/frete`): regras em `settings/shipping` (motoboy
-  por cidade com pedido mínimo e grátis a partir de; Correios/Jadlog pelo Melhor Envio; retirada). O site
+  em tabelas de preço `zones`: cidades do IBGE + faixas pelo valor da compra `tiers`, pedido mínimo, grátis a
+  partir de, prazo — o formato antigo `areas` é convertido ao ler; Correios/Jadlog pelo Melhor Envio; retirada).
+  Lista de cidades: `GET /api/shipping/cities?uf=` (IBGE, com a região imediata para "cidades perto"). O site
   cota em `POST /api/store/shipping/quote` (preço e peso sempre do catálogo do portal). Medidas da caixa
   (`heightCm`/`widthCm`/`lengthCm`) no anúncio; em branco, caixa padrão pelo peso.
 - **Estúdio de foto** (`public/js/photo-studio.js`, roda no navegador): fundo liso (a cor que domina a

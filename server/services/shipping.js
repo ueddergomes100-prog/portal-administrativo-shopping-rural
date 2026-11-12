@@ -2,11 +2,14 @@
 // pergunta ao portal quanto custa entregar o carrinho num CEP (POST /api/store/shipping/quote).
 //
 // Formas de entrega, nesta ordem na resposta:
-// 1. Motoboy da loja — preço por cidade, com pedido mínimo e frete grátis a partir de um valor.
+// 1. Motoboy da loja — tabelas de preço ("zonas"): cada uma vale para uma lista de cidades e tem faixas
+//    pelo valor da compra (ex.: até R$ 69,99 → R$ 7; de R$ 70 em diante → R$ 5), pedido mínimo, frete
+//    grátis a partir de um valor e prazo. Cidades vêm da lista do IBGE (código + nome).
 // 2. Transportadoras (Correios e Jadlog) — cotadas no Melhor Envio com o peso e as medidas da caixa.
 // 3. Retirar na loja — sem custo.
 //
 // Documento `settings/shipping`. Sem documento salvo, vale DEFAULTS (só retirada na loja ligada).
+// O formato antigo do motoboy (`areas`: uma linha por cidade com um preço só) é lido e convertido.
 import { config } from '../config.js';
 import { getStore, C } from '../store/index.js';
 import { audit } from '../audit.js';
@@ -21,9 +24,12 @@ export const SHIPPING_EDITORS = ['owner', 'manager'];
 export const DEFAULTS = {
   originCep: '',
   pickup: { enabled: true, readyHours: 2 },
-  motoboy: { enabled: false, areas: [] },
+  motoboy: { enabled: false, zones: [] },
   carriers: { enabled: false, services: [1, 2, 3], extraDays: 1, freeFrom: null, insurance: true }
 };
+export const MAX_ZONES = 20;
+export const MAX_ZONE_CITIES = 400;
+export const MAX_TIERS = 10;
 
 const digits = value => String(value ?? '').replace(/\D/g, '');
 const money = n => `R$ ${Number(n).toFixed(2).replace('.', ',')}`;
@@ -37,6 +43,26 @@ function intIn(value, { min, max, label, fallback }) {
   return n;
 }
 
+const blank = v => v === '' || v === null || v === undefined;
+
+// Formato antigo (uma linha por cidade, um preço) → tabelas; cidades com as mesmas regras ficam juntas.
+function legacyZones(areas = []) {
+  const zones = new Map();
+  for (const a of areas) {
+    if (!a || blank(a.city)) continue;
+    const rules = { tiers: [{ from: 0, price: a.price }], minOrder: a.minOrder ?? null, freeFrom: a.freeFrom ?? null, days: a.days ?? 0 };
+    const key = JSON.stringify(rules);
+    if (!zones.has(key)) zones.set(key, { cities: [], ...rules });
+    zones.get(key).cities.push({ city: a.city, state: a.state });
+  }
+  return [...zones.values()];
+}
+
+function motoboyOf(raw = {}) {
+  const zones = Array.isArray(raw.zones) ? raw.zones : legacyZones(raw.areas);
+  return { enabled: !!raw.enabled && zones.length > 0, zones };
+}
+
 let cache = { at: 0, settings: null };
 export async function getShippingSettings() {
   if (cache.settings && Date.now() - cache.at < 30_000) return cache.settings;
@@ -44,7 +70,7 @@ export async function getShippingSettings() {
   const settings = {
     ...DEFAULTS, ...(doc || {}),
     pickup: { ...DEFAULTS.pickup, ...(doc?.pickup || {}) },
-    motoboy: { ...DEFAULTS.motoboy, ...(doc?.motoboy || {}) },
+    motoboy: motoboyOf(doc?.motoboy),
     carriers: { ...DEFAULTS.carriers, ...(doc?.carriers || {}) }
   };
   cache = { at: Date.now(), settings };
@@ -53,6 +79,62 @@ export async function getShippingSettings() {
 
 export function shippingStatus() {
   return { melhorEnvio: { configured: melhorEnvioReady(), sandbox: config.melhorEnvio.sandbox, demo: config.demo && !melhorEnvioReady() } };
+}
+
+// Tabelas do motoboy vindas da tela. Cada uma: { cities: [{ city, state, ibge? }], tiers: [{ from, price }],
+// minOrder, freeFrom, days }. A primeira faixa vale para compras de qualquer valor (from 0); as outras,
+// "de R$ X em diante". Tabela totalmente vazia é ignorada. Aceita também o formato antigo (`areas`).
+function readZones(motoboy = {}) {
+  const raw = Array.isArray(motoboy?.zones) ? motoboy.zones : legacyZones(Array.isArray(motoboy?.areas) ? motoboy.areas : []);
+  if (raw.length > MAX_ZONES) throw badRequest(`Dá para ter no máximo ${MAX_ZONES} tabelas de preço no motoboy.`);
+  const where = new Map(); // cidade → número da tabela, para não repetir cidade em duas tabelas
+  const zones = [];
+  let total = 0;
+  raw.forEach((z, k) => {
+    const suffix = raw.length > 1 ? ` (tabela ${k + 1})` : '';
+    const label = `Motoboy${suffix}`;
+    const rawCities = Array.isArray(z?.cities) ? z.cities : [];
+    // A primeira faixa é o preço normal (qualquer valor de compra); as outras só contam se preenchidas.
+    const allTiers = Array.isArray(z?.tiers) ? z.tiers : [];
+    const base = allTiers[0] || {};
+    const extras = allTiers.slice(1).filter(t => !(blank(t?.price) && blank(t?.from)));
+    if (!rawCities.length && blank(base.price) && !extras.length) return;
+    if (!rawCities.length) throw badRequest(`${label}: escolha pelo menos uma cidade.`);
+    if (extras.length + 1 > MAX_TIERS) throw badRequest(`${label}: no máximo ${MAX_TIERS} faixas de valor.`);
+    const rawTiers = [base, ...extras];
+
+    const cities = [];
+    for (const c of rawCities) {
+      const city = clean.text(c?.city, { required: true, max: 80, label: 'Cidade do motoboy' });
+      const state = String(c?.state || '').trim().toUpperCase();
+      if (!BR_STATES.includes(state)) throw badRequest(`${city}: escolha o estado (UF).`);
+      const key = `${norm(city)}/${state}`;
+      if (where.get(key) === k) continue; // repetida na mesma tabela: fica uma
+      if (where.has(key)) throw badRequest(`${city}/${state} está em duas tabelas do motoboy. Deixe em uma só.`);
+      where.set(key, k);
+      const ibge = /^\d{7}$/.test(String(c?.ibge ?? '')) ? String(c.ibge) : null;
+      cities.push(ibge ? { city, state, ibge } : { city, state });
+    }
+    total += cities.length;
+    if (total > MAX_ZONE_CITIES) throw badRequest(`Dá para ter no máximo ${MAX_ZONE_CITIES} cidades no motoboy.`);
+
+    const tiers = rawTiers.map((t, i) => ({
+      from: i === 0 ? 0 : clean.money(t.from, { required: true, label: `O valor "compras a partir de" do motoboy${suffix}` }),
+      price: clean.money(t.price, { required: true, allowZero: true, label: `O preço do frete do motoboy${suffix}` })
+    }));
+    if (tiers.slice(1).some(t => !(t.from > 0))) throw badRequest(`${label}: o "compras de R$ … ou mais" precisa ser maior que zero.`);
+    tiers.sort((a, b) => a.from - b.from);
+    for (let i = 1; i < tiers.length; i++) {
+      if (tiers[i].from === tiers[i - 1].from) throw badRequest(`${label}: há dois preços para compras de ${money(tiers[i].from)} ou mais. Deixe um só.`);
+    }
+    zones.push({
+      cities, tiers,
+      minOrder: clean.money(z.minOrder, { label: `O pedido mínimo do motoboy${suffix}` }),
+      freeFrom: clean.money(z.freeFrom, { label: `O "grátis a partir de" do motoboy${suffix}` }),
+      days: intIn(z.days, { min: 0, max: 15, label: `Prazo do motoboy${suffix} (dias)`, fallback: 0 })
+    });
+  });
+  return zones;
 }
 
 // Confere e normaliza as regras vindas da tela (sem gravar). Usada ao salvar e ao simular.
@@ -65,28 +147,9 @@ export function readShippingSettings(input = {}) {
     readyHours: intIn(input.pickup?.readyHours, { min: 0, max: 168, label: 'Horas para separar a retirada', fallback: 2 })
   };
 
-  const rawAreas = Array.isArray(input.motoboy?.areas) ? input.motoboy.areas : [];
-  if (rawAreas.length > 100) throw badRequest('Dá para cadastrar no máximo 100 cidades no motoboy.');
-  const seen = new Set();
-  const areas = rawAreas
-    .filter(a => String(a?.city ?? '').trim() || a?.price !== '' && a?.price != null)
-    .map(a => {
-      const city = clean.text(a.city, { required: true, max: 80, label: 'Cidade do motoboy' });
-      const state = String(a.state || '').trim().toUpperCase();
-      if (!BR_STATES.includes(state)) throw badRequest(`${city}: escolha o estado (UF).`);
-      const key = `${norm(city)}/${state}`;
-      if (seen.has(key)) throw badRequest(`${city}/${state} está duas vezes no motoboy.`);
-      seen.add(key);
-      return {
-        city, state,
-        price: clean.money(a.price, { required: true, allowZero: true, label: `Preço do motoboy em ${city}` }),
-        minOrder: clean.money(a.minOrder, { label: `Pedido mínimo em ${city}` }),
-        freeFrom: clean.money(a.freeFrom, { label: `Frete grátis a partir de (${city})` }),
-        days: intIn(a.days, { min: 0, max: 15, label: `Prazo do motoboy em ${city} (dias)`, fallback: 0 })
-      };
-    });
-  const motoboy = { enabled: !!input.motoboy?.enabled && areas.length > 0, areas };
-  if (input.motoboy?.enabled && !areas.length) throw badRequest('Para ligar o motoboy, cadastre pelo menos uma cidade com preço.');
+  const zones = readZones(input.motoboy);
+  const motoboy = { enabled: !!input.motoboy?.enabled && zones.length > 0, zones };
+  if (input.motoboy?.enabled && !zones.length) throw badRequest('Para ligar o motoboy, escolha pelo menos uma cidade e o preço do frete.');
 
   const services = (Array.isArray(input.carriers?.services) ? input.carriers.services : [])
     .map(Number).filter(id => Object.hasOwn(CARRIER_SERVICES, id));
@@ -141,7 +204,7 @@ async function cityOf(cep) {
   try {
     const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`, { signal: AbortSignal.timeout(5000) });
     const data = response.ok ? await response.json() : null;
-    if (data && !data.erro && data.localidade) value = { city: data.localidade, state: data.uf };
+    if (data && !data.erro && data.localidade) value = { city: data.localidade, state: data.uf, ...(/^\d{7}$/.test(String(data.ibge ?? '')) ? { ibge: String(data.ibge) } : {}) };
   } catch { /* sem cidade: o motoboy não aparece, o resto segue */ }
   if (value) {
     if (cityCache.size > 2000) cityCache.clear();
@@ -178,26 +241,52 @@ async function carrierOptions(settings, cep, lines) {
   return quotes.map(q => ({ id: q.id, label: [q.company, q.name].filter(Boolean).join(' ') || CARRIER_SERVICES[q.id] || 'Transportadora', price: round2(q.price), days: q.days }));
 }
 
+// Tabela do motoboy que atende a cidade. Pelo código do IBGE quando os dois lados têm; senão pelo nome.
+export function zoneFor(zones, where) {
+  if (!where?.city && !where?.ibge) return null;
+  const state = String(where.state || '').toUpperCase();
+  for (const zone of zones) {
+    const city = zone.cities.find(c => (c.ibge && where.ibge ? c.ibge === String(where.ibge) : norm(c.city) === norm(where.city) && c.state === state));
+    if (city) return { zone, city: city.city };
+  }
+  return null;
+}
+
+// Preço pela faixa do valor da compra; zero a partir do "grátis a partir de".
+export function motoboyPrice(zone, subtotal) {
+  if (zone.freeFrom != null && subtotal >= zone.freeFrom) return 0;
+  return [...zone.tiers].reverse().find(t => subtotal >= t.from)?.price ?? zone.tiers[0].price;
+}
+
 // lines: [{ sku, price (R$ por unidade, já com promoção), qty, weightKg (por unidade), dims|null }]
-async function quoteLines(settings, { cep, city, state, lines }) {
+async function quoteLines(settings, { cep, city, state, ibge, lines }) {
   const subtotal = round2(lines.reduce((n, l) => n + l.price * l.qty, 0));
   const options = [];
   const notices = [];
   let carrierError = '';
 
-  if (settings.motoboy.enabled && settings.motoboy.areas.length) {
-    const where = city && state ? { city, state } : await cityOf(cep);
-    const area = where && settings.motoboy.areas.find(a => norm(a.city) === norm(where.city) && a.state === String(where.state).toUpperCase());
-    if (area && area.minOrder && subtotal < area.minOrder) {
-      notices.push(`Entrega de motoboy em ${area.city} para compras a partir de ${money(area.minOrder)}. Faltam ${money(area.minOrder - subtotal)}.`);
-    } else if (area) {
-      const free = area.freeFrom != null && subtotal >= area.freeFrom;
-      options.push({
-        id: 'motoboy', label: 'Entrega de motoboy',
-        description: free ? `Frete grátis em ${area.city}` : `Entrega da própria loja em ${area.city}`,
-        price: free ? 0 : area.price, days: [area.days, area.days]
-      });
-      if (!free && area.freeFrom != null) notices.push(`Motoboy grátis em ${area.city} a partir de ${money(area.freeFrom)}.`);
+  if (settings.motoboy.enabled && settings.motoboy.zones.length) {
+    const where = city && state ? { city, state, ibge } : await cityOf(cep);
+    const hit = zoneFor(settings.motoboy.zones, where);
+    if (hit) {
+      const { zone, city: name } = hit;
+      if (zone.minOrder && subtotal < zone.minOrder) {
+        notices.push(`Entrega de motoboy em ${name} para compras a partir de ${money(zone.minOrder)}. Faltam ${money(zone.minOrder - subtotal)}.`);
+      } else {
+        const price = motoboyPrice(zone, subtotal);
+        options.push({
+          id: 'motoboy', label: 'Entrega de motoboy',
+          description: price === 0 ? `Frete grátis em ${name}` : `Entrega da própria loja em ${name}`,
+          price, days: [zone.days, zone.days]
+        });
+        // Quanto falta para pagar menos (próxima faixa mais barata) ou não pagar nada.
+        if (price > 0) {
+          const cheaper = zone.tiers.find(t => t.from > subtotal && t.price < price && t.price > 0 && !(zone.freeFrom != null && t.from >= zone.freeFrom));
+          if (cheaper) notices.push(`Motoboy por ${money(cheaper.price)} em compras a partir de ${money(cheaper.from)}.`);
+          const free = zone.freeFrom ?? zone.tiers.find(t => t.from > subtotal && t.price === 0)?.from;
+          if (free != null) notices.push(`Motoboy grátis em ${name} a partir de ${money(free)}.`);
+        }
+      }
     }
   }
 
@@ -273,4 +362,47 @@ export async function simulateShipping(user, input = {}) {
   const where = await cityOf(cep);
   const result = await quoteLines(settings, { cep, ...(where || {}), lines: [{ sku: 'simulacao', price: subtotal, qty: 1, weightKg, dims: null }] });
   return { ...result, city: where?.city || '', state: where?.state || '', ...shippingStatus() };
+}
+
+// ---------------------------------------------------------------------------
+// Cidades (para escolher na tela, sem digitar o nome certinho)
+// ---------------------------------------------------------------------------
+
+// Cidades do estado, da lista oficial do IBGE (grátis). `near` = região geográfica imediata do IBGE:
+// cidades com o mesmo número ficam perto umas das outras (usado em "cidades perto de…").
+// Guardada em memória por uma semana. Sem internet: lista vazia e a pessoa digita.
+const citiesCache = new Map();
+export async function citiesOf(user, uf) {
+  if (!SHIPPING_EDITORS.includes(user.role)) throw forbidden();
+  const state = String(uf || '').trim().toUpperCase();
+  if (!BR_STATES.includes(state)) throw badRequest('Escolha o estado (UF).');
+  const hit = citiesCache.get(state);
+  if (hit && Date.now() - hit.at < 7 * 86_400_000) return { state, items: hit.items };
+  try {
+    const response = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${state}/municipios`, { signal: AbortSignal.timeout(8000) });
+    if (!response.ok) throw new Error(`IBGE respondeu ${response.status}`);
+    const items = (await response.json())
+      .map(c => ({ ibge: String(c.id), city: c.nome, near: String(c['regiao-imediata']?.id ?? c.microrregiao?.id ?? '') }))
+      .sort((a, b) => a.city.localeCompare(b.city, 'pt-BR'));
+    citiesCache.set(state, { at: Date.now(), items });
+    return { state, items };
+  } catch (error) {
+    console.warn('[frete] lista de cidades do IBGE falhou:', error.message);
+    return { state, items: [], offline: true };
+  }
+}
+
+// Cidade de um CEP (para a tela: o CEP da loja já diz qual é a cidade do motoboy).
+export async function placeOf(user, cep) {
+  if (!SHIPPING_EDITORS.includes(user.role)) throw forbidden();
+  const digitsOnly = digits(cep);
+  if (digitsOnly.length !== 8) throw badRequest('Digite um CEP com 8 números.');
+  return { place: await cityOf(digitsOnly) };
+}
+
+// O que a tela de Ajustes recebe: as regras, a situação do Melhor Envio e a cidade da loja (pelo CEP).
+export async function shippingScreen() {
+  const settings = await getShippingSettings();
+  const storeCity = settings.originCep ? await cityOf(settings.originCep) : null;
+  return { settings, storeCity, ...shippingStatus() };
 }

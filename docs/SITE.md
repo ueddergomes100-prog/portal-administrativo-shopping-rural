@@ -120,12 +120,13 @@ Resposta: `{ "options": ShippingOption[], "notices": string[], "subtotal": numbe
 
 | `id` | O que é | `days` |
 |---|---|---|
-| `motoboy` | entrega da loja na cidade do cliente (preço por cidade; some abaixo do pedido mínimo; grátis a partir do valor definido) | `[0, 0]` = hoje, `[1, 1]` = amanhã… |
+| `motoboy` | entrega da loja na cidade do cliente (preço pela tabela da cidade e pelo valor da compra — ex.: R$ 7 abaixo de R$ 70, R$ 5 de R$ 70 em diante; some abaixo do pedido mínimo; grátis a partir do valor definido) | `[0, 0]` = hoje, `[1, 1]` = amanhã… |
 | `me-<n>` | transportadora cotada no Melhor Envio (`me-1` Correios PAC, `me-2` SEDEX, `me-17` Mini Envios, `me-3` Jadlog .Package, `me-4` Jadlog .Com) | dias úteis `[mín, máx]`, já com os dias de separação |
 | `retirada` | retirar na loja, sem custo | `null` |
 
 `notices` são frases prontas para mostrar no checkout (ex.: "Entrega de motoboy em Divinópolis para compras a
-partir de R$ 50,00. Faltam R$ 20,00."). A mesma pergunta é respondida da memória por 10 minutos — o site pode
+partir de R$ 50,00. Faltam R$ 20,00.", "Motoboy por R$ 5,00 em compras a partir de R$ 70,00.", "Motoboy grátis em
+Manhuaçu a partir de R$ 150,00."). A mesma pergunta é respondida da memória por 10 minutos — o site pode
 repetir a cotação ao fechar o pedido e conferir que a opção escolhida (`id` e `price`) continua igual.
 No pedido (`POST /api/store/orders`), `delivery.method` aceita esses mesmos `id`s.
 

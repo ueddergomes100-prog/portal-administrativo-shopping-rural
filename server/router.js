@@ -16,7 +16,7 @@ import { listRecords, getRecord, createRecord, updateRecord, transitionRecord, a
 import { listUsers, createUser, updateUser } from './services/users.js';
 import { listOrders } from './services/orders.js';
 import { getChannels, updateChannels } from './services/settings.js';
-import { getShippingSettings, updateShippingSettings, shippingStatus, quoteForSite, simulateShipping } from './services/shipping.js';
+import { updateShippingSettings, shippingStatus, quoteForSite, simulateShipping, shippingScreen, citiesOf, placeOf } from './services/shipping.js';
 import { listSiteCategories, updateSiteCategories } from './services/categories.js';
 import { promotionCandidates, markChannelTask } from './services/promotion-channels.js';
 import { listMetrics, syncMetrics } from './services/metrics.js';
@@ -122,9 +122,11 @@ const routes = [
   ['PUT', '/api/settings/channels', async ({ user, body }) => ({ channels: await updateChannels(user, body) })],
   ['GET', '/api/settings/categories', ({ user }) => listSiteCategories(user)],
   ['PUT', '/api/settings/categories', ({ user, body }) => updateSiteCategories(user, body)],
-  ['GET', '/api/settings/shipping', async () => ({ settings: await getShippingSettings(), ...shippingStatus() })],
+  ['GET', '/api/settings/shipping', () => shippingScreen()],
   ['PUT', '/api/settings/shipping', async ({ user, body }) => ({ settings: await updateShippingSettings(user, body), ...shippingStatus() })],
   ['POST', '/api/shipping/simulate', ({ user, body }) => simulateShipping(user, body)],
+  ['GET', '/api/shipping/cities', ({ user, query }) => citiesOf(user, query.uf)],
+  ['GET', '/api/shipping/place', ({ user, query }) => placeOf(user, query.cep)],
 
   // Indicadores de mídia (GA4, Google Ads, Meta Ads)
   ['GET', '/api/metrics', async () => ({ metrics: await listMetrics() })],

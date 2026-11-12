@@ -39,7 +39,7 @@ o mapeamento na função correspondente e acrescente o caso ao teste.
 
 ## Frete: Melhor Envio (Correios e Jadlog)
 - Uma conta no Melhor Envio cota Correios (PAC, SEDEX, Mini Envios) e Jadlog (.Package, .Com) sem contrato
-  com cada transportadora. As regras (motoboy por cidade, pedido mínimo, frete grátis, retirada) ficam em
+  com cada transportadora. As regras (motoboy por cidade com preço por faixa de valor, pedido mínimo, frete grátis, retirada) ficam em
   **Ajustes › Frete e entrega**; o site pergunta o preço ao portal (`docs/SITE.md`, seção Frete).
 - Variáveis: `MELHOR_ENVIO_TOKEN` (gerado no painel do Melhor Envio, em Integrações › Permissões de acesso,
   com a permissão de calcular frete), `MELHOR_ENVIO_CONTACT` (e-mail da loja — a API exige no cabeçalho
