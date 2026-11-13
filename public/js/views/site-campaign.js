@@ -60,7 +60,7 @@ function panel(theme, name, popupDefault, c, live) {
 
       <fieldset class="ship-block">
         <legend>Aviso de oferta ao abrir o site</legend>
-        <label class="check big-check"><input type="checkbox" data-k="popupEnabled" data-input="camp-preview"${c.popup?.enabled !== false ? ' checked' : ''}><span>Mostrar o aviso (1 vez por dia para cada cliente)</span></label>
+        <label class="check big-check"><input type="checkbox" data-k="popupEnabled" data-input="camp-preview"${c.popup?.enabled !== false ? ' checked' : ''}><span>Mostrar o aviso toda vez que alguém abrir a página inicial do site</span></label>
         <div class="form-grid">
           <div class="field full"><label for="${id}-psku">Produto do aviso</label><select id="${id}-psku" data-k="popupSku" data-input="camp-preview">
             <option value="">Automático: o produto com maior desconto</option>
