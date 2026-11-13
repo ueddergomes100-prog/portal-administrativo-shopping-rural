@@ -47,7 +47,7 @@ No front do site: `VITE_USE_MOCKS=false`.
 
 ## Catálogo — público
 
-### `GET /api/catalog` (também `/api/store/catalog`) → `{ products: Product[], categories: Category[] }`
+### `GET /api/catalog` (também `/api/store/catalog`) → `{ products: Product[], categories: Category[], campaign? }`
 É a rota que `src/services/catalog.ts` do site já chama. Cada produto:
 ```json
 {
@@ -76,6 +76,23 @@ No front do site: `VITE_USE_MOCKS=false`.
 - Promoções aprovadas no portal (Promoções) entram aqui sozinhas: o anúncio ganha o preço promocional e
   as datas, e `price`/`compareAt` mudam no período.
 - `stock` é o do UniPlus. `images`, `promoEnds`, `seo`, `url` são extras (o site ignora o que não usa).
+- `campaign` (Ajustes › Campanha do site): a campanha visual que vale **agora** — Black Friday, Natal ou
+  Ano Novo. Os preços continuam vindo das Promoções (`price`/`compareAt`); aqui é só topo, destaques e aviso.
+  ```json
+  { "theme": "black-friday", "enabled": true,
+    "startsAt": null, "endsAt": "2026-11-30T23:59:00-03:00",
+    "title": "Black Friday Rural", "subtitle": "…", "heroSkus": ["8596", "10275"],
+    "popup": { "enabled": true, "sku": "8596", "title": "Oferta imperdível", "text": "Só até domingo" } }
+  ```
+  - **Ausente** = o dono nunca salvou a tela: o site usa o modo automático dele.
+  - `{ "enabled": false }` = salvo, mas nenhuma campanha vale agora (ou desligada): o site **não** liga o
+    automático.
+  - Com `enabled: true`, `endsAt` sempre vem (contagem regressiva); `startsAt: null` = já vale. Datas em ISO
+    com `-03:00`. `theme`: `black-friday` | `natal` | `ano-novo` (o portal não deixa duas ligadas no mesmo
+    período e manda só a do momento; o catálogo tem cache de 30 s, então a troca chega em até ~1 min).
+  - `title` (≤ 40), `subtitle` (≤ 120), `popup.title` (≤ 60), `popup.text` (≤ 200) só vêm se preenchidos
+    (vazio = o site monta). `heroSkus` (≤ 6) e `popup.sku` já vêm filtrados para produtos que estão no site;
+    sem eles, o site escolhe os de maior desconto.
 
 ### `POST /api/catalog/stock-check` (também `/api/store/catalog/stock-check`)
 `{ "items": [{ "productId": "…", "qty": 2 }] }` → `[{ "productId": "…", "requested": 2, "available": 18 }]`

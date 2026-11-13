@@ -1271,3 +1271,30 @@ main.is-entering > :nth-child(n + 5) { animation-delay: .2s; }
 @media (max-width: 640px) { .table td:not(:first-child) .promo-cell .sub { display: block; margin-left: 0; } }
 
 .int-email { display: inline-block; margin-top: 4px; padding: 2px 6px; border-radius: 6px; background: #fff; font-size: 15px; word-break: break-all; user-select: all; }
+
+/* Campanha do site (Ajustes › Campanha do site) */
+.camp-list { display: grid; gap: 16px; }
+details.camp > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; cursor: pointer; list-style: none; min-height: 44px; }
+details.camp > summary::-webkit-details-marker { display: none; }
+details.camp > summary h2 { margin: 0; font-size: 22px; }
+details.camp > summary h2::before { content: '▸'; display: inline-block; margin-right: 8px; transition: transform .15s; }
+details.camp[open] > summary h2::before { transform: rotate(90deg); }
+.camp-body { display: grid; gap: 14px; margin-top: 14px; min-width: 0; }
+.camp-body > * { min-width: 0; }
+.camp-results { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.camp-results:empty { display: none; }
+.camp-result { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 6px 12px; border: 1px dashed var(--linha-forte); border-radius: var(--r); background: var(--papel); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.camp-result:hover { border-style: solid; background: #fff; }
+.camp-result:focus-visible { outline: 3px solid var(--brinco); outline-offset: 2px; }
+.camp-result svg { width: 18px; height: 18px; flex: none; }
+.camp-preview { display: grid; gap: 10px; justify-items: start; }
+.camp-pop { display: grid; gap: 6px; justify-items: center; text-align: center; width: min(100%, 320px); padding: 18px 16px; border-radius: 16px; background: #111; color: #fff; box-shadow: var(--shadow); }
+.camp-pop img { width: 140px; height: 140px; object-fit: contain; background: #fff; border-radius: 12px; }
+.camp-pop-badge { padding: 2px 10px; border-radius: 999px; background: var(--brinco); color: #111; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; }
+.camp-pop-title { font-size: 20px; }
+.camp-pop-name { font-size: 15px; opacity: .9; }
+.camp-pop-price s { opacity: .6; }
+.camp-pop-price b { font-size: 22px; }
+.camp-pop-price em { font-style: normal; color: var(--brinco); font-weight: 700; }
+.camp-pop-text { font-size: 14px; opacity: .85; }
+.camp-pop-count { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: rgba(255, 255, 255, .12); }

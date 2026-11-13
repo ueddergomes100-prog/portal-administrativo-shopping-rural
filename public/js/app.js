@@ -24,8 +24,9 @@ import settingsHub from './views/settings-hub.js';
 import catalogGrid from './views/catalog-grid.js';
 import shippingView from './views/shipping.js';
 import categoriesView from './views/categories.js';
+import siteCampaignView from './views/site-campaign.js';
 
-const VIEWS = [dashboard, products, queue, promotions, orders, agenda, campaigns, arts, leads, media, channelsView, integrations, team, historyView, account, settingsHub, catalogGrid, shippingView, categoriesView];
+const VIEWS = [dashboard, products, queue, promotions, orders, agenda, campaigns, arts, leads, media, channelsView, integrations, team, historyView, account, settingsHub, catalogGrid, shippingView, categoriesView, siteCampaignView];
 const BY_ID = Object.fromEntries(VIEWS.map(v => [v.id, v]));
 
 // Menu de cada papel: só o que a pessoa usa no dia a dia. O resto fica em "Ajustes" (e continua

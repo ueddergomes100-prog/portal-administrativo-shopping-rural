@@ -74,6 +74,8 @@ Erros dessas rotas trazem `message` (campo que o site lê) além de `error`.
 | PUT | `/settings/channels` | dono | `{items:[...]}` substitui a tabela (auditado) |
 | GET | `/settings/categories` | todos | `{ items: [{id,name,short,icon,active}], usage }` (usage só para dono/gerente) |
 | PUT | `/settings/categories` | dono, gerente | `{ items, moves: { idApagado: idDestino } }` — ordem = ordem no site (auditado) |
+| GET | `/settings/campaign` | dono, gerente, marketing | `{ items: { 'black-friday', natal, 'ano-novo' }, saved, live, products }` — campanha do site por tema + produtos do site para escolher |
+| PUT | `/settings/campaign` | dono, gerente, marketing | `{ items: { [tema]: { enabled, startsAt, endsAt, title, subtitle, heroSkus, popup } } }` (auditado; ver docs/SITE.md › `campaign`) |
 | GET | `/settings/shipping` | todos | regras de frete + `storeCity` (cidade do CEP da loja) + `melhorEnvio: {configured, sandbox, demo}` |
 | PUT | `/settings/shipping` | dono, gerente | `{originCep, pickup, motoboy:{enabled, zones:[{cities:[{city,state,ibge?}], tiers:[{from,price}], minOrder, freeFrom, days}]}, carriers}` (auditado; `areas[]` antigo ainda aceito) |
 | POST | `/shipping/simulate` | dono, gerente | `{cep, subtotal, weightKg, settings?}` — testa um CEP com as regras da tela |

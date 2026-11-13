@@ -14,6 +14,7 @@ import { imageFile } from '../media.js';
 import { setIntegrationState } from './integrations.js';
 import { catalogSnapshot, toSiteProduct } from './catalog.js';
 import { getSiteCategories } from './categories.js';
+import { campaignForSite } from './site-campaign.js';
 import { receiveLead } from './leads-inbound.js';
 import {
   todayInSaoPaulo, ORDER_STATUS, ORDER_TRANSITIONS, PAYMENT_STATUS, PAYMENT_METHODS,
@@ -33,7 +34,9 @@ export async function listCatalog() {
   // Produto de categoria escondida sai do site junto com ela.
   const products = (await catalogSnapshot()).items.filter(e => visible.has(e.category)).map(e => toSiteProduct(e, today));
   products.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-  return { products, categories };
+  // Campanha do site (Black Friday, Natal, Ano Novo): só a que vale agora; sem nada salvo, o campo não vai.
+  const campaign = await campaignForSite(products);
+  return campaign === undefined ? { products, categories } : { products, categories, campaign };
 }
 
 export async function getCatalogItem(slug) {

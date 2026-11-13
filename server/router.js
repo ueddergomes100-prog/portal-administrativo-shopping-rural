@@ -16,6 +16,7 @@ import { listRecords, getRecord, createRecord, updateRecord, transitionRecord, a
 import { listUsers, createUser, updateUser } from './services/users.js';
 import { listOrders } from './services/orders.js';
 import { getChannels, updateChannels } from './services/settings.js';
+import { campaignScreen, updateSiteCampaigns } from './services/site-campaign.js';
 import { updateShippingSettings, shippingStatus, quoteForSite, simulateShipping, shippingScreen, citiesOf, placeOf } from './services/shipping.js';
 import { listSiteCategories, updateSiteCategories } from './services/categories.js';
 import { promotionCandidates, markChannelTask } from './services/promotion-channels.js';
@@ -125,6 +126,8 @@ const routes = [
   ['GET', '/api/settings/shipping', () => shippingScreen()],
   ['PUT', '/api/settings/shipping', async ({ user, body }) => ({ settings: await updateShippingSettings(user, body), ...shippingStatus() })],
   ['POST', '/api/shipping/simulate', ({ user, body }) => simulateShipping(user, body)],
+  ['GET', '/api/settings/campaign', ({ user }) => campaignScreen(user, async () => (await listCatalog()).products)],
+  ['PUT', '/api/settings/campaign', ({ user, body }) => updateSiteCampaigns(user, body, async () => (await listCatalog()).products)],
   ['GET', '/api/shipping/cities', ({ user, query }) => citiesOf(user, query.uf)],
   ['GET', '/api/shipping/place', ({ user, query }) => placeOf(user, query.cep)],
 

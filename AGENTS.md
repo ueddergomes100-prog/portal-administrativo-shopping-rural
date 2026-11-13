@@ -191,6 +191,10 @@ docs/                         arquitetura, API, dados, design, deploy, roteiro
 - **Categorias do site** (`server/services/categories.js`, tela `#/categorias`): `settings/categories`; o
   catálogo leva `categories` (só as visíveis, na ordem) e esconde produtos de categoria escondida. Apagar
   categoria com produtos exige `moves` (para onde vão). `DEFAULT_SITE_CATEGORIES` é só o ponto de partida.
+- **Campanha do site** (`server/services/site-campaign.js`, tela `#/campanha-site`): `settings/site-campaign`,
+  uma configuração por tema (Black Friday, Natal, Ano Novo) com janela própria, título, frase, até 6
+  destaques e o aviso de oferta. O catálogo leva `campaign` só com a que vale agora (ausente = nunca salvo →
+  modo automático do site; `{enabled:false}` = desligado). Não mexe em preço: isso é das Promoções.
 - **Promoções por lugar** (`server/services/promotion-channels.js`): itens são anúncios (`queueId`) com
   preço por canal. Aprovar aplica no site via `repriceItem` (guarda o que havia em `item.promotion.previous`);
   Shopee/ML viram `channelTasks` (pending → done; cancelada → undo) mostradas em "Para resolver agora".
