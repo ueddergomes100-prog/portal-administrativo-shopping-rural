@@ -18,11 +18,32 @@ export async function listMetrics() {
   return Object.fromEntries(docs.map(d => [d.id, d]));
 }
 
+const NAMES = { ga4: 'Google Analytics', googleads: 'Google Ads', metaads: 'Meta (Instagram/Facebook)' };
+// Falha de rede ou demora do provedor: passa sozinha. Tenta mais uma vez antes de dar erro.
+const transient = error => error?.name === 'TimeoutError' || error?.name === 'AbortError' || /aborted due to timeout|fetch failed|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up/i.test(String(error?.message));
+export let RETRY_WAIT_MS = 3000;
+export const setRetryWait = ms => { RETRY_WAIT_MS = ms; };
+
+async function fetchWithRetry(def) {
+  try {
+    return await def.fetch();
+  } catch (error) {
+    if (!transient(error)) throw error;
+    await new Promise(resolve => setTimeout(resolve, RETRY_WAIT_MS));
+    return def.fetch();
+  }
+}
+
 export async function syncMetrics(source, actor = null) {
   const def = SOURCES[source];
   if (!def) throw badRequest('Esta conta de resultados não existe no portal.');
   try {
-    const report = await def.fetch();
+    const report = await fetchWithRetry(def).catch(error => {
+      if (!transient(error)) throw error;
+      const friendly = new Error(`O ${NAMES[source] || source} demorou para responder. Tente "Atualizar agora" daqui a alguns minutos; de qualquer jeito o portal tenta de novo sozinho amanhã às 6h.`);
+      friendly.code = 'PROVIDER_TIMEOUT';
+      throw friendly;
+    });
     const at = new Date().toISOString();
     await getStore().set(C.metrics, source, { ...report, syncedAt: at });
     await setIntegrationState(source, { status: 'connected', lastSyncAt: at, lastError: '' });

@@ -49,3 +49,21 @@ test('cron: só o agendador da Vercel; atualiza a Meta e não repete em seguida'
 });
 
 test.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+test('demora do provedor: tenta de novo uma vez; se continuar, mensagem em português', async () => {
+  const { syncMetrics, setRetryWait } = await import('../server/services/metrics.js');
+  setRetryWait(10);
+  const timeout = () => { const e = new Error('The operation was aborted due to timeout'); e.name = 'TimeoutError'; throw e; };
+  const ok = () => new Response(JSON.stringify({ data: [{ campaign_name: 'Ração', spend: '10', impressions: '100', reach: '80', clicks: '4', actions: [] }] }), { status: 200 });
+
+  // 1ª tentativa demora, a 2ª responde: dá certo.
+  let n = 0;
+  globalThis.fetch = async () => (++n === 1 ? timeout() : ok());
+  const report = await syncMetrics('metaads');
+  assert.equal(n, 2);
+  assert.ok(report.syncedAt);
+
+  // As duas demoram: erro em português, sem o texto técnico em inglês.
+  globalThis.fetch = async () => timeout();
+  await assert.rejects(() => syncMetrics('metaads'), error => /Meta \(Instagram\/Facebook\) demorou para responder/.test(error.message) && !/aborted/.test(error.message));
+});
