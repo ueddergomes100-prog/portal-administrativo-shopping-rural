@@ -54,7 +54,9 @@ export async function promotionCandidates(user, query = {}) {
     });
   }
   out.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-  return { items: out.slice(0, ids.size ? 300 : 20) };
+  // Busca: até 50 (para "Marcar todos" pegar uma família inteira, ex.: as areias); `more` avisa que há mais.
+  const limit = ids.size ? 300 : 50;
+  return { items: out.slice(0, limit), more: !ids.size && out.length > limit };
 }
 
 // Confere os produtos da promoção. raw: { queueId, prices: { canal: preço } } (ou o formato salvo,

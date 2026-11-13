@@ -1298,3 +1298,14 @@ details.camp[open] > summary h2::before { transform: rotate(90deg); }
 .camp-pop-price em { font-style: normal; color: var(--brinco); font-weight: 700; }
 .camp-pop-text { font-size: 14px; opacity: .85; }
 .camp-pop-count { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: rgba(255, 255, 255, .12); }
+
+/* Promoções: marcar vários anúncios na busca e adicionar de uma vez */
+.picker-results { max-height: 460px; overflow-y: auto; }
+.picker-bar { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 8px 12px; background: #fff; border-bottom: 1px solid var(--linha); }
+.picker-bar .check { min-height: 44px; font-weight: 600; }
+.picker-bar .check input, .picker-check input { width: 22px; height: 22px; flex: none; }
+.picker-check { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; }
+.picker-check input { margin-top: 2px; }
+.picker-check .picker-text { display: grid; gap: 2px; min-width: 0; }
+.picker-check:has(input:checked:not(:disabled)) { background: #eaf4ec; }
+.picker-check.is-done { opacity: .6; cursor: default; }

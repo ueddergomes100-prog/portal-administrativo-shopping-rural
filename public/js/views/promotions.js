@@ -75,6 +75,19 @@ function readItems(form) {
   });
 }
 
+// Quantos estão marcados na busca: o botão diz "Adicionar 3 marcados" e o "Marcar todos" acompanha.
+function updatePicked(form) {
+  const boxes = [...form.querySelectorAll('[data-pick]:not(:disabled)')];
+  const n = boxes.filter(b => b.checked).length;
+  const add = form.querySelector('[data-action="promo-add-picked"]');
+  if (add) {
+    add.disabled = !n;
+    add.querySelector('span').textContent = n ? `Adicionar ${num(n)} marcado${n === 1 ? '' : 's'}` : 'Adicionar marcados';
+  }
+  const all = form.querySelector('[data-pick-all]');
+  if (all) { all.checked = n > 0 && n === boxes.length; all.indeterminate = n > 0 && n < boxes.length; }
+}
+
 let searchTimer;
 async function searchListings(form, term) {
   const box = form.querySelector('[data-promo-results]');
@@ -82,12 +95,21 @@ async function searchListings(form, term) {
   if (!channels.length) { box.innerHTML = '<li class="picker-none">Marque primeiro onde a promoção vale.</li>'; return; }
   if (term.length < 2) { box.innerHTML = ''; return; }
   try {
-    const { items } = await get('/promotions/candidates', { channels: channels.map(c => c.id).join(','), search: term });
+    const { items, more } = await get('/promotions/candidates', { channels: channels.map(c => c.id).join(','), search: term });
     const chosen = new Set(rowsData(form).map(r => r.queueId));
-    box.innerHTML = items.length ? items.map(i => `<li><button type="button" class="picker-option" data-action="promo-add" data-item="${esc(JSON.stringify(i))}"${chosen.has(i.queueId) ? ' disabled' : ''}>
-        <strong>${esc(i.name)}</strong><span class="mono">${esc(i.sku)} · ${channels.filter(c => i.listedOn.includes(c.id)).map(c => `${esc(c.name)} ${money(i.prices[c.id])}`).join(' · ')}</span>
+    const free = items.filter(i => !chosen.has(i.queueId)).length;
+    // Marca quantos quiser (ou "Marcar todos") e coloca todos de uma vez com "Adicionar marcados".
+    box.innerHTML = items.length ? `${free ? `<li class="picker-bar">
+        <label class="check"><input type="checkbox" data-pick-all data-change="promo-pick-all"><span>Marcar todos (${num(free)})</span></label>
+        ${button('Adicionar marcados', { action: 'promo-add-picked', icon: 'plus', variant: 'primary small', disabled: true })}
+      </li>` : ''}
+      ${items.map(i => `<li><label class="picker-option picker-check${chosen.has(i.queueId) ? ' is-done' : ''}">
+        <input type="checkbox" data-pick data-change="promo-pick" data-item="${esc(JSON.stringify(i))}"${chosen.has(i.queueId) ? ' disabled checked' : ''}>
+        <span class="picker-text"><strong>${esc(i.name)}</strong><span class="mono">${esc(i.sku)} · ${channels.filter(c => i.listedOn.includes(c.id)).map(c => `${esc(c.name)} ${money(i.prices[c.id])}`).join(' · ')}</span>
         ${i.promotion ? `<span class="sub">Já está na promoção “${esc(i.promotion.name)}” até ${date(i.promotion.end)}</span>` : ''}
-        ${i.ownPromoEnd !== null && i.ownPromoEnd !== undefined ? `<span class="sub">Já tem promoção própria no anúncio${i.ownPromoEnd ? ` até ${date(i.ownPromoEnd)}` : ''}: tire antes de aprovar esta</span>` : ''}${chosen.has(i.queueId) ? '<span class="sub">Já está na lista</span>' : ''}</button></li>`).join('')
+        ${i.ownPromoEnd !== null && i.ownPromoEnd !== undefined ? `<span class="sub">Já tem promoção própria no anúncio${i.ownPromoEnd ? ` até ${date(i.ownPromoEnd)}` : ''}: tire antes de aprovar esta</span>` : ''}${chosen.has(i.queueId) ? '<span class="sub">Já está na lista</span>' : ''}</span>
+      </label></li>`).join('')}
+      ${more ? `<li class="picker-none">Mostrando os ${num(items.length)} primeiros. Escreva mais do nome para achar os outros.</li>` : ''}`
       : `<li class="picker-none">Nenhum anúncio à venda em ${esc(channels.map(c => c.name).join(' ou '))} com esse nome ou código.</li>`;
   } catch (error) {
     box.innerHTML = `<li class="picker-none">${esc(error.message)}</li>`;
@@ -220,6 +242,12 @@ const view = {
       redrawRows(form);
       const term = form.querySelector('[data-input=promo-search]').value.trim();
       if (term.length >= 2) searchListings(form, term);
+    },
+    'promo-pick'(ctx, el) { updatePicked(el.closest('form')); },
+    'promo-pick-all'(ctx, el) {
+      const form = el.closest('form');
+      form.querySelectorAll('[data-pick]:not(:disabled)').forEach(box => { box.checked = el.checked; });
+      updatePicked(form);
     }
   },
 
@@ -227,16 +255,20 @@ const view = {
     open(ctx, el) { ctx.navigate(`promocoes/${el.dataset.id}`); },
     new(ctx) { return openForm(ctx, null); },
     edit(ctx) { return openForm(ctx, ctx.state.current); },
-    'promo-add'(ctx, el) {
+    // Coloca na promoção todos os anúncios marcados na busca.
+    'promo-add-picked'(ctx, el) {
       const form = el.closest('form');
-      const item = JSON.parse(el.dataset.item);
+      const picked = [...form.querySelectorAll('[data-pick]:checked:not(:disabled)')].map(box => JSON.parse(box.dataset.item));
+      if (!picked.length) return toast('Marque pelo menos um produto da lista.', 'warn');
       const list = form.querySelector('[data-promo-chosen]');
-      list.insertAdjacentHTML('beforeend', promoRow({ ...item, values: {} }, formChannels(form)));
+      const first = list.children.length;
+      list.insertAdjacentHTML('beforeend', picked.map(item => promoRow({ ...item, values: {} }, formChannels(form))).join(''));
       form.querySelector('[data-promo-results]').innerHTML = '';
       const search = form.querySelector('[data-input=promo-search]');
       search.value = '';
-      (list.lastElementChild.querySelector('[data-ch]') || search).focus();
+      (list.children[first]?.querySelector('[data-ch]') || search).focus();
       updateNet(form);
+      toast(`${num(picked.length)} produto${picked.length === 1 ? '' : 's'} na promoção. Coloque os preços ou use "Dar X% em todos".`);
     },
     'promo-remove'(ctx, el) {
       const form = el.closest('form');
@@ -344,7 +376,7 @@ async function openForm(ctx, record, preset = null) {
       <div class="field full promo-picker">
         <span class="field-label">2. Produtos e preço da promoção <span class="req" aria-hidden="true">*</span></span>
         <div class="picker-search">${icon('search')}<input type="search" data-input="promo-search" placeholder="Buscar anúncio por nome ou código" autocomplete="off" aria-label="Buscar anúncio para a promoção"></div>
-        <ul class="picker-results" data-promo-results role="listbox" aria-label="Anúncios encontrados"></ul>
+        <ul class="picker-results" data-promo-results aria-label="Anúncios encontrados (marque um ou vários)"></ul>
         <div class="promo-bulk"><span data-promo-count></span>
           <label class="promo-percent">Dar <input type="number" min="1" max="99" step="1" data-percent inputmode="numeric" aria-label="Porcentagem de desconto"> % de desconto em todos</label>
           ${button('Aplicar', { action: 'promo-percent', variant: 'ghost small' })}</div>
