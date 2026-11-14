@@ -157,6 +157,15 @@ No pedido (`POST /api/store/orders`), `delivery.method` aceita esses mesmos `id`
 
 Contato repetido (mesmo e-mail/telefone, lead em aberto) vira comentário no lead existente.
 
+**Filtro de robôs** (`server/services/lead-guard.js`). As 3 rotas aceitam, opcional, `antiBot: { honeypot, elapsedMs }`:
+- `honeypot`: o valor de um campo escondido do formulário (gente não vê, robô preenche). Com qualquer texto,
+  o portal **descarta** o envio sem guardar e responde `{ ignored: true }` (sucesso, para não ensinar o robô).
+- `elapsedMs`: milissegundos entre o formulário aparecer e o envio. Abaixo de 2500 → descartado do mesmo jeito.
+- Sem `antiBot`, só vale a segunda camada: contato com cara de robô (Gmail picotado com pontos, e-mail
+  descartável, 2+ links na mensagem, link no nome, alfabeto estrangeiro) entra como **Suspeito (robô)**
+  (`status: 'spam'`), fora da lista e das contas do portal; a equipe confere e devolve com "Não é robô".
+- O site também deve limitar envios por IP (ex.: 5 por hora em cada rota) antes de chamar o portal.
+
 ## O que falta construir no projeto do site (servidor)
 
 1. `/api/catalog` e `/api/catalog/stock-check`: repassar ao portal (ou o front lê direto do portal,

@@ -1,6 +1,6 @@
 // Leads: origem, campanha, responsável, etapa, valor e histórico de contato.
 import { get, post, patch, del } from '../api.js';
-import { esc, icon, money, num, relative, pageHead, empty, button, field, openDrawer, openModal, closeLayers, toast, confirmDialog, statusTag } from '../ui.js';
+import { esc, icon, money, num, relative, pageHead, empty, button, field, openDrawer, openModal, closeLayers, toast, confirmDialog, statusTag, notice } from '../ui.js';
 import { LEAD_STATUS, LEAD_SOURCES } from '../../shared/domain.js';
 import { notesSection, personName, peopleOptions } from './common.js';
 
@@ -14,13 +14,19 @@ const view = {
     return { records, users, campaigns };
   },
 
-  render({ state, data }) {
+  render({ user, state, data }) {
     const { records, users, campaigns } = data;
-    const totals = Object.keys(LEAD_STATUS).map(k => [k, records.filter(r => r.status === k)]);
-    const strip = `<div class="stat-strip">${totals.map(([k, list]) => `<button class="stat-btn${state.status === k ? ' is-active' : ''}" data-action="status" data-status="${k}" aria-pressed="${state.status === k}"><strong>${num(list.length)}</strong> ${esc(LEAD_STATUS[k].label)}<span class="mono">${money(list.reduce((s, l) => s + (l.value || 0), 0))}</span></button>`).join('')}${state.status ? button('Ver todos', { action: 'status', data: { status: '' }, variant: 'ghost small' }) : ''}</div>`;
-    const list = records.length ? `<section class="panel flush"><div class="table-wrap"><table class="table">
+    const canCheck = ['owner', 'manager'].includes(user.role);
+    // Suspeitos de robô ficam fora da lista principal e das contas; têm o botão deles.
+    const main = Object.keys(LEAD_STATUS).filter(k => k !== 'spam');
+    const suspects = records.filter(r => r.status === 'spam').length;
+    const shown = state.status ? records : records.filter(r => r.status !== 'spam');
+    const totals = main.map(k => [k, records.filter(r => r.status === k)]);
+    const strip = `<div class="stat-strip">${totals.map(([k, list]) => `<button class="stat-btn${state.status === k ? ' is-active' : ''}" data-action="status" data-status="${k}" aria-pressed="${state.status === k}"><strong>${num(list.length)}</strong> ${esc(LEAD_STATUS[k].label)}<span class="mono">${money(list.reduce((s, l) => s + (l.value || 0), 0))}</span></button>`).join('')}${suspects || state.status === 'spam' ? `<button class="stat-btn stat-spam${state.status === 'spam' ? ' is-active' : ''}" data-action="status" data-status="spam" aria-pressed="${state.status === 'spam'}">${icon('shield')}<strong>${num(suspects)}</strong> Suspeitos de robô</button>` : ''}${state.status ? button('Ver todos', { action: 'status', data: { status: '' }, variant: 'ghost small' }) : ''}${canCheck && (!state.status || state.status === 'spam') ? button('Procurar robôs', { action: 'bot-check', icon: 'shield', variant: 'ghost small', title: 'Confere os contatos novos que chegaram sozinhos e separa os que parecem robô' }) : ''}</div>`;
+    const spamNote = state.status === 'spam' ? notice('Contatos que o portal separou sozinho porque parecem de robô (e-mail picotado com pontos, e-mail descartável, mensagem cheia de links…). Eles não entram nas contas nem no Início. Se algum for gente de verdade, abra e toque em <strong>Não é robô</strong>.', 'info') : '';
+    const list = shown.length ? `<section class="panel flush"><div class="table-wrap"><table class="table">
       <thead><tr><th scope="col">Cliente</th><th scope="col">Veio de</th><th scope="col">Campanha</th><th scope="col">Quem atende</th><th scope="col" class="num">Valor</th><th scope="col">Situação</th><th scope="col">Atualizado</th></tr></thead>
-      <tbody>${records.map(l => `<tr class="row-link" data-action="open" data-id="${esc(l.id)}" tabindex="0">
+      <tbody>${shown.map(l => `<tr class="row-link" data-action="open" data-id="${esc(l.id)}" tabindex="0">
         <td><strong>${esc(l.name)}</strong><span class="sub">${esc(l.phone || l.email || 'sem telefone')}</span></td>
         <td>${esc(l.source)}</td>
         <td>${esc(campaigns.find(c => c.id === l.campaignId)?.name || '—')}</td>
@@ -28,8 +34,10 @@ const view = {
         <td class="num mono">${money(l.value)}</td>
         <td>${statusTag(LEAD_STATUS, l.status)}</td>
         <td class="nowrap">${esc(relative(l.updatedAt))}</td></tr>`).join('')}</tbody></table></div></section>`
-      : `<section class="panel">${empty({ title: state.status ? 'Ninguém com essa situação' : 'Nenhum cliente interessado ainda', text: 'Anote aqui quem pediu informação pelo WhatsApp, pelo site, pelas redes sociais ou na loja.', action: button('Novo contato', { action: 'new', icon: 'plus', variant: 'primary' }), ic: 'users' })}</section>`;
-    return `${pageHead({ title: 'Clientes interessados', lead: 'Anote quem se interessou por algum produto e acompanhe até a compra. Os contatos do site e dos anúncios podem chegar aqui sozinhos.', actions: button('Novo contato', { action: 'new', icon: 'plus', variant: 'primary' }) })}${strip}${list}`;
+      : state.status === 'spam'
+        ? `<section class="panel">${empty({ title: 'Nenhum suspeito de robô', text: 'Quando o portal separar algum contato com cara de robô, ele aparece aqui.', ic: 'shield' })}</section>`
+        : `<section class="panel">${empty({ title: state.status ? 'Ninguém com essa situação' : 'Nenhum cliente interessado ainda', text: 'Anote aqui quem pediu informação pelo WhatsApp, pelo site, pelas redes sociais ou na loja.', action: button('Novo contato', { action: 'new', icon: 'plus', variant: 'primary' }), ic: 'users' })}</section>`;
+    return `${pageHead({ title: 'Clientes interessados', lead: 'Anote quem se interessou por algum produto e acompanhe até a compra. Os contatos do site e dos anúncios podem chegar aqui sozinhos.', actions: button('Novo contato', { action: 'new', icon: 'plus', variant: 'primary' }) })}${strip}${spamNote}${list}`;
   },
 
   async open(ctx, id) {
@@ -42,7 +50,10 @@ const view = {
       record.email ? `<a href="mailto:${esc(record.email)}">${esc(record.email)}</a>` : ''
     ].filter(Boolean).join('<br>') || '—';
     const campaign = campaigns.find(c => c.id === record.campaignId);
-    const body = `<dl class="facts">
+    const suspect = record.status === 'spam'
+      ? notice(`<strong>Parece robô.</strong> ${record.botReasons?.length ? esc(record.botReasons.join('; ')) + '.' : 'Marcado como suspeito.'}<br>${button('Não é robô', { action: 'set-status', icon: 'check', variant: 'secondary small', data: { status: 'new' } })}`, 'warn')
+      : '';
+    const body = `${suspect}<dl class="facts">
         <div><dt>Telefone e e-mail</dt><dd>${contact}</dd></div>
         <div><dt>Veio de</dt><dd>${esc(record.source)}</dd></div>
         <div><dt>Campanha</dt><dd>${campaign ? `<a href="#/campanhas/${esc(campaign.id)}">${esc(campaign.name)}</a>` : '—'}</dd></div>
@@ -60,6 +71,11 @@ const view = {
   actions: {
     open(ctx, el) { ctx.navigate(`leads/${el.dataset.id}`); },
     status(ctx, el) { ctx.state.status = ctx.state.status === el.dataset.status ? '' : el.dataset.status; return ctx.refresh(); },
+    async 'bot-check'(ctx) {
+      const { checked, moved } = await post('/leads/bot-check');
+      toast(moved ? `${num(moved)} contato(s) com cara de robô foram para "Suspeitos de robô".` : `Conferi ${num(checked)} contato(s) novos: nenhum parece robô.`);
+      await ctx.refresh();
+    },
     new(ctx) { return openForm(ctx); },
     edit(ctx) { return openForm(ctx, ctx.state.current); },
     async 'set-status'(ctx, el) {

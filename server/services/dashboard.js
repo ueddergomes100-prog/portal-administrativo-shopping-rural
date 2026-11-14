@@ -92,7 +92,7 @@ export async function dashboard(user) {
       promotionsLive: promotions.filter(p => promotionPhase(p, today)?.key === 'active').length,
       artsOpen: arts.filter(a => !['published'].includes(a.status)).length,
       artsLate: lateArts.length,
-      leadsOpen: leads.filter(l => !['won', 'lost'].includes(l.status)).length
+      leadsOpen: leads.filter(l => !['won', 'lost', 'spam'].includes(l.status)).length
     },
     integrations: integrations.map(({ id, name, status, lastSyncAt, lastError }) => ({ id, name, status, lastSyncAt, lastError })),
     recent: ['owner', 'manager'].includes(user.role) ? await listAudit({ limit: 8 }) : []

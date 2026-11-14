@@ -21,7 +21,7 @@ import { updateShippingSettings, shippingStatus, quoteForSite, simulateShipping,
 import { listSiteCategories, updateSiteCategories } from './services/categories.js';
 import { promotionCandidates, markChannelTask } from './services/promotion-channels.js';
 import { listMetrics, syncMetrics, syncAllMetrics } from './services/metrics.js';
-import { receiveLead, importMetaLeads } from './services/leads-inbound.js';
+import { receiveLead, importMetaLeads, recheckLeads } from './services/leads-inbound.js';
 import { listIntegrations, updateIntegrationSettings } from './services/integrations.js';
 import { dashboard } from './services/dashboard.js';
 import { syncUniplusOnce, saveCatalog, mapProduct, recordUniplusHeartbeat } from './integrations/uniplus.js';
@@ -148,6 +148,7 @@ const routes = [
 
   // Entrada de leads: ferramentas externas e Meta Lead Ads
   ['POST', '/api/leads/inbound', ({ body }) => receiveLead(body, { source: 'Site' }), { auth: 'leads' }],
+  ['POST', '/api/leads/bot-check', ({ user }) => recheckLeads(user)],
   ['POST', '/api/leads/import-meta', async ({ user }) => {
     requireRole(user, ['owner', 'manager', 'marketing']);
     try { return await importMetaLeads(user); } catch (error) { throw badRequest(error.message, { code: error.code }); }

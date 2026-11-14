@@ -89,8 +89,9 @@ Erros dessas rotas trazem `message` (campo que o site lê) além de `error`.
 | GET | `/metrics` | todos | último resumo guardado de `ga4`, `googleads`, `metaads` |
 | POST | `/metrics/:source/sync` | dono, gerente, marketing | busca agora no provedor |
 | GET | `/cron/metrics` | Cron da Vercel (`CRON_SECRET` ou `user-agent: vercel-cron/…`) | atualiza todas as fontes ligadas; `{ synced: { fonte: 'ok' \| 'pulado' \| erro } }` |
-| POST | `/leads/inbound` | ferramentas (`LEADS_WEBHOOK_TOKEN`) | cria lead ou comenta no existente (mesmo telefone/e-mail) |
+| POST | `/leads/inbound` | ferramentas (`LEADS_WEBHOOK_TOKEN`) | cria lead ou comenta no existente (mesmo telefone/e-mail); com cara de robô entra como `spam`; `antiBot` opcional (docs/SITE.md) |
 | POST | `/leads/import-meta` | dono, gerente, marketing | importa leads dos formulários do Meta |
+| POST | `/leads/bot-check` | dono, gerente | passa o filtro de robôs nos leads "Novo" que chegaram sozinhos → `{ checked, moved }` (auditado) |
 
 ## Campanhas, promoções, artes, leads
 

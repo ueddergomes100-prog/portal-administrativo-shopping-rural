@@ -178,7 +178,9 @@ export const LEAD_STATUS = {
   contacted: { label: 'Conversando', tone: 'info' },
   qualified: { label: 'Quer comprar', tone: 'warn' },
   won: { label: 'Comprou', tone: 'ok' },
-  lost: { label: 'Desistiu', tone: 'muted' }
+  lost: { label: 'Desistiu', tone: 'muted' },
+  // Separado sozinho pelo filtro de robôs (server/services/lead-guard.js); fica fora da lista principal.
+  spam: { label: 'Suspeito (robô)', tone: 'muted' }
 };
 export const LEAD_SOURCES = ['Site', 'WhatsApp', 'Instagram', 'Facebook', 'Meta Ads', 'Google Ads', 'Loja física', 'Indicação', 'Outro'];
 

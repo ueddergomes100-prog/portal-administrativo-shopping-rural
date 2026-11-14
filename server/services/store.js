@@ -213,19 +213,20 @@ export function orderTransitions(order, user) {
 // ---------------------------------------------------------------------------
 // Avisos do site -> leads
 // ---------------------------------------------------------------------------
+// `antiBot` (opcional, do formulário do site): { honeypot, elapsedMs } — ver server/services/lead-guard.js.
 export function siteContact(body) {
   return receiveLead({
     name: body.name, email: body.email, phone: body.phone, source: 'Site',
     message: [body.subject, body.message].filter(Boolean).join(': ')
-  }, { source: 'Site' });
+  }, { source: 'Site', antiBot: body.antiBot });
 }
 
 export function siteNewsletter(body) {
-  return receiveLead({ name: 'Newsletter', email: body.email, source: 'Site', message: 'Assinou a newsletter do site' }, { source: 'Site' });
+  return receiveLead({ name: 'Newsletter', email: body.email, source: 'Site', message: 'Assinou a newsletter do site' }, { source: 'Site', antiBot: body.antiBot });
 }
 
 export async function siteRestockAlert(body) {
   const sku = clean.text(body.sku, { required: true, max: 60, label: 'SKU' });
   const product = (await getStore().list(C.products, { where: [['sku', '==', sku]], limit: 1 }))[0];
-  return receiveLead({ name: 'Aviso de reposição', email: body.email, source: 'Site', message: `Avisar quando chegar: ${product?.name || ''} (SKU ${sku})` }, { source: 'Site' });
+  return receiveLead({ name: 'Aviso de reposição', email: body.email, source: 'Site', message: `Avisar quando chegar: ${product?.name || ''} (SKU ${sku})` }, { source: 'Site', antiBot: body.antiBot });
 }
