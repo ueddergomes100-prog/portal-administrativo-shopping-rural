@@ -744,6 +744,10 @@ details.section[open] > summary { margin-bottom: 14px; }
 .pick input { width: 24px; height: 24px; accent-color: var(--pasto-700); cursor: pointer; }
 .pick-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: -4px 0 14px; color: var(--terra-2); }
 .pick-hint > .icon { color: var(--pasto-600); }
+/* Convite "Receba os avisos neste aparelho" no Início */
+.push-invite { display: grid; gap: 10px; margin-bottom: 18px; }
+.push-invite > .notice { margin: 0; }
+.push-invite-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .pick-hint > span { flex: 1 1 220px; }
 [data-pick-slot] { display: contents; } /* a barra continua presa embaixo da tela */
 .pick-bar, .send-bar { position: sticky; bottom: 12px; z-index: 15; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px 14px;

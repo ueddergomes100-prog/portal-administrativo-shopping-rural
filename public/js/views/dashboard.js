@@ -1,8 +1,20 @@
 // Início: primeiro o que a pessoa precisa resolver agora (com o botão que resolve), depois como está a
 // loja em poucos números e o que vem nos próximos dias. Detalhes técnicos ficam recolhidos no fim.
 import { get } from '../api.js';
-import { esc, icon, tag, num, date, relative, pageHead, notice, statusTag } from '../ui.js';
+import { esc, icon, tag, num, date, relative, pageHead, notice, statusTag, button, toast } from '../ui.js';
 import { QUEUE_STAGES, QUEUE_FLOW, INTEGRATION_STATUS } from '../../shared/domain.js';
+import { shouldInvite, pushState, enablePush, askLater } from '../push.js';
+
+// Convite para receber os avisos no celular (some ao ativar ou em "Agora não", por 30 dias).
+function pushInvite(config) {
+  if (!shouldInvite(config)) return '';
+  if (pushState(config) === 'needs-install') {
+    return `<div class="push-invite">${notice(`<strong>Quer receber os avisos neste iPhone?</strong> Toque em <strong>Compartilhar</strong> → <strong>Adicionar à Tela de Início</strong> e abra o portal pelo ícone que aparecer. Depois toque em “Ativar avisos” aqui no Início.`, 'info')}
+      ${button('Agora não', { action: 'push-later', variant: 'ghost small' })}</div>`;
+  }
+  return `<div class="push-invite">${notice('<strong>Receba os avisos neste aparelho.</strong> Quando um produto for pedido, ficar pronto para aprovar ou for aprovado, o aviso chega aqui, mesmo com o portal fechado.', 'info')}
+    <div class="push-invite-actions">${button('Ativar avisos', { action: 'push-on', icon: 'bell', variant: 'primary' })}${button('Agora não', { action: 'push-later', variant: 'ghost' })}</div></div>`;
+}
 
 const KIND_ICON = { queue: 'queue', arts: 'art', campaigns: 'campaign', promotions: 'tag', orders: 'orders', team: 'shield' };
 
@@ -70,7 +82,7 @@ export default {
 
   load: () => get('/dashboard'),
 
-  render({ user, data }) {
+  render({ user, data, config }) {
     const today = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
     const todo = data.todo;
     const lead = todo.length
@@ -82,6 +94,7 @@ export default {
       : '';
 
     return `${pageHead({ eyebrow: esc(today), title: greeting(user.name), lead })}
+    ${pushInvite(config)}
     ${stockWarning}
 
     <section class="panel tasks-panel" aria-labelledby="todoTitle">
@@ -127,5 +140,20 @@ export default {
     </details>`;
   },
 
-  actions: {}
+  actions: {
+    async 'push-on'(ctx) {
+      try {
+        await enablePush(ctx.config);
+        toast('Pronto! Os avisos vão chegar neste aparelho.');
+      } catch (error) {
+        toast(error.message, 'danger');
+      }
+      ctx.rerender();
+    },
+    'push-later'(ctx) {
+      askLater();
+      toast('Tudo bem. Dá para ativar depois em Minha conta.');
+      ctx.rerender();
+    }
+  }
 };

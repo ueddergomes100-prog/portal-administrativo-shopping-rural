@@ -28,6 +28,7 @@ import { syncUniplusOnce, saveCatalog, mapProduct, recordUniplusHeartbeat } from
 import { listMedia, mediaAvailable } from './media.js';
 import { saveUpload, storageDriver } from './files.js';
 import { withLive, flushLive } from './live.js';
+import { pushConfig, savePushToken, removePushToken, testPush } from './services/push.js';
 import { getStore, C } from './store/index.js';
 
 const ENTITY = '(campaigns|promotions|arts|leads)';
@@ -50,7 +51,8 @@ const routes = [
     needsSetup: await needsSetup(),
     mediaAvailable: mediaAvailable(),
     storage: storageDriver(),
-    firebase: config.backend === 'firestore' ? config.firebase.web : null
+    firebase: config.backend === 'firestore' ? config.firebase.web : null,
+    push: pushConfig()
   }), { auth: 'public' }],
 
   // Autenticação (modo local). No modo firestore o login acontece no navegador via Firebase Auth.
@@ -64,6 +66,11 @@ const routes = [
   // Telas ao vivo: { at, changes: { chave: quando } } (server/live.js). Na nuvem o navegador escuta
   // settings/live direto no Firestore; esta rota é para o modo local/demonstração e de reserva.
   ['GET', '/api/live', async () => ({ live: (await getStore().get(C.settings, 'live')) || { at: null, changes: {} } })],
+
+  // Avisos no celular (push): ligar/desligar neste aparelho e mandar um teste para si mesmo.
+  ['POST', '/api/push/tokens', ({ user, body }) => savePushToken(user, body)],
+  ['POST', '/api/push/forget', ({ user, body }) => removePushToken(user, body)],
+  ['POST', '/api/push/test', ({ user }) => testPush(user)],
 
   ['GET', '/api/users', async ({ user }) => ({ users: await listUsers(user) })],
   ['POST', '/api/users', async ({ user, body }) => ({ user: await createUser(user, body) })],

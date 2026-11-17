@@ -62,8 +62,13 @@ export const config = {
       apiKey: env('FIREBASE_WEB_API_KEY'),
       authDomain: env('FIREBASE_WEB_AUTH_DOMAIN'),
       projectId: env('FIREBASE_PROJECT_ID', 'portalspr-e0490'),
-      appId: env('FIREBASE_WEB_APP_ID')
-    }
+      appId: env('FIREBASE_WEB_APP_ID'),
+      // Avisos no celular precisam do número do projeto; ele já está dentro do App ID (1:<número>:web:…).
+      messagingSenderId: env('FIREBASE_WEB_MESSAGING_SENDER_ID') || env('FIREBASE_WEB_APP_ID').split(':')[1] || ''
+    },
+    // Chave pública dos avisos no celular (Firebase → Configurações do projeto → Cloud Messaging →
+    // Certificados push da Web). Sem ela, o botão "Ativar avisos" não aparece. Não é segredo.
+    vapidKey: env('FIREBASE_WEB_VAPID_KEY')
   },
 
   uniplus: {

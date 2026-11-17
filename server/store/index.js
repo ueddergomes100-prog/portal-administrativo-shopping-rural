@@ -19,7 +19,8 @@ export const C = {
   integrations: 'integrations',
   metrics: 'metrics',
   settings: 'settings',
-  audit: 'audit'
+  audit: 'audit',
+  pushTokens: 'pushTokens' // aparelhos com avisos ligados (server/services/push.js); só o servidor lê
 };
 
 let store = null;

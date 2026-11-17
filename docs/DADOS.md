@@ -18,6 +18,7 @@ instantes em ISO 8601 UTC (a interface converte para São Paulo).
 | `settings` | servidor | `channels` (dono) = `{ items: [{id,name,percent,fixed,fixedBelow,integration,active,note}] }` — sem documento, vale `DEFAULT_CHANNELS`. `workflow` (dono) = `{ split, updatedAt, updatedBy }`: "Cada um faz a sua parte" (Ajustes → Equipe) — sem documento, `split: false` (dono e gerente também preparam); lido com cache de 30 s. `live` (automático) = `{ at, changes: { [coleção ou settings:<doc>]: quando } }`: aviso das telas ao vivo, gravado (com merge, 1 escrita) no fim de cada pedido que muda algo; o navegador escuta este documento (`server/live.js`). `catalog` (automático) = `{ generatedAt, items[...] }`: catálogo do site pronto, refeito quando algo do site muda (`services/catalog.js`) |
 | `metrics` | servidor | por fonte (`ga4`, `googleads`, `metaads`): `{ period, syncedAt, summary[{key,label,value,format}], table{title,columns,rows} }` |
 | `audit` | servidor | `at, actorId, actorName, actorRole, action, entity, entityId, summary, changes{campo:{before,after}}` — nunca editado |
+| `pushTokens` | servidor | aparelhos com avisos no celular ligados; ID = hash do token: `{ userId, userName, token, device, updatedAt }`. Só o servidor lê (regras fechadas). Apagado ao desligar, ao sair do portal ou quando o Firebase diz que o aparelho não existe mais |
 
 ## Estados
 

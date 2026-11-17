@@ -8,6 +8,7 @@ import { badRequest, forbidden, notFound, conflict, clean } from '../http.js';
 import { getProduct, invalidateProductCache, seesCost } from './products.js';
 import { getChannels, getWorkflow } from './settings.js';
 import { checkMediaRefs } from '../media.js';
+import { notify, shortList } from './push.js';
 import { config } from '../config.js';
 import { siteProductUrl, touchCatalog, withDeferredCatalog } from './catalog.js';
 import { siteCategoryIds } from './categories.js';
@@ -144,7 +145,8 @@ function sellingNumbers(product, sellAs) {
 }
 
 // Dono (ou gerente aprovador) escolhe o produto, os canais e o preço em cada um.
-export async function selectProduct(user, input) {
+// `silent`: os lotes (vários de uma vez) mandam um aviso só no fim, em vez de um por produto.
+export async function selectProduct(user, input, { silent = false } = {}) {
   if (!isPricer(user)) throw forbidden('Só o dono (ou o gerente que pode aprovar) escolhe o que vender e por quanto.');
   const product = await getProduct(clean.text(input.productId, { required: true, label: 'Produto' }));
   const store = getStore();
@@ -179,7 +181,69 @@ export async function selectProduct(user, input) {
     action: 'queue.select', entity: 'queue', entityId: saved.id,
     summary: `Escolheu ${product.name} para ${pricing.channels.map(c => c.name).join(', ')}`, after: item
   });
+  if (!silent) await notifyToPrepare(user, [saved]);
   return decorated(saved, user);
+}
+
+// ---------------------------------------------------------------------------
+// Avisos no celular de cada passo (server/services/push.js). Só para quem precisa agir; nunca para
+// quem fez a ação. Ao tocar no aviso abre a ficha do anúncio (ou a lista, quando são vários).
+// ---------------------------------------------------------------------------
+const itemUrl = item => `/#/fila/${item.id}`;
+const nameOf = item => item.productSnapshot?.name || 'Produto';
+
+// Pedido: o dono mandou preparar → Vendas na internet.
+async function notifyToPrepare(user, items) {
+  if (!items.length) return;
+  const one = items.length === 1;
+  await notify({
+    to: { roles: ['site'] }, exclude: user.id,
+    title: one ? 'Novo produto para preparar' : `${items.length} produtos para preparar`,
+    body: `${one ? nameOf(items[0]) : shortList(items.map(nameOf))}. ${user.name} pediu as fotos e o texto.`,
+    url: one ? itemUrl(items[0]) : '/#/fila', tag: one ? `fila-${items[0].id}` : 'fila-preparar'
+  });
+}
+
+// Preparado: foi mandado para aprovação → dono e gerente que aprova.
+async function notifyToApprove(user, items) {
+  if (!items.length) return;
+  const one = items.length === 1;
+  await notify({
+    to: { approvers: true }, exclude: user.id,
+    title: one ? 'Anúncio esperando sua aprovação' : `${items.length} anúncios esperando sua aprovação`,
+    body: `${one ? nameOf(items[0]) : shortList(items.map(nameOf))}: fotos e texto prontos (${user.name}).`,
+    url: one ? itemUrl(items[0]) : '/#/fila', tag: one ? `fila-${items[0].id}` : 'fila-aprovar'
+  });
+}
+
+// Mudança de etapa feita pela ficha: aprovado, correção pedida.
+async function notifyStage(user, before, after, note) {
+  if (after.stage === 'review') return notifyToApprove(user, [after]);
+  if (before.stage === 'review' && ['approved', 'published'].includes(after.stage)) {
+    return notify({
+      to: { roles: ['site'] }, exclude: user.id,
+      title: 'Anúncio aprovado', body: `${nameOf(after)}: ${user.name} aprovou. Pode colocar à venda.`,
+      url: itemUrl(after), tag: `fila-${after.id}`
+    });
+  }
+  if (after.stage === 'preparing' && ['review', 'approved', 'published'].includes(before.stage)) {
+    return notify({
+      to: { roles: ['site'] }, exclude: user.id,
+      title: 'Correção pedida', body: `${nameOf(after)}: ${note || 'veja o motivo na ficha.'}`,
+      url: itemUrl(after), tag: `fila-${after.id}`
+    });
+  }
+}
+
+// À venda em todos os lugares → quem pediu (normalmente o dono).
+async function notifyOnSale(user, item) {
+  const requester = item.requestedBy?.id;
+  if (!requester) return;
+  await notify({
+    to: { userIds: [requester] }, exclude: user.id,
+    title: 'Produto à venda', body: `${nameOf(item)} já está à venda em todos os lugares escolhidos.`,
+    url: itemUrl(item), tag: `fila-${item.id}`
+  });
 }
 
 export async function updatePricing(user, id, input) {
@@ -312,7 +376,7 @@ function contentProblems(item) {
   return missing;
 }
 
-export async function transitionQueue(user, id, { to, note }) {
+export async function transitionQueue(user, id, { to, note }, { silent = false } = {}) {
   const store = getStore();
   const item = await store.get(C.queue, id);
   if (!item) throw notFound('Item da fila não encontrado.');
@@ -338,7 +402,7 @@ export async function transitionQueue(user, id, { to, note }) {
     patch.listings = { ...item.listings, site: { status: 'idle', externalId: '', url: '', publishedAt: null, removedAt: now(), removedBy: user.name } };
   }
   let saved = await store.update(C.queue, id, patch);
-  if (to === 'approved') saved = await settleStage(store, saved, user);
+  if (to === 'approved') saved = await settleStage(store, saved, user, { silent });
   invalidateProductCache();
   await touchCatalog(item, saved);
   await audit(user, {
@@ -346,16 +410,19 @@ export async function transitionQueue(user, id, { to, note }) {
     summary: `${item.productSnapshot.name}: ${QUEUE_STAGES[item.stage].label} → ${QUEUE_STAGES[to].label}${cleanNote ? ` (${cleanNote})` : ''}`,
     before: { stage: item.stage }, after: { stage: to }
   });
+  if (!silent) await notifyStage(user, item, saved, cleanNote);
   return decorated(saved, user);
 }
 
 // Quando todos os canais escolhidos estão publicados, o item vai para "Publicado".
 // Se algum canal deixar de estar publicado, volta para "Aprovado".
-async function settleStage(store, item, user) {
+async function settleStage(store, item, user, { silent = false } = {}) {
   const allDone = (item.channels || []).every(c => item.listings?.[c.id]?.status === 'done');
   if (allDone && item.stage === 'approved') {
     const history = [...(item.stageHistory || []), { from: 'approved', to: 'published', at: now(), by: user.name, note: 'Todos os canais publicados' }];
-    return store.update(C.queue, item.id, { stage: 'published', stageHistory: history, updatedAt: now() });
+    const saved = await store.update(C.queue, item.id, { stage: 'published', stageHistory: history, updatedAt: now() });
+    if (!silent) await notifyOnSale(user, saved);
+    return saved;
   }
   if (!allDone && item.stage === 'published') {
     const history = [...(item.stageHistory || []), { from: 'published', to: 'approved', at: now(), by: user.name, note: 'Um canal saiu do ar' }];
@@ -388,7 +455,7 @@ async function uniqueSlug(store, item, takenSlugs = null) {
 
 
 // Site próprio: coloca o produto no catálogo lido pelo site (GET /api/store/catalog).
-export async function publishToSite(user, id, { takenSlugs = null } = {}) {
+export async function publishToSite(user, id, { takenSlugs = null, silent = false } = {}) {
   const { store, item, channel } = await loadForListing(user, id, 'site');
   if (channel.integration !== 'site') throw badRequest('Este lugar de venda não é o site da loja.');
   const missing = [...contentProblems(item), ...siteProblems(item)];
@@ -397,7 +464,7 @@ export async function publishToSite(user, id, { takenSlugs = null } = {}) {
   takenSlugs?.add(slug);
   const listing = { status: 'done', manual: false, publishedAt: now(), by: user.name, externalId: slug, url: siteProductUrl(slug) };
   let saved = await store.update(C.queue, id, { slug, listings: { ...item.listings, site: listing }, updatedAt: now(), updatedBy: user.id });
-  saved = await settleStage(store, saved, user);
+  saved = await settleStage(store, saved, user, { silent });
   invalidateProductCache();
   await touchCatalog(saved);
   await audit(user, { action: 'queue.publish_site', entity: 'queue', entityId: id, summary: `Publicou ${item.productSnapshot.name} no site (/${slug})` });
@@ -420,6 +487,8 @@ export async function bulkPrepare(user, input) {
   const queue = await store.list(C.queue);
   const takenSlugs = new Set(queue.filter(i => i.slug).map(i => i.slug));
   const results = [];
+  const toApprove = [];
+  const quiet = { silent: true }; // um aviso só no fim, não um por produto
   await withDeferredCatalog(async () => {
     for (const entry of entries) {
       const productId = String(entry?.productId ?? '');
@@ -427,21 +496,23 @@ export async function bulkPrepare(user, input) {
         let item = queue.find(i => i.productId === productId && i.stage !== 'archived');
         if (!item) {
           if (!isPricer(user)) throw forbidden('O dono precisa colocar este produto à venda primeiro.');
-          item = await selectProduct(user, { productId, packageId: entry.packageId, channels: [{ id: 'site', price: entry.price }] });
+          item = await selectProduct(user, { productId, packageId: entry.packageId, channels: [{ id: 'site', price: entry.price }] }, quiet);
         }
         if (['selected', 'preparing'].includes(item.stage)) {
           item = await updateContent(user, item.id, entry.content || {});
-          item = await transitionQueue(user, item.id, { to: 'review' });
+          item = await transitionQueue(user, item.id, { to: 'review' }, quiet);
         }
-        if (publish && item.stage === 'review') item = await transitionQueue(user, item.id, { to: 'approved' });
+        if (publish && item.stage === 'review') item = await transitionQueue(user, item.id, { to: 'approved' }, quiet);
         const sitePending = (item.channels || []).some(c => c.integration === 'site') && item.listings?.site?.status !== 'done';
-        if (publish && ['approved', 'published'].includes(item.stage) && sitePending) item = await publishToSite(user, item.id, { takenSlugs });
+        if (publish && ['approved', 'published'].includes(item.stage) && sitePending) item = await publishToSite(user, item.id, { takenSlugs, silent: true });
+        if (item.stage === 'review') toApprove.push(item);
         results.push({ productId, ok: true, id: item.id, stage: item.stage, url: item.listings?.site?.url || '' });
       } catch (error) {
         results.push({ productId, ok: false, error: error.message });
       }
     }
   });
+  await notifyToApprove(user, toApprove);
   return { results };
 }
 
@@ -457,17 +528,20 @@ export async function bulkSelect(user, input) {
   const channelIds = [...new Set((Array.isArray(input.channels) ? input.channels : []).map(id => String(id ?? '').trim()).filter(Boolean))];
   if (!channelIds.length) throw badRequest('Escolha pelo menos um lugar para vender.');
   const results = [];
+  const sent = [];
   for (const productId of productIds) {
     try {
       const item = await selectProduct(user, {
         productId, channels: channelIds.map(id => ({ id })),
         priority: input.priority, notes: input.notes, campaignId: input.campaignId
-      });
+      }, { silent: true });
+      sent.push(item);
       results.push({ productId, ok: true, id: item.id, name: item.productSnapshot.name });
     } catch (error) {
       results.push({ productId, ok: false, error: error.message });
     }
   }
+  await notifyToPrepare(user, sent); // um aviso só para o lote
   return { results };
 }
 

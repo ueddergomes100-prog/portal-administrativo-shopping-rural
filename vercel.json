@@ -7,9 +7,16 @@
   ],
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/index?path=:path*" },
-    { "source": "/((?!api/|assets/|js/|shared/).*)", "destination": "/index.html" }
+    { "source": "/((?!api/|assets/|js/|shared/|push-sw\\.js).*)", "destination": "/index.html" }
   ],
   "headers": [
+    {
+      "source": "/push-sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache" },
+        { "key": "Service-Worker-Allowed", "value": "/" }
+      ]
+    },
     {
       "source": "/(.*)",
       "headers": [

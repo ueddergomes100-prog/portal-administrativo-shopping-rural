@@ -4,6 +4,7 @@ import { get } from './api.js';
 import { initAuth, storedSession, signOut, authMode } from './auth.js';
 import { esc, icon, initials, toast, closeLayers, closeTopLayer, formData, formError, errorState, loading, keepingFocus } from './ui.js';
 import { startLive } from './live.js';
+import { refreshPush, disablePush, listenForPushClicks } from './push.js';
 import { ROLES } from '../shared/domain.js';
 import { renderLogin } from './views/login.js';
 import dashboard from './views/dashboard.js';
@@ -428,7 +429,8 @@ document.addEventListener('click', event => {
     return;
   }
   if (action === 'reload') return refresh();
-  if (action === 'logout') return void signOut().then(() => location.reload());
+  // Sair também desliga os avisos neste aparelho (quem entrar depois não recebe os avisos da pessoa).
+  if (action === 'logout') return void disablePush().finally(() => signOut().then(() => location.reload()));
   if (action === 'toggle-menu') return toggleMenu(!document.body.classList.contains('menu-open'));
   if (action === 'update-app') return location.reload();
   if (action === 'text-size') {
@@ -538,7 +540,9 @@ async function start() {
     // As mudanças chegam ao vivo (applyLive); a conferência do número do Início é só uma rede de segurança.
     setInterval(refreshBadges, 600_000);
     startLive(app.config, { onChange: onLiveChange, isActive: () => !!app.user });
+    listenForPushClicks(hash => { if (hash && hash !== location.hash) location.hash = hash; });
   }
+  refreshPush(app.config);
 }
 
 // Versão nova publicada: o app na tela inicial do celular não tem botão de recarregar e fica dias

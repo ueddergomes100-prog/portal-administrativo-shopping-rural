@@ -51,6 +51,11 @@ npx firebase-tools deploy --only firestore --project portalspr-e0490
 
 Gerar segredo: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
 
+**Avisos no celular (opcional, recomendado):** Console Firebase → ⚙ Configurações do projeto →
+**Cloud Messaging** → *Certificados push da Web* → **Gerar par de chaves**. Copie a chave (começa com
+`B…`, é pública) para `FIREBASE_WEB_VAPID_KEY` na Vercel e publique de novo. Sem ela, o portal funciona
+normal e só não oferece "Ativar avisos".
+
 4. **Deploy**. Conferir `https://<projeto>.vercel.app/api/health` → `{"ok":true,"backend":"firestore"}`.
 
 > **Plano da Vercel:** o plano gratuito (Hobby) é só para uso não comercial. Para a loja, use o **Pro**

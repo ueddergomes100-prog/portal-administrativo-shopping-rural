@@ -16,7 +16,8 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 
 // Histórico, resultados de mídia e situação das conexões mudam o tempo todo (o conector avisa que está
 // vivo a cada envio) e nenhuma tela do dia a dia depende deles: ficam de fora para não gastar leituras.
-const IGNORED = new Set(['audit', 'metrics', 'integrations']);
+// Aparelhos com avisos ligados (pushTokens) também: nenhuma tela mostra.
+const IGNORED = new Set(['audit', 'metrics', 'integrations', 'pushTokens']);
 
 const context = new AsyncLocalStorage();
 let writer = null;          // grava settings/live (registrado por store/index.js, sem passar por aqui de novo)

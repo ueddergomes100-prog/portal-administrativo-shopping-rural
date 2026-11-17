@@ -236,6 +236,15 @@ docs/                         arquitetura, API, dados, design, deploy, roteiro
   de que depende em `LIVE`; telas de preencher ficam de fora. Não recarrega enquanto a pessoa digita
   (espera 2,5 s parada) nem a ficha com campo mexido; ficha aberta é redesenhada no mesmo ponto da rolagem,
   sem levar o foco a um campo. `audit`, `metrics` e `integrations` não avisam. Tela nova: incluir em `LIVE`.
+- **Avisos no celular (push)** (`server/services/push.js`, `public/js/push.js`, `public/push-sw.js`):
+  Firebase Cloud Messaging (grátis), só na nuvem e com `FIREBASE_WEB_VAPID_KEY`. Cada pessoa toca
+  **Ativar avisos** (convite no Início ou Minha conta) uma vez por aparelho; o aparelho fica em
+  `pushTokens` (só o servidor lê). Avisos dos anúncios, só para quem precisa agir e nunca para quem fez:
+  pedido/“Mandar preparar” → Vendas na internet; mandado para aprovação → dono e gerente que aprova;
+  aprovado ou correção pedida → Vendas na internet; à venda em todos os lugares → quem pediu. Lote
+  (vários de uma vez, grade) = um aviso só (`silent` nos passos de cada produto). Tocar no aviso abre a
+  ficha. iPhone só recebe com o portal na tela de início. Sair do portal desliga os avisos no aparelho.
+  Falha no aviso nunca derruba a ação (fica no log). Novo aviso: use `notify()` no serviço do fluxo.
 
 ## O que falta — ver `docs/ROADMAP.md` e `docs/INTEGRACOES.md`
 
