@@ -97,6 +97,21 @@ export function createJsonStore({ dataDir }) {
       await persist();
       return docs.length;
     },
+    // Junta com o que já existe (objetos dentro do documento também), como o set com merge do Firestore.
+    async merge(collection, id, data) {
+      const deep = (base, extra) => {
+        const out = { ...base };
+        for (const [key, value] of Object.entries(extra)) {
+          const plain = value && typeof value === 'object' && !Array.isArray(value);
+          out[key] = plain && out[key] && typeof out[key] === 'object' && !Array.isArray(out[key]) ? deep(out[key], value) : value;
+        }
+        return out;
+      };
+      const doc = deep(col(collection)[id] || {}, { ...data, id });
+      col(collection)[id] = doc;
+      await persist();
+      return copy(doc);
+    },
     async count(collection) {
       return Object.keys(col(collection)).length;
     }

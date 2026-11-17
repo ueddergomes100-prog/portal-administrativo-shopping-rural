@@ -2,7 +2,8 @@
 // Cada tela é um módulo em js/views/ com: { id, title, icon, roles?, load, render, open?, actions?, forms? }.
 import { get } from './api.js';
 import { initAuth, storedSession, signOut, authMode } from './auth.js';
-import { esc, icon, initials, toast, closeLayers, closeTopLayer, formData, formError, errorState, loading } from './ui.js';
+import { esc, icon, initials, toast, closeLayers, closeTopLayer, formData, formError, errorState, loading, keepingFocus } from './ui.js';
+import { startLive } from './live.js';
 import { ROLES } from '../shared/domain.js';
 import { renderLogin } from './views/login.js';
 import dashboard from './views/dashboard.js';
@@ -262,6 +263,104 @@ async function refreshBadges() {
   } catch {}
 }
 
+// ---------------------------------------------------------------------------
+// Telas ao vivo (js/live.js + server/live.js): quando algo muda no banco, a tela aberta se atualiza
+// sozinha, sem recarregar. Cada tela diz de quais mudanças depende (nomes das coleções; em `settings`,
+// `settings:<documento>`). Telas de preencher (Taxas, Frete, Campanha do site, Categorias, Minha conta,
+// Cadastro em grade) ficam de fora: lá a pessoa está digitando e nada pode mudar debaixo dela.
+// ---------------------------------------------------------------------------
+const LIVE = {
+  inicio: ['publicationQueue', 'campaigns', 'promotions', 'artRequests', 'leads', 'orders', 'settings:workflow'],
+  produtos: ['products', 'publicationQueue', 'settings:workflow'],
+  fila: ['publicationQueue', 'products', 'campaigns', 'settings:workflow'],
+  promocoes: ['promotions', 'publicationQueue', 'artRequests', 'campaigns'],
+  pedidos: ['orders'],
+  agenda: ['campaigns', 'promotions', 'artRequests'],
+  campanhas: ['campaigns', 'promotions', 'artRequests'],
+  artes: ['artRequests', 'campaigns', 'promotions'],
+  leads: ['leads'],
+  equipe: ['users', 'settings:workflow']
+};
+const BADGE_KEYS = LIVE.inicio;               // o número do "Início" no menu
+const SESSION_KEYS = ['users', 'settings:workflow']; // papel da pessoa e "Cada um faz a sua parte"
+
+let livePending = new Set();
+let liveTimer = null;
+let lastTyping = 0;
+document.addEventListener('input', () => { lastTyping = Date.now(); }, true);
+document.addEventListener('keydown', () => { lastTyping = Date.now(); }, true);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && livePending.size) scheduleLive(100);
+});
+
+function onLiveChange(keys) {
+  keys.forEach(key => livePending.add(key));
+  scheduleLive(600); // junta mudanças que chegam quase juntas numa atualização só
+}
+function scheduleLive(ms) {
+  clearTimeout(liveTimer);
+  liveTimer = setTimeout(applyLive, ms);
+}
+
+// Digitando agora, ou com algo preenchido e ainda não enviado na tela (ex.: cadastro em grade).
+const busyMain = () => Date.now() - lastTyping < 2500 || !!document.querySelector('main [data-unsaved]');
+
+// Ficha aberta com campo em uso ou mexido e não salvo. (A ficha é desenhada inteira de uma vez, então o
+// valor original continua guardado no próprio campo e dá para comparar.)
+function busyDrawer(drawer) {
+  const active = document.activeElement;
+  if (drawer.contains(active) && active.matches('input, textarea, select, [contenteditable]')) return true;
+  return [...drawer.querySelectorAll('input, textarea, select')].some(field => {
+    if (field.type === 'checkbox' || field.type === 'radio') return field.checked !== field.defaultChecked;
+    if (field.tagName === 'SELECT') return [...field.options].some(option => option.selected !== option.defaultSelected);
+    return !['hidden', 'file'].includes(field.type) && field.value !== field.defaultValue;
+  });
+}
+
+async function applyLive() {
+  liveTimer = null;
+  if (!app.user || !livePending.size || document.visibilityState === 'hidden') return; // aplica ao voltar
+  const view = BY_ID[app.route.name];
+  const keys = livePending;
+  const wants = (LIVE[view?.id] || []).some(key => keys.has(key));
+  if (wants && busyMain()) return scheduleLive(1500); // espera a pessoa parar de digitar
+  livePending = new Set();
+  try {
+    if (SESSION_KEYS.some(key => keys.has(key))) await reloadSession();
+    if (wants && app.data !== null) {
+      await refresh({ preserveFocus: document.activeElement });
+      await refreshDrawer(view);
+    }
+    if (BADGE_KEYS.some(key => keys.has(key))) {
+      if (view?.id === 'inicio' && Array.isArray(app.data?.todo)) { app.todoCount = app.data.todo.length; paintNav(); }
+      else await refreshBadges();
+    }
+  } catch { /* sem rede agora: a próxima mudança tenta de novo */ }
+}
+
+// Papel, "pode aprovar" ou "Cada um faz a sua parte" mudaram: atualiza menu e regras da tela.
+async function reloadSession() {
+  const { user, workflow } = await get('/auth/me');
+  app.user = user;
+  app.workflow = { split: workflow?.split === true };
+  paintNav();
+  if (!allowed(BY_ID[app.route.name])) navigate('inicio', { replace: true });
+}
+
+// Ficha aberta por cima da lista (#/fila/<id> etc.): redesenha com os dados novos no mesmo ponto da
+// rolagem — só se a pessoa não estiver preenchendo nada nela e não houver um pop-up por cima.
+async function refreshDrawer(view) {
+  const drawer = document.getElementById('drawer');
+  if (!drawer?.open || !app.route.id || !view?.open || busyDrawer(drawer)) return;
+  if (document.getElementById('modal')?.open || document.getElementById('confirm')?.open) return;
+  const top = drawer.querySelector('.layer-body')?.scrollTop ?? 0;
+  const outer = drawer.scrollTop;
+  await keepingFocus(() => view.open(ctx(), app.route.id));
+  const body = drawer.querySelector('.layer-body');
+  if (body) body.scrollTop = top;
+  drawer.scrollTop = outer;
+}
+
 // Barra inferior no celular: os atalhos mais usados por cada papel + "Menu" (abre a navegação completa).
 const TABS = {
   owner: ['inicio', 'produtos', 'fila', 'agenda'],
@@ -436,7 +535,9 @@ async function start() {
   refreshBadges();
   if (!started) {
     started = true;
-    setInterval(refreshBadges, 120_000);
+    // As mudanças chegam ao vivo (applyLive); a conferência do número do Início é só uma rede de segurança.
+    setInterval(refreshBadges, 600_000);
+    startLive(app.config, { onChange: onLiveChange, isActive: () => !!app.user });
   }
 }
 

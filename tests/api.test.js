@@ -279,6 +279,12 @@ test('fluxo completo da fila no modo local', async () => {
   assert.equal(bulk.body.results[1].ok, false);
   assert.ok((await call('GET', '/catalog')).body.products.some(p => p.name === 'Produto B no site' && p.price === 55));
 
+  // Telas ao vivo: a mudança acima avisou as telas (settings/live); só ler não muda o aviso.
+  const live = (await call('GET', '/live', null, site)).body.live;
+  assert.ok(live.changes.publicationQueue);
+  await call('GET', '/queue', null, owner);
+  assert.deepEqual((await call('GET', '/live', null, site)).body.live, live);
+
   // Promoção (do anúncio que já está no site) com pedido de arte junto: a arte nasce ligada à promoção.
   const promo = await call('POST', '/promotions', {
     name: 'Promo teste', start: '2026-11-01', end: '2026-11-05', channels: ['site'], items: [{ productId: '2', promoPrice: 40 }],

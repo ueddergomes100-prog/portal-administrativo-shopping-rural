@@ -47,7 +47,9 @@ pergunte ao responsável antes, porque a demonstração deixa de existir nesse l
 catálogo; o conector grava só diferenças; a lista de produtos (tela Produtos e conferência do conector)
 vem de 16 "fatias" em `settings/products-shard-*` (`server/services/product-shards.js`), não da coleção
 `products`. **Nunca leia uma coleção inteira por requisição** — em 09/11/2026 isso esgotou a cota grátis
-do Firestore e derrubou o portal.
+do Firestore e derrubou o portal. As **telas ao vivo** foram feitas para não pesar: cada pedido que muda
+algo grava UM documento (`settings/live`) e cada tela aberta só se recarrega quando muda o que ela mostra;
+o número do Início deixou de ser conferido a cada 2 min (agora 10 min, como reserva).
 
 ## Como a loja usa o portal (visão do dono)
 
@@ -226,6 +228,14 @@ docs/                         arquitetura, API, dados, design, deploy, roteiro
 - Início com "Para resolver agora" por papel (frase + botão), números da loja em frase, "Próximos
   dias"; trilha, conexões e últimas ações em "Ver mais detalhes". Histórico com diff. Botão Letra maior.
 - Modo demonstração (`DATA_BACKEND=demo`) com entrada por papel, sem senha.
+- **Telas ao vivo** (`server/live.js`, `public/js/live.js`, `LIVE` em `app.js`): o que uma pessoa muda
+  aparece sozinho na tela das outras em ~1 s, sem recarregar. O store anota cada escrita; no fim do pedido
+  (só POST/PUT/PATCH/DELETE — GET nunca avisa, para não virar ciclo) o servidor grava `settings/live` =
+  `{ at, changes: { chave: quando } }`. Na nuvem o navegador escuta esse documento no Firestore
+  (onSnapshot); no modo local/demonstração pergunta `GET /api/live` a cada 3 s. Cada tela lista as chaves
+  de que depende em `LIVE`; telas de preencher ficam de fora. Não recarrega enquanto a pessoa digita
+  (espera 2,5 s parada) nem a ficha com campo mexido; ficha aberta é redesenhada no mesmo ponto da rolagem,
+  sem levar o foco a um campo. `audit`, `metrics` e `integrations` não avisam. Tela nova: incluir em `LIVE`.
 
 ## O que falta — ver `docs/ROADMAP.md` e `docs/INTEGRACOES.md`
 

@@ -190,11 +190,22 @@ export function toast(message, tone = 'ok') {
 }
 
 let lastFocus = null;
+let quietRedraw = false;
+
+// Redesenho automático de uma ficha já aberta (telas ao vivo): não leva o foco para o primeiro campo
+// — no celular isso abriria o teclado sem a pessoa ter tocado em nada.
+export async function keepingFocus(fn) {
+  quietRedraw = true;
+  try { return await fn(); } finally { quietRedraw = false; }
+}
+
 function openLayer(el, html, labelId) {
+  const wasOpen = el.open;
   if (!el.open) lastFocus = document.activeElement;
   el.innerHTML = html;
   el.setAttribute('aria-labelledby', labelId);
   if (!el.open) el.showModal();
+  if (quietRedraw && wasOpen) return void el.querySelector('[data-action=close-layer]')?.focus({ preventScroll: true });
   const first = el.querySelector('[autofocus], input:not([type=hidden]):not([disabled]), textarea, select, .layer-body button');
   (first || el.querySelector('.layer-close'))?.focus();
 }

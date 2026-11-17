@@ -79,6 +79,13 @@ export function createFirestoreStore({ firebase }) {
       const db = await ready();
       await db.collection(collection).doc(String(id)).delete();
     },
+    // Junta com o que já existe (mapas dentro do documento também), sem ler antes: 1 escrita.
+    async merge(collection, id, data) {
+      const db = await ready();
+      const doc = { ...data, id: String(id) };
+      await db.collection(collection).doc(String(id)).set(doc, { merge: true });
+      return doc;
+    },
     async bulkSet(collection, docs) {
       const db = await ready();
       // Firestore aceita até 500 operações por lote.

@@ -22,6 +22,7 @@ Fonte: `server/router.js`. Regras: `server/services/*`. Papéis: `owner`, `manag
 |---|---|---|---|
 | GET | `/auth/me` | todos | pessoa logada + `workflow: { split }` ("Cada um faz a sua parte") |
 | GET | `/dashboard` | todos | trilha, "Sua vez" por papel, contagens, integrações, últimas ações (dono/gerente) |
+| GET | `/live` | todos | telas ao vivo: `{ live: { at, changes: { chave: quando } } }` (`settings/live`). Modo local/demonstração e reserva; na nuvem o navegador escuta o documento no Firestore. Todo POST/PUT/PATCH/DELETE que muda algo atualiza esse documento antes de responder |
 | GET | `/users` | todos | dono/gerente: lista completa; demais: diretório mínimo (id, nome, papel) |
 | POST | `/users` | dono | `{name,email,role,password,canApprove?}` (no Firebase cria a conta no Auth) |
 | PATCH | `/users/:id` | dono; a própria pessoa (nome/senha) | `{name?,role?,active?,canApprove?,password?}` — impede remover o último dono ativo |

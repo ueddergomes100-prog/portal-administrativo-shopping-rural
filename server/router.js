@@ -27,6 +27,8 @@ import { dashboard } from './services/dashboard.js';
 import { syncUniplusOnce, saveCatalog, mapProduct, recordUniplusHeartbeat } from './integrations/uniplus.js';
 import { listMedia, mediaAvailable } from './media.js';
 import { saveUpload, storageDriver } from './files.js';
+import { withLive, flushLive } from './live.js';
+import { getStore, C } from './store/index.js';
 
 const ENTITY = '(campaigns|promotions|arts|leads)';
 // Muda a cada publicação na Vercel (no computador, a cada vez que o servidor liga).
@@ -59,6 +61,9 @@ const routes = [
   ['GET', '/api/auth/me', async ({ user }) => ({ user: publicUser(user), workflow: await getWorkflow() })],
 
   ['GET', '/api/dashboard', ({ user }) => dashboard(user)],
+  // Telas ao vivo: { at, changes: { chave: quando } } (server/live.js). Na nuvem o navegador escuta
+  // settings/live direto no Firestore; esta rota é para o modo local/demonstração e de reserva.
+  ['GET', '/api/live', async () => ({ live: (await getStore().get(C.settings, 'live')) || { at: null, changes: {} } })],
 
   ['GET', '/api/users', async ({ user }) => ({ users: await listUsers(user) })],
   ['POST', '/api/users', async ({ user, body }) => ({ user: await createUser(user, body) })],
@@ -231,7 +236,14 @@ function corsHeaders(req) {
   return { 'Access-Control-Allow-Origin': allowed.includes('*') ? '*' : origin, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', Vary: 'Origin' };
 }
 
-export async function handleApi(req, res, pathname, searchParams) {
+// Cada pedido anota o que mudou e, antes de responder, avisa as telas abertas (server/live.js).
+// Leituras (GET) nunca avisam: uma tela que se recarrega não dispara outra atualização.
+export function handleApi(req, res, pathname, searchParams) {
+  const readOnly = !['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
+  return withLive(() => handleRequest(req, res, pathname, searchParams), { readOnly });
+}
+
+async function handleRequest(req, res, pathname, searchParams) {
   let extraHeaders = {};
   try {
     // Demonstração: garante os dados de exemplo nesta instância (na Vercel cada instância começa vazia).
@@ -254,6 +266,7 @@ export async function handleApi(req, res, pathname, searchParams) {
     if (route.auth === 'store') checkToken(req, {}, config.store.apiToken, 'STORE_API_TOKEN');
     const body = ['POST', 'PATCH', 'PUT'].includes(req.method) ? await readJsonBody(req, route.bodyLimit) : {};
     const result = await route.handler({ req, params, query, body, user });
+    await flushLive();
     if (result?.__file) {
       // Imagem do catálogo: cache de 1 h no navegador/CDN do site.
       res.writeHead(200, { ...extraHeaders, 'Content-Type': result.__file.type, 'Cache-Control': 'public, max-age=3600', 'X-Content-Type-Options': 'nosniff' });
@@ -261,6 +274,7 @@ export async function handleApi(req, res, pathname, searchParams) {
     }
     sendJson(res, 200, result ?? { ok: true }, route.cache ? { ...extraHeaders, 'Cache-Control': route.cache } : extraHeaders);
   } catch (error) {
+    await flushLive(); // um lote pode ter mudado parte antes de dar erro
     const status = error.status && error.status >= 400 && error.status < 600 ? error.status : 500;
     if (status >= 500) console.error('[api]', req.method, pathname, error);
     // Na nuvem o detalhe técnico fica só no log; no servidor da loja, mostrar ajuda a resolver.

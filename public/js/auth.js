@@ -2,12 +2,18 @@
 // - backend "local": token assinado pelo servidor do portal, guardado em sessionStorage (some ao fechar o navegador).
 // - backend "firestore": Firebase Authentication (e-mail/senha) carregado do CDN oficial; o ID token é renovado pelo SDK.
 const TOKEN_KEY = 'sr-portal-token';
-const FIREBASE_VERSION = '10.12.2';
+export const FIREBASE_VERSION = '10.12.2';
 
 let mode = 'local';
+let firebaseApp = null;
 let firebaseAuth = null;
 let firebaseFns = null;
 let onSignedOut = () => {};
+
+// App do Firebase já iniciado (nuvem), para as telas ao vivo (js/live.js). No modo local: null.
+export function getFirebaseApp() {
+  return firebaseApp;
+}
 
 export async function initAuth(config, { signedOut }) {
   mode = config.backend;
@@ -17,6 +23,7 @@ export async function initAuth(config, { signedOut }) {
   const base = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}`;
   const [{ initializeApp }, authModule] = await Promise.all([import(`${base}/firebase-app.js`), import(`${base}/firebase-auth.js`)]);
   const app = initializeApp(config.firebase);
+  firebaseApp = app;
   firebaseAuth = authModule.getAuth(app);
   firebaseFns = authModule;
   await firebaseAuth.authStateReady();
