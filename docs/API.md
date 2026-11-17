@@ -20,7 +20,7 @@ Fonte: `server/router.js`. Regras: `server/services/*`. Papéis: `owner`, `manag
 
 | Método | Rota | Quem | O que faz |
 |---|---|---|---|
-| GET | `/auth/me` | todos | pessoa logada |
+| GET | `/auth/me` | todos | pessoa logada + `workflow: { split }` ("Cada um faz a sua parte") |
 | GET | `/dashboard` | todos | trilha, "Sua vez" por papel, contagens, integrações, últimas ações (dono/gerente) |
 | GET | `/users` | todos | dono/gerente: lista completa; demais: diretório mínimo (id, nome, papel) |
 | POST | `/users` | dono | `{name,email,role,password,canApprove?}` (no Firebase cria a conta no Auth) |
@@ -41,14 +41,18 @@ Fonte: `server/router.js`. Regras: `server/services/*`. Papéis: `owner`, `manag
 |---|---|---|---|
 | GET | `/queue?stage` | todos | itens com `transitions` e `can` calculados para quem pede |
 | POST | `/queue` | aprovador | coloca à venda: `{productId, channels:[{id, price, promoPrice?}], promoStart?, promoEnd?, priority, notes, campaignId}` — servidor calcula `fee`, `net`, `margin` por canal |
-| POST | `/queue/bulk` | site, dono, gerente | cadastro em grade, até 30: `{items:[{productId, price, content}], publish}` — escolhe (aprovador), grava conteúdo, manda para aprovação e, com `publish` e aprovador, aprova e coloca no site. Devolve `{results:[{productId, ok, id?, stage?, url?, error?}]}`; catálogo refeito uma vez |
+| POST | `/queue/bulk` | quem prepara¹ | cadastro em grade, até 30: `{items:[{productId, price, content}], publish}` — escolhe (aprovador), grava conteúdo, manda para aprovação e, com `publish` e aprovador, aprova e coloca no site. Devolve `{results:[{productId, ok, id?, stage?, url?, error?}]}`; catálogo refeito uma vez |
+| POST | `/queue/bulk-select` | aprovador | "Mandar preparar" vários, até 30: `{productIds, channels:[id], priority?, notes?, campaignId?}` — cada um entra como "Escolhido" com o preço da loja em cada lugar. Devolve `{results:[{productId, ok, id?, name?, error?}]}` |
 | GET | `/queue/:id` | todos | item + `mediaCheck` (fotos existem em media/?) |
 | PATCH | `/queue/:id/pricing` | aprovador | mesmos campos (canais, preços, prioridade, campanha) |
-| PATCH | `/queue/:id/content` | site, dono, gerente | `{title, description, seoTitle, seoDescription, category, imageRefs[], siteNotes}` — muda "Selecionado" para "Em preparação" |
+| PATCH | `/queue/:id/content` | quem prepara¹ | `{title, description, seoTitle, seoDescription, category, imageRefs[], siteNotes}` — muda "Selecionado" para "Em preparação" |
 | POST | `/queue/:id/transition` | conforme `QUEUE_TRANSITIONS` | `{to, note?}` — "review" exige título, descrição ≥ 30 e foto; ajustes/bloqueio exigem `note` |
-| POST | `/queue/:id/site` | site, dono, gerente | publica no catálogo do site próprio (gera `slug` e link) |
-| POST | `/queue/:id/listings/:channel` | site, dono | registra anúncio feito à mão em marketplace: `{url (https), externalId?, note?}` |
-| DELETE | `/queue/:id/listings/:channel` | site, dono | tira do site / desfaz registro do marketplace |
+| POST | `/queue/:id/site` | quem prepara¹ | publica no catálogo do site próprio (gera `slug` e link) |
+| POST | `/queue/:id/listings/:channel` | quem prepara¹ | registra anúncio feito à mão em marketplace: `{url (https), externalId?, note?}` |
+| DELETE | `/queue/:id/listings/:channel` | quem prepara¹ | tira do site / desfaz registro do marketplace |
+
+¹ **Quem prepara** (`isPreparer` em `domain.js`): site, dono e gerente; com "Cada um faz a sua parte" ligado
+(`settings/workflow`), só site.
 
 ## Site próprio (contrato completo em docs/SITE.md)
 
@@ -72,6 +76,8 @@ Erros dessas rotas trazem `message` (campo que o site lê) além de `error`.
 |---|---|---|---|
 | GET | `/settings/channels` | todos | canais com `percent`, `fixed`, `fixedBelow`, `integration`, `active` |
 | PUT | `/settings/channels` | dono | `{items:[...]}` substitui a tabela (auditado) |
+| GET | `/settings/workflow` | todos | `{ workflow: { split } }` — "Cada um faz a sua parte" |
+| PUT | `/settings/workflow` | dono | `{ split }` — ligar exige alguém ativo em "Vendas na internet" (auditado) |
 | GET | `/settings/categories` | todos | `{ items: [{id,name,short,icon,active}], usage }` (usage só para dono/gerente) |
 | PUT | `/settings/categories` | dono, gerente | `{ items, moves: { idApagado: idDestino } }` — ordem = ordem no site (auditado) |
 | GET | `/settings/campaign` | dono, gerente, marketing | `{ items: { 'black-friday', natal, 'ano-novo' }, saved, live, products }` — campanha do site por tema + produtos do site para escolher |

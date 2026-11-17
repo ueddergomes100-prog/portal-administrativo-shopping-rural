@@ -7,7 +7,7 @@ import { HttpError, sendJson, readJsonBody, notFound, forbidden, badRequest, una
 import { authenticate, authenticateConnector, loginLocal, loginDemo, setupFirstOwner, needsSetup, publicUser, requireRole } from './auth.js';
 import { listAudit, audit } from './audit.js';
 import { listProducts, getProduct, forUser } from './services/products.js';
-import { listQueue, getQueueItem, selectProduct, updatePricing, updateContent, transitionQueue, publishToSite, recordListing, removeListing, bulkPrepare } from './services/queue.js';
+import { listQueue, getQueueItem, selectProduct, updatePricing, updateContent, transitionQueue, publishToSite, recordListing, removeListing, bulkPrepare, bulkSelect } from './services/queue.js';
 import {
   listCatalog, getCatalogItem, stockCheck, siteImage, upsertSiteOrder, updateSiteOrder, getSiteOrder, moveOrder,
   siteContact, siteNewsletter, siteRestockAlert
@@ -15,7 +15,7 @@ import {
 import { listRecords, getRecord, createRecord, updateRecord, transitionRecord, addNote, setArtFile, removeRecord } from './services/marketing.js';
 import { listUsers, createUser, updateUser } from './services/users.js';
 import { listOrders } from './services/orders.js';
-import { getChannels, updateChannels } from './services/settings.js';
+import { getChannels, updateChannels, getWorkflow, updateWorkflow } from './services/settings.js';
 import { campaignScreen, updateSiteCampaigns } from './services/site-campaign.js';
 import { updateShippingSettings, shippingStatus, quoteForSite, simulateShipping, shippingScreen, citiesOf, placeOf } from './services/shipping.js';
 import { listSiteCategories, updateSiteCategories } from './services/categories.js';
@@ -55,7 +55,8 @@ const routes = [
   ['POST', '/api/auth/setup', ({ body }) => setupFirstOwner(body), { auth: 'public' }],
   ['POST', '/api/auth/login', ({ body }) => loginLocal(body), { auth: 'public' }],
   ['POST', '/api/auth/demo', ({ body }) => loginDemo(body), { auth: 'public' }],
-  ['GET', '/api/auth/me', ({ user }) => ({ user: publicUser(user) })],
+  // `workflow` = { split }: "Cada um faz a sua parte" (Ajustes → Equipe) — a tela usa para saber quem prepara.
+  ['GET', '/api/auth/me', async ({ user }) => ({ user: publicUser(user), workflow: await getWorkflow() })],
 
   ['GET', '/api/dashboard', ({ user }) => dashboard(user)],
 
@@ -92,6 +93,8 @@ const routes = [
   ['POST', '/api/queue', async ({ user, body }) => ({ item: await selectProduct(user, body) })],
   // Cadastro em grade: vários produtos de uma vez ({ items: [{ productId, price, content }], publish }).
   ['POST', '/api/queue/bulk', ({ user, body }) => bulkPrepare(user, body), { bodyLimit: 2_000_000 }],
+  // Mandar preparar vários (dono, com "Cada um faz a sua parte"): { productIds, channels: [id], priority, notes, campaignId }.
+  ['POST', '/api/queue/bulk-select', ({ user, body }) => bulkSelect(user, body)],
   ['GET', '/api/queue/:id', async ({ user, params }) => ({ item: await getQueueItem(user, params.id) })],
   ['PATCH', '/api/queue/:id/pricing', async ({ user, params, body }) => ({ item: await updatePricing(user, params.id, body) })],
   ['PATCH', '/api/queue/:id/content', async ({ user, params, body }) => ({ item: await updateContent(user, params.id, body) })],
@@ -121,6 +124,9 @@ const routes = [
   // Canais de venda e taxas
   ['GET', '/api/settings/channels', async () => ({ channels: await getChannels() })],
   ['PUT', '/api/settings/channels', async ({ user, body }) => ({ channels: await updateChannels(user, body) })],
+  // Como o trabalho é dividido: { split } ("Cada um faz a sua parte"). Só o dono muda.
+  ['GET', '/api/settings/workflow', async () => ({ workflow: await getWorkflow() })],
+  ['PUT', '/api/settings/workflow', async ({ user, body }) => ({ workflow: await updateWorkflow(user, body) })],
   ['GET', '/api/settings/categories', ({ user }) => listSiteCategories(user)],
   ['PUT', '/api/settings/categories', ({ user, body }) => updateSiteCategories(user, body)],
   ['GET', '/api/settings/shipping', () => shippingScreen()],

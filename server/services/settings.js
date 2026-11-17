@@ -1,9 +1,44 @@
-// Configurações da loja editáveis pelo dono. Hoje: canais de venda e taxas.
+// Configurações da loja editáveis pelo dono: canais de venda e taxas; como o trabalho é dividido.
 // Documento `settings/channels` = { items: [...] }. Sem documento salvo, vale DEFAULT_CHANNELS.
+// Documento `settings/workflow` = { split }. Sem documento salvo, o dono faz tudo (split: false).
 import { getStore, C } from '../store/index.js';
 import { audit } from '../audit.js';
 import { badRequest, forbidden, clean } from '../http.js';
 import { DEFAULT_CHANNELS } from '../../public/shared/domain.js';
+
+// "Cada um faz a sua parte" (Ajustes → Equipe). Lido em quase toda tela de anúncios: guardado por
+// 30 s para não gastar uma leitura do Firestore a cada pedido (ver "custo do Firestore" no AGENTS.md).
+const WORKFLOW_TTL = 30_000;
+let workflowCache = null;
+
+export async function getWorkflow() {
+  if (workflowCache && Date.now() - workflowCache.at < WORKFLOW_TTL) return workflowCache.value;
+  const doc = await getStore().get(C.settings, 'workflow');
+  const value = { split: doc?.split === true };
+  workflowCache = { at: Date.now(), value };
+  return value;
+}
+
+export async function updateWorkflow(user, input) {
+  if (user.role !== 'owner') throw forbidden('Só o dono muda como o trabalho é dividido.');
+  const split = input?.split === true;
+  const store = getStore();
+  if (split) {
+    const users = await store.list(C.users);
+    if (!users.some(u => u.role === 'site' && u.active !== false)) {
+      throw badRequest('Para dividir o trabalho, cadastre antes uma pessoa na função “Vendas na internet” (botão Cadastrar pessoa). É ela quem vai preparar os anúncios.');
+    }
+  }
+  const before = await getWorkflow();
+  await store.set(C.settings, 'workflow', { split, updatedAt: new Date().toISOString(), updatedBy: user.id });
+  workflowCache = { at: Date.now(), value: { split } };
+  await audit(user, {
+    action: 'settings.workflow', entity: 'settings', entityId: 'workflow',
+    summary: split ? 'Ligou “Cada um faz a sua parte”: a pessoa de Vendas na internet prepara e coloca à venda' : 'Desligou “Cada um faz a sua parte”: o dono e o gerente também preparam e colocam à venda',
+    before, after: { split }
+  });
+  return { split };
+}
 
 export async function getChannels() {
   const doc = await getStore().get(C.settings, 'channels');

@@ -64,8 +64,13 @@ do Firestore e derrubou o portal.
   escolhidos, manda para aprovação e coloca à venda depois de aprovado: **Colocar à venda no site**
   põe o produto no catálogo do site próprio; na Shopee e no Mercado Livre anuncia à mão no painel e
   marca **Já anunciei** com o link no portal.
-  Numa loja pequena o **dono ou o gerente** fazem tudo isso também (`PREPARERS` em `domain.js`); sem
-  ninguém na função "Vendas na internet", as tarefas de preparar aparecem no Início do dono. A ficha do
+  Numa loja pequena o **dono ou o gerente** fazem tudo isso também (`isPreparer`/`preparersFor` em
+  `domain.js`); sem ninguém na função "Vendas na internet", as tarefas de preparar aparecem no Início do dono.
+  Quando a equipe cresce, o dono marca **"Cada um faz a sua parte"** em Ajustes → Equipe (`settings/workflow`
+  = `{ split: true }`, só com alguém ativo em "Vendas na internet"): aí o dono (ou o gerente que aprova) só
+  **escolhe** — um produto pelo "Colocar à venda" ou vários marcando em Produtos e tocando em **Mandar
+  preparar** (`POST /api/queue/bulk-select`) — e **aprova**; só a pessoa de Vendas na internet cadastra
+  (ficha ou grade) e coloca à venda. O servidor recusa o resto. A ficha do
   anúncio mostra sempre um **"Próximo passo"** com o que fazer e onde está o botão.
 - **Marketing**: faz as artes, envia o arquivo, manda para aprovação e avisa onde publicou.
   Acompanha resultados (GA4, Google Ads, Meta) e clientes interessados.
@@ -187,6 +192,8 @@ docs/                         arquitetura, API, dados, design, deploy, roteiro
   os canais concluírem.
 - **Cadastro em grade** (`views/catalog-grid.js`, `#/cadastro?ids=…`): marcar vários em Produtos, colar as
   fotos e preencher em cartões, enviar tudo por `POST /api/queue/bulk` (catálogo do site refeito uma vez).
+  Só para quem prepara: com **"Cada um faz a sua parte"** ligado, o dono marca vários e toca em **Mandar
+  preparar** (`POST /api/queue/bulk-select`: entram como "Escolhido", com o preço da loja em cada lugar).
   Rascunho guardado no aparelho (`localStorage`, chave `sr-cadastro-grade`).
 - **Categorias do site** (`server/services/categories.js`, tela `#/categorias`): `settings/categories`; o
   catálogo leva `categories` (só as visíveis, na ordem) e esconde produtos de categoria escondida. Apagar

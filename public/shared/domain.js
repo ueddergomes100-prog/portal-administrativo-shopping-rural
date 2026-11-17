@@ -30,17 +30,26 @@ export const QUEUE_STAGES = {
 };
 export const QUEUE_FLOW = ['selected', 'preparing', 'review', 'approved', 'published'];
 
-// Quem prepara o anúncio (texto, fotos) e coloca à venda. Normalmente é a pessoa das vendas na
-// internet, mas numa loja pequena o dono ou o gerente fazem tudo sozinhos — por isso entram também.
-// A aprovação continua sendo só de quem pode aprovar (canApprove).
-export const PREPARERS = ['site', 'owner', 'manager'];
+// Quem prepara o anúncio (texto, fotos) e coloca à venda depende de como a loja divide o trabalho
+// (Ajustes → Equipe, caixinha "Cada um faz a sua parte", documento `settings/workflow` = { split }):
+// - desligada (padrão, loja pequena): o dono ou o gerente fazem tudo sozinhos — escolhem, preparam,
+//   aprovam e colocam à venda — junto com a pessoa das vendas na internet, se houver;
+// - ligada: o dono (ou o gerente que aprova) escolhe e manda preparar; SÓ a pessoa das vendas na
+//   internet prepara e coloca à venda; o dono ou o gerente aprovam.
+// A aprovação é sempre só de quem pode aprovar (canApprove).
+export function preparersFor(workflow) {
+  return workflow?.split ? ['site'] : ['site', 'owner', 'manager'];
+}
+export function isPreparer(user, workflow) {
+  return !!user && preparersFor(workflow).includes(user.role);
+}
 
-// Quem pode mover de qual etapa para qual. `approver` = canApprove(user).
+// Quem pode mover de qual etapa para qual. `approver` = canApprove(user); `preparer` = isPreparer(user, workflow).
 // A ida para `published` NÃO está aqui: acontece sozinha quando TODOS os canais escolhidos
 // estão publicados (site próprio: publicado no catálogo; marketplaces: anúncio registrado por uma pessoa).
 export const QUEUE_TRANSITIONS = [
-  { from: 'selected', to: 'preparing', who: ['site', 'owner', 'manager'], label: 'Começar a preparar' },
-  { from: 'preparing', to: 'review', who: PREPARERS, label: 'Mandar para aprovação', requires: 'content' },
+  { from: 'selected', to: 'preparing', who: ['preparer'], label: 'Começar a preparar' },
+  { from: 'preparing', to: 'review', who: ['preparer'], label: 'Mandar para aprovação', requires: 'content' },
   { from: 'review', to: 'approved', who: ['approver'], label: 'Aprovar' },
   { from: 'review', to: 'preparing', who: ['approver'], label: 'Pedir correção', requires: 'note' },
   { from: 'approved', to: 'preparing', who: ['approver'], label: 'Voltar para preparar', requires: 'note' },
@@ -290,15 +299,16 @@ export const INTEGRATIONS = {
 // ---------------------------------------------------------------------------
 // Utilitários de transição
 // ---------------------------------------------------------------------------
-export function roleMatches(user, who) {
+// `workflow` só importa para a fila de anúncios (quem é `preparer`); as outras tabelas não usam.
+export function roleMatches(user, who, { workflow } = {}) {
   if (!user) return false;
-  return who.some(w => (w === 'approver' ? canApprove(user) : w === user.role));
+  return who.some(w => (w === 'approver' ? canApprove(user) : w === 'preparer' ? isPreparer(user, workflow) : w === user.role));
 }
 
-export function availableTransitions(table, current, user) {
+export function availableTransitions(table, current, user, options = {}) {
   return table.filter(t => {
     const from = Array.isArray(t.from) ? t.from : [t.from];
-    return from.includes(current) && roleMatches(user, t.who);
+    return from.includes(current) && roleMatches(user, t.who, options);
   });
 }
 

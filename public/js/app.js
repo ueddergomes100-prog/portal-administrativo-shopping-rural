@@ -51,6 +51,7 @@ try { applyTextSize(localStorage.getItem(TEXT_KEY) === '1'); } catch {}
 const app = {
   config: null,
   user: null,
+  workflow: { split: false }, // "Cada um faz a sua parte" (Ajustes → Equipe); vem do servidor em /auth/me
   route: { name: 'inicio', id: null },
   data: null,
   viewState: {},       // estado de filtros por tela (sobrevive à troca de tela)
@@ -65,6 +66,7 @@ function ctx() {
   const view = BY_ID[app.route.name];
   return {
     user: app.user,
+    workflow: app.workflow,
     config: app.config,
     route: app.route,
     data: app.data,
@@ -74,7 +76,8 @@ function ctx() {
     navigate,
     lookup,
     invalidate,
-    refreshBadges
+    refreshBadges,
+    setWorkflow(workflow) { app.workflow = { split: workflow?.split === true }; }
   };
 }
 
@@ -415,8 +418,9 @@ async function showLogin(message) {
 let started = false;
 async function start() {
   try {
-    const { user } = await get('/auth/me');
+    const { user, workflow } = await get('/auth/me');
     app.user = user;
+    app.workflow = { split: workflow?.split === true };
   } catch (error) {
     if (error.status === 403) {
       await signOut();

@@ -6,18 +6,28 @@ import { getStore, C } from '../store/index.js';
 import { audit } from '../audit.js';
 import { badRequest, forbidden, notFound, conflict, clean } from '../http.js';
 import { getProduct, invalidateProductCache, seesCost } from './products.js';
-import { getChannels } from './settings.js';
+import { getChannels, getWorkflow } from './settings.js';
 import { checkMediaRefs } from '../media.js';
 import { config } from '../config.js';
 import { siteProductUrl, touchCatalog, withDeferredCatalog } from './catalog.js';
 import { siteCategoryIds } from './categories.js';
 import {
   QUEUE_STAGES, QUEUE_TRANSITIONS, PRIORITIES, availableTransitions, findTransition, roleMatches, canApprove, channelFees, marginOf, slugify,
-  SITE_PETS, SITE_UNITS, SITE_TAGS, PREPARERS
+  SITE_PETS, SITE_UNITS, SITE_TAGS, isPreparer
 } from '../../public/shared/domain.js';
 
 const now = () => new Date().toISOString();
 const isPricer = user => user.role === 'owner' || (user.role === 'manager' && canApprove(user));
+
+// Preparar (texto e fotos) e colocar à venda: com "Cada um faz a sua parte" ligado, só a pessoa de
+// Vendas na internet; desligado, ela, o dono ou o gerente. `what` completa a frase do aviso.
+async function requirePreparer(user, what) {
+  const workflow = await getWorkflow();
+  if (isPreparer(user, workflow)) return workflow;
+  throw forbidden(workflow.split
+    ? `Na sua loja cada um faz a sua parte: quem ${what} é a pessoa de Vendas na internet. Você aprova quando ela mandar.`
+    : `Quem ${what} é a pessoa das vendas na internet, o dono ou o gerente.`);
+}
 
 // O responsável pelo site só vê o que é relevante para ele (sem itens arquivados).
 export async function listQueue(user, { stage } = {}) {
@@ -25,25 +35,32 @@ export async function listQueue(user, { stage } = {}) {
   if (user.role === 'site') items = items.filter(i => i.stage !== 'archived');
   if (user.role === 'marketing') items = items.filter(i => !['archived', 'blocked'].includes(i.stage));
   if (stage) items = items.filter(i => i.stage === stage);
-  return items.map(item => decorate(item, user));
+  const workflow = await getWorkflow();
+  return items.map(item => decorate(item, user, workflow));
 }
 
 export async function getQueueItem(user, id) {
   const item = await getStore().get(C.queue, id);
   if (!item) throw notFound('Item da fila não encontrado.');
-  const decorated = decorate(item, user);
-  decorated.mediaCheck = checkMediaRefs(item.content?.imageRefs || []);
-  return decorated;
+  const out = await decorated(item, user);
+  out.mediaCheck = checkMediaRefs(item.content?.imageRefs || []);
+  return out;
 }
 
-function decorate(item, user) {
+// Quem prepara e coloca à venda depende de "Cada um faz a sua parte" (settings/workflow).
+async function decorated(item, user) {
+  return decorate(item, user, await getWorkflow());
+}
+
+function decorate(item, user, workflow) {
+  const preparer = isPreparer(user, workflow);
   const out = {
     ...item,
-    transitions: availableTransitions(QUEUE_TRANSITIONS, item.stage, user).map(t => ({ to: t.to, label: t.label, requires: t.requires || null })),
+    transitions: availableTransitions(QUEUE_TRANSITIONS, item.stage, user, { workflow }).map(t => ({ to: t.to, label: t.label, requires: t.requires || null })),
     can: {
       editPricing: isPricer(user) && !['archived', 'blocked'].includes(item.stage),
-      editContent: PREPARERS.includes(user.role) && ['selected', 'preparing'].includes(item.stage),
-      publish: PREPARERS.includes(user.role) && ['approved', 'published'].includes(item.stage),
+      editContent: preparer && ['selected', 'preparing'].includes(item.stage),
+      publish: preparer && ['approved', 'published'].includes(item.stage),
       siteUrl: config.store.publicUrl || ''
     }
   };
@@ -162,7 +179,7 @@ export async function selectProduct(user, input) {
     action: 'queue.select', entity: 'queue', entityId: saved.id,
     summary: `Escolheu ${product.name} para ${pricing.channels.map(c => c.name).join(', ')}`, after: item
   });
-  return decorate(saved, user);
+  return decorated(saved, user);
 }
 
 export async function updatePricing(user, id, input) {
@@ -209,7 +226,7 @@ export async function repriceItem(user, item, input, extra = {}) {
   invalidateProductCache();
   await touchCatalog(item, saved);
   await audit(user, { action: 'queue.pricing', entity: 'queue', entityId: id, summary: `Atualizou canais e preços de ${item.productSnapshot.name}`, before: item, after: saved });
-  return decorate(saved, user);
+  return decorated(saved, user);
 }
 
 // Conteúdo do anúncio (responsável pelo site). Vale para todos os canais.
@@ -217,7 +234,7 @@ export async function updateContent(user, id, input) {
   const store = getStore();
   const item = await store.get(C.queue, id);
   if (!item) throw notFound('Item da fila não encontrado.');
-  if (!PREPARERS.includes(user.role)) throw forbidden('Quem prepara o texto e as fotos é a pessoa das vendas na internet, o dono ou o gerente.');
+  await requirePreparer(user, 'prepara o texto e as fotos');
   if (!['selected', 'preparing'].includes(item.stage)) throw badRequest('O texto e as fotos só podem ser mudados nas etapas "Escolhido" ou "Preparando".');
   const imageRefs = clean.ids(input.imageRefs ?? item.content.imageRefs, { label: 'Imagens', max: 10 }).map(ref => clean.fileRef(ref)).filter(Boolean);
   const content = {
@@ -235,7 +252,7 @@ export async function updateContent(user, id, input) {
   const saved = await store.update(C.queue, id, patch);
   await touchCatalog(item, saved);
   await audit(user, { action: 'queue.content', entity: 'queue', entityId: id, summary: `Atualizou conteúdo de ${item.productSnapshot.name}`, before: item, after: saved });
-  return decorate(saved, user);
+  return decorated(saved, user);
 }
 
 // "Rótulo: valor" por linha (ou lista de objetos) -> [{ label, value }].
@@ -303,7 +320,8 @@ export async function transitionQueue(user, id, { to, note }) {
   if (to === 'published') throw badRequest('O produto fica "À venda" sozinho quando estiver à venda em todos os lugares escolhidos.');
   const transition = findTransition(QUEUE_TRANSITIONS, item.stage, to);
   if (!transition) throw badRequest(`Não dá para passar de "${QUEUE_STAGES[item.stage].label}" para "${QUEUE_STAGES[to].label}". Atualize a página e tente de novo.`);
-  if (!roleMatches(user, transition.who)) throw forbidden('Sua função não permite fazer esta mudança. Peça ao dono ou ao gerente.');
+  if (transition.who.includes('preparer')) await requirePreparer(user, 'prepara e manda para aprovação');
+  else if (!roleMatches(user, transition.who)) throw forbidden('Sua função não permite fazer esta mudança. Peça ao dono ou ao gerente.');
   const cleanNote = clean.text(note, { max: 2000, label: 'Observação' });
   if (transition.requires === 'note' && !cleanNote) throw badRequest('Escreva o motivo para a equipe entender o que fazer.');
   if (transition.requires === 'content') {
@@ -328,7 +346,7 @@ export async function transitionQueue(user, id, { to, note }) {
     summary: `${item.productSnapshot.name}: ${QUEUE_STAGES[item.stage].label} → ${QUEUE_STAGES[to].label}${cleanNote ? ` (${cleanNote})` : ''}`,
     before: { stage: item.stage }, after: { stage: to }
   });
-  return decorate(saved, user);
+  return decorated(saved, user);
 }
 
 // Quando todos os canais escolhidos estão publicados, o item vai para "Publicado".
@@ -350,7 +368,7 @@ async function loadForListing(user, id, channelId) {
   const store = getStore();
   const item = await store.get(C.queue, id);
   if (!item) throw notFound('Item da fila não encontrado.');
-  if (!PREPARERS.includes(user.role)) throw forbidden('Quem coloca à venda é a pessoa das vendas na internet, o dono ou o gerente.');
+  await requirePreparer(user, 'coloca à venda');
   if (!['approved', 'published'].includes(item.stage)) throw badRequest('Só dá para colocar à venda depois de aprovado.');
   const channel = (item.channels || []).find(c => c.id === channelId);
   if (!channel) throw badRequest('Este produto não foi escolhido para vender nesse lugar.');
@@ -383,7 +401,7 @@ export async function publishToSite(user, id, { takenSlugs = null } = {}) {
   invalidateProductCache();
   await touchCatalog(saved);
   await audit(user, { action: 'queue.publish_site', entity: 'queue', entityId: id, summary: `Publicou ${item.productSnapshot.name} no site (/${slug})` });
-  return decorate(saved, user);
+  return decorated(saved, user);
 }
 
 // Cadastro em grade (tela Produtos): vários produtos de uma vez. Para cada um, usa os mesmos passos
@@ -395,6 +413,8 @@ export async function bulkPrepare(user, input) {
   const entries = Array.isArray(input.items) ? input.items : [];
   if (!entries.length) throw badRequest('Escolha pelo menos um produto.');
   if (entries.length > BULK_MAX) throw badRequest(`Mande no máximo ${BULK_MAX} produtos de cada vez.`);
+  // Antes de escolher qualquer produto: quem não prepara não cria nada pela metade.
+  await requirePreparer(user, 'cadastra os produtos');
   const publish = input.publish === true && canApprove(user);
   const store = getStore();
   const queue = await store.list(C.queue);
@@ -425,6 +445,32 @@ export async function bulkPrepare(user, input) {
   return { results };
 }
 
+// "Mandar preparar" vários (tela Produtos, com "Cada um faz a sua parte" ligado): o dono marca os
+// produtos, escolhe onde vender e manda; cada um entra em Anúncios como "Escolhido", com o preço da
+// loja em cada lugar (o dono ajusta depois na ficha), e a pessoa de Vendas na internet prepara.
+// Mesmas regras de "Colocar à venda" (selectProduct). Um produto com problema não para os outros.
+export async function bulkSelect(user, input) {
+  if (!isPricer(user)) throw forbidden('Só o dono (ou o gerente que pode aprovar) escolhe o que vender.');
+  const productIds = [...new Set((Array.isArray(input.productIds) ? input.productIds : []).map(id => String(id ?? '').trim()).filter(Boolean))];
+  if (!productIds.length) throw badRequest('Marque pelo menos um produto.');
+  if (productIds.length > BULK_MAX) throw badRequest(`Mande no máximo ${BULK_MAX} produtos de cada vez.`);
+  const channelIds = [...new Set((Array.isArray(input.channels) ? input.channels : []).map(id => String(id ?? '').trim()).filter(Boolean))];
+  if (!channelIds.length) throw badRequest('Escolha pelo menos um lugar para vender.');
+  const results = [];
+  for (const productId of productIds) {
+    try {
+      const item = await selectProduct(user, {
+        productId, channels: channelIds.map(id => ({ id })),
+        priority: input.priority, notes: input.notes, campaignId: input.campaignId
+      });
+      results.push({ productId, ok: true, id: item.id, name: item.productSnapshot.name });
+    } catch (error) {
+      results.push({ productId, ok: false, error: error.message });
+    }
+  }
+  return { results };
+}
+
 // Marketplaces: a pessoa anunciou no painel do canal e registra aqui o link/código.
 export async function recordListing(user, id, channelId, input) {
   const { store, item, channel } = await loadForListing(user, id, channelId);
@@ -438,7 +484,7 @@ export async function recordListing(user, id, channelId, input) {
   saved = await settleStage(store, saved, user);
   invalidateProductCache();
   await audit(user, { action: 'queue.listing', entity: 'queue', entityId: id, summary: `Registrou anúncio de ${item.productSnapshot.name} em ${channel.name}` });
-  return decorate(saved, user);
+  return decorated(saved, user);
 }
 
 // Tira do site (sai do catálogo) ou desfaz o registro de um marketplace.
@@ -455,5 +501,5 @@ export async function removeListing(user, id, channelId) {
     action: 'queue.listing_removed', entity: 'queue', entityId: id,
     summary: channel.integration === 'site' ? `Tirou ${item.productSnapshot.name} do site` : `Desfez o registro de ${item.productSnapshot.name} em ${channel.name}`
   });
-  return decorate(saved, user);
+  return decorated(saved, user);
 }

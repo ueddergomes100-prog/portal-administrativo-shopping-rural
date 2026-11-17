@@ -5,7 +5,7 @@
 // se atualizar sozinho não apaga nada. As fotos sobem na hora (estúdio: tira o fundo e padroniza).
 import { get, post } from '../api.js';
 import { esc, icon, money, num, pageHead, empty, notice, button, toast, confirmDialog, statusTag } from '../ui.js';
-import { QUEUE_STAGES, DEFAULT_SITE_CATEGORIES, SITE_PETS, SITE_UNITS, canApprove } from '../../shared/domain.js';
+import { QUEUE_STAGES, DEFAULT_SITE_CATEGORIES, SITE_PETS, SITE_UNITS, canApprove, isPreparer } from '../../shared/domain.js';
 import { uploadFile } from '../upload.js';
 import { prepareProductPhoto, photoFile, canUndoCut, rememberOriginal, originalOf, forgetOriginal } from '../photo-studio.js';
 
@@ -238,6 +238,15 @@ export default {
   render(ctx) {
     lastCtx = ctx;
     const { user, state } = ctx;
+    // "Cada um faz a sua parte" ligado: o dono não cadastra, manda preparar (o servidor também recusa).
+    if (!isPreparer(user, ctx.workflow)) {
+      return `${pageHead({ title: 'Cadastro em grade', actions: `<a class="btn ghost" href="#/produtos">${icon('back')}<span>Voltar para Produtos</span></a>` })}
+      <section class="panel">${empty({
+        title: 'Quem cadastra é a pessoa de Vendas na internet',
+        text: 'Na sua loja cada um faz a sua parte. Em Produtos, marque os produtos e toque em “Mandar preparar”. Você aprova depois que ela mandar.',
+        action: `<a class="btn primary" href="#/produtos">${icon('box')}<span>Ir para Produtos</span></a>`, ic: 'box'
+      })}</section>`;
+    }
     const drafts = readDrafts();
     const rows = visibleRows(ctx);
     const sent = (state.sent || []).filter(r => r.ok);

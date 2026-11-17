@@ -1,7 +1,7 @@
 // Produtos e estoque: espelho do UniPlus. O dono escolhe aqui o que vai à venda e por quanto em cada canal.
 import { get, post } from '../api.js';
 import { esc, icon, tag, money, num, relative, pageHead, empty, notice, button, field, openDrawer, openModal, closeLayers, toast, statusTag } from '../ui.js';
-import { QUEUE_STAGES, PRIORITIES, PREPARERS, canApprove } from '../../shared/domain.js';
+import { QUEUE_STAGES, PRIORITIES, isPreparer, canApprove } from '../../shared/domain.js';
 import { pricingEditor, readPricing, pricingInputs, pricingChanges } from './pricing.js';
 
 const FILTERS = [
@@ -16,12 +16,15 @@ const FILTERS = [
 let searchTimer;
 const canSell = user => user.role === 'owner' || (user.role === 'manager' && canApprove(user));
 const seesCost = user => ['owner', 'manager'].includes(user.role);
-// Pode entrar no cadastro em grade: produto novo (quem escolhe o que vender) ou já escolhido e ainda
-// em preparação (quem prepara). Vai junto para o cadastro pelo endereço #/cadastro?ids=…
+// Marcar vários produtos. Pode marcar: produto novo (quem escolhe o que vender) ou já escolhido e ainda
+// em preparação (quem prepara). Quem prepara vai para o cadastro em grade (#/cadastro?ids=…).
+// Com "Cada um faz a sua parte" ligado, o dono não prepara: os marcados vão para a pessoa de Vendas na
+// internet pelo botão "Mandar preparar" (POST /api/queue/bulk-select).
 const PICK_MAX = 30;
-const canPick = (user, p) => !p.missingFromUniplus && (p.queue
-  ? ['selected', 'preparing'].includes(p.queue.stage) && PREPARERS.includes(user.role)
+const canPick = (user, workflow, p) => !p.missingFromUniplus && (p.queue
+  ? ['selected', 'preparing'].includes(p.queue.stage) && isPreparer(user, workflow)
   : canSell(user));
+const sendsToTeam = (user, workflow) => canSell(user) && !isPreparer(user, workflow);
 
 const view = {
   id: 'produtos',
@@ -37,8 +40,9 @@ const view = {
     return { catalog, uniplus: integrations.find(i => i.id === 'uniplus') };
   },
 
-  render({ user, state, data }) {
+  render({ user, workflow, state, data }) {
     const { catalog, uniplus } = data;
+    const toTeam = sendsToTeam(user, workflow);
     const showCost = seesCost(user) && catalog.data.some(p => p.cost !== null && p.cost !== undefined);
     const statusLine = uniplus.status === 'error'
       ? notice(`<strong>O sistema da loja (UniPlus) não respondeu na última tentativa.</strong> ${esc(uniplus.lastError)}. A lista abaixo é da última vez que deu certo.`, 'danger')
@@ -64,15 +68,19 @@ const view = {
     }
 
     // Marcados que já foram enviados (não estão mais em preparação) saem da marcação sozinhos.
-    const sentHere = new Set(catalog.data.filter(p => !canPick(user, p)).map(p => p.id));
+    const sentHere = new Set(catalog.data.filter(p => !canPick(user, workflow, p)).map(p => p.id));
     state.picked = (state.picked || []).filter(id => !sentHere.has(id));
     const picked = new Set(state.picked);
-    const pickable = catalog.data.filter(p => canPick(user, p));
-    const pickBar = `<div data-pick-slot>${pickBarHtml(picked)}</div>`;
+    const pickable = catalog.data.filter(p => canPick(user, workflow, p));
+    const pickBar = `<div data-pick-slot>${pickBarHtml(picked, toTeam)}</div>`;
+    const pickHint = toTeam
+      ? 'Para mandar vários de uma vez para a pessoa de Vendas na internet preparar, marque os produtos e toque em <strong>Mandar preparar</strong>.'
+      : 'Para cadastrar vários de uma vez, marque os produtos e toque em <strong>Cadastrar em grade</strong>.';
+    const pickTitle = toTeam ? 'Marcar para mandar preparar' : 'Marcar para o cadastro em grade';
 
     return `${pageHead({ eyebrow, title: 'Produtos', lead, actions })}
     ${statusLine}
-    ${pickable.length ? `<p class="pick-hint">${icon('check')}<span>Para cadastrar vários de uma vez, marque os produtos e toque em <strong>Cadastrar em grade</strong>.</span>
+    ${pickable.length ? `<p class="pick-hint">${icon('check')}<span>${pickHint}</span>
       ${button('Marcar todos desta página', { action: 'pick-page', variant: 'ghost small' })}</p>` : ''}
     <div class="stat-strip">
       <span><strong>${num(catalog.total)}</strong> produtos</span>
@@ -93,7 +101,7 @@ const view = {
         <thead><tr><th scope="col">Produto</th><th scope="col">Categoria</th>${showCost ? '<th scope="col" class="num">Custo</th>' : ''}<th scope="col" class="num">Preço</th><th scope="col" class="num">Estoque</th><th scope="col">À venda</th></tr></thead>
         <tbody>${catalog.data.map(p => `
           <tr class="row-link${p.missingFromUniplus ? ' is-muted' : ''}" data-action="open" data-id="${esc(p.id)}" tabindex="0">
-            <td>${canPick(user, p) ? `<label class="pick" data-action="pick-label" title="Marcar para o cadastro em grade"><input type="checkbox" data-change="pick" data-id="${esc(p.id)}"${picked.has(p.id) ? ' checked' : ''}><span class="sr-only">Marcar ${esc(p.name)}</span></label>` : ''}<strong>${esc(p.name)}</strong><span class="mono sub">código ${esc(p.sku || '—')}</span></td>
+            <td>${canPick(user, workflow, p) ? `<label class="pick" data-action="pick-label" title="${pickTitle}"><input type="checkbox" data-change="pick" data-id="${esc(p.id)}"${picked.has(p.id) ? ' checked' : ''}><span class="sr-only">Marcar ${esc(p.name)}</span></label>` : ''}<strong>${esc(p.name)}</strong><span class="mono sub">código ${esc(p.sku || '—')}</span></td>
             <td>${esc(p.category)}</td>
             ${showCost ? `<td class="num mono">${p.cost ? money(p.cost) : '—'}</td>` : ''}
             <td class="num mono">${money(p.basePrice)}</td>
@@ -168,7 +176,7 @@ const view = {
       ctx.state.picked = [...picked];
       // Só a barra de baixo muda: a caixinha já está marcada e o resto da tela fica parado.
       const slot = document.querySelector('[data-pick-slot]');
-      if (slot) slot.innerHTML = pickBarHtml(picked);
+      if (slot) slot.innerHTML = pickBarHtml(picked, sendsToTeam(ctx.user, ctx.workflow));
     },
     category(ctx, el) { ctx.state.category = el.value; ctx.state.page = 1; return ctx.refresh(); }
   },
@@ -180,7 +188,7 @@ const view = {
     'pick-clear'(ctx) { ctx.state.picked = []; ctx.rerender(); },
     'pick-page'(ctx) {
       const picked = new Set(ctx.state.picked);
-      for (const p of ctx.data.catalog.data) if (canPick(ctx.user, p) && picked.size < PICK_MAX) picked.add(p.id);
+      for (const p of ctx.data.catalog.data) if (canPick(ctx.user, ctx.workflow, p) && picked.size < PICK_MAX) picked.add(p.id);
       ctx.state.picked = [...picked];
       ctx.rerender();
     },
@@ -191,6 +199,7 @@ const view = {
       await ctx.refresh();
     },
     sell(ctx, el) { return openSellForm(ctx, el.dataset.id); },
+    'send-picked'(ctx) { return openSendForm(ctx); },
     'request-art'(ctx, el) {
       sessionStorage.setItem('sr-art-origin', JSON.stringify({ originType: 'product', originId: el.dataset.id }));
       closeLayers({ restoreFocus: false });
@@ -211,19 +220,62 @@ const view = {
       if (ctx.route.id) ctx.navigate('produtos', { replace: true });
       await ctx.refresh();
       ctx.refreshBadges();
+    },
+    async 'send-picked'(ctx, data) {
+      const channels = [].concat(data.channels || []);
+      if (!channels.length) throw new Error('Escolha pelo menos um lugar para vender.');
+      const { results } = await post('/queue/bulk-select', {
+        productIds: ctx.state.picked || [], channels, priority: data.priority, campaignId: data.campaignId, notes: data.notes
+      });
+      const sent = results.filter(r => r.ok);
+      const failed = results.filter(r => !r.ok);
+      closeLayers({ restoreFocus: false });
+      // Os que não foram continuam marcados para tentar de novo.
+      ctx.state.picked = failed.map(r => r.productId);
+      if (sent.length) toast(`${sent.length === 1 ? '1 produto foi' : `${num(sent.length)} produtos foram`} para Anúncios. A pessoa de Vendas na internet já pode preparar.`);
+      if (failed.length) toast(`${failed.length === 1 ? '1 produto não foi' : `${num(failed.length)} produtos não foram`}: ${failed.map(r => r.error).join(' ')}`, 'danger');
+      await ctx.refresh();
+      ctx.refreshBadges();
     }
   }
 };
 export default view;
 
-// Barra de baixo com os marcados para o cadastro em grade.
-function pickBarHtml(picked) {
+// Barra de baixo com os marcados: "Cadastrar em grade" (quem prepara) ou "Mandar preparar" (dono, com
+// "Cada um faz a sua parte" ligado).
+function pickBarHtml(picked, toTeam) {
   if (!picked.size) return '';
+  const go = toTeam
+    ? button(`Mandar preparar (${num(picked.size)})`, { action: 'send-picked', icon: 'send', variant: 'primary' })
+    : `<a class="btn primary" href="#/cadastro?ids=${[...picked].map(encodeURIComponent).join(',')}">${icon('image')}<span>Cadastrar em grade</span></a>`;
   return `<div class="pick-bar" role="region" aria-label="Produtos marcados">
     <span><strong>${num(picked.size)}</strong> ${picked.size === 1 ? 'produto marcado' : 'produtos marcados'}</span>
     ${button('Desmarcar', { action: 'pick-clear', variant: 'ghost' })}
-    <a class="btn primary" href="#/cadastro?ids=${[...picked].map(encodeURIComponent).join(',')}">${icon('image')}<span>Cadastrar em grade</span></a>
+    ${go}
   </div>`;
+}
+
+// Pop-up "Mandar preparar": onde vender os marcados, prioridade, campanha e recado. Cada produto entra em
+// Anúncios com o preço da loja em cada lugar; o dono muda o preço depois na ficha, se quiser.
+async function openSendForm(ctx) {
+  const count = (ctx.state.picked || []).length;
+  if (!count) return;
+  const [channels, campaigns] = await Promise.all([ctx.lookup('channels'), ctx.lookup('campaigns').catch(() => [])]);
+  const active = channels.filter(c => c.active !== false);
+  const names = (ctx.data?.catalog?.data || []).filter(p => ctx.state.picked.includes(p.id)).map(p => p.name);
+  openModal({
+    title: `Mandar preparar ${count === 1 ? '1 produto' : `${num(count)} produtos`}`,
+    body: `<form data-form="send-picked" id="sendPickedForm" class="form-grid">
+      ${names.length ? `<p class="full hint">${esc(names.slice(0, 6).join(', '))}${count > 6 ? ` e mais ${num(count - 6)}` : ''}.</p>` : ''}
+      ${field('channels', 'Onde vender', { type: 'checkboxes', full: true, options: active.map(c => [c.id, c.name]), value: active.map(c => c.id), hint: 'Cada produto começa com o preço da loja em cada lugar. Para mudar o preço de um deles, abra o produto em Anúncios.' })}
+      ${field('priority', 'Prioridade', { type: 'select', options: PRIORITIES, value: 'Normal' })}
+      ${field('campaignId', 'Faz parte de uma campanha?', { type: 'select', options: [['', 'Não'], ...campaigns.filter(c => !['cancelled', 'done'].includes(c.status)).map(c => [c.id, c.name])] })}
+      ${field('notes', 'Recado para quem prepara os anúncios', { type: 'textarea', full: true, rows: 2, max: 2000, placeholder: 'Ex.: usar fotos com fundo branco; destacar que é a embalagem nova.' })}
+      <p class="full hint">A pessoa de Vendas na internet prepara fotos e texto e manda para você aprovar. Depois de aprovado, ela coloca à venda.</p>
+      <div class="form-error full" aria-live="polite"></div>
+    </form>`,
+    footer: `<button type="button" class="btn ghost" data-action="close-layer">Cancelar</button><button class="btn primary" type="submit" form="sendPickedForm">${icon('send')}<span>Mandar preparar</span></button>`
+  });
 }
 
 // Pop-up "Colocar à venda": canais, preço em cada um, taxa e líquido calculados na hora.

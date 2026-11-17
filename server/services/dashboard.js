@@ -2,9 +2,9 @@
 import { getStore, C } from '../store/index.js';
 import { listIntegrations } from './integrations.js';
 import { listAudit } from '../audit.js';
-import { getChannels } from './settings.js';
+import { getChannels, getWorkflow } from './settings.js';
 import { TASK_ROLES } from './promotion-channels.js';
-import { canApprove, promotionPhase, todayInSaoPaulo, QUEUE_STAGES, PREPARERS } from '../../public/shared/domain.js';
+import { canApprove, promotionPhase, todayInSaoPaulo, QUEUE_STAGES, isPreparer } from '../../public/shared/domain.js';
 
 // AAAA-MM-DD -> DD/MM/AAAA para textos prontos da lista "Sua vez".
 const br = iso => (iso ? iso.split('-').reverse().join('/') : '—');
@@ -31,8 +31,13 @@ export async function dashboard(user) {
     promotions.filter(p => p.status === 'awaiting_approval').forEach(p => push('promotions', p.id, `Aprovar a promoção ${p.name}`, `${p.items.length === 1 ? '1 produto' : `${p.items.length} produtos`} com preço especial, de ${br(p.start)} a ${br(p.end)}.`, `promocoes/${p.id}`, 'Ver a promoção'));
   }
   // Sem ninguém na função "Vendas na internet", quem prepara e coloca à venda é o dono ou o gerente.
+  // Com "Cada um faz a sua parte" ligado, só ela prepara: se ninguém estiver na função, o dono é avisado.
   const hasSiteTeam = users.some(u => u.role === 'site' && u.active !== false);
-  if (user.role === 'site' || (!hasSiteTeam && PREPARERS.includes(user.role))) {
+  const workflow = await getWorkflow();
+  if (workflow.split && !hasSiteTeam && user.role === 'owner') {
+    push('team', 'workflow', 'Ninguém está preparando os anúncios', 'Na Equipe está ligado “Cada um faz a sua parte”, mas ninguém com acesso está na função Vendas na internet. Cadastre essa pessoa ou desligue a opção.', 'equipe', 'Abrir a Equipe');
+  }
+  if (user.role === 'site' || (!hasSiteTeam && isPreparer(user, workflow))) {
     queue.filter(i => ['selected', 'preparing'].includes(i.stage)).forEach(i => push('queue', i.id, `Preparar fotos e texto de ${i.productSnapshot.name}`, i.stage === 'selected' ? 'Este produto foi escolhido para vender na internet.' : 'Já começou. Termine e mande para aprovação.', `fila/${i.id}`, 'Preparar'));
     // Aprovados (ou já à venda com marketplace a atualizar) que ainda têm canal pendente.
     queue.filter(i => ['approved', 'published'].includes(i.stage)).forEach(i => {

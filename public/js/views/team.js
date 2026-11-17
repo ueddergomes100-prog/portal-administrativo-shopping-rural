@@ -1,7 +1,24 @@
 // Equipe: o dono cadastra pessoas, define papel, autoriza gerente a aprovar e ativa/desativa acesso.
-import { get, post, patch } from '../api.js';
+// Também é aqui que o dono liga "Cada um faz a sua parte" (settings/workflow): com a caixinha marcada,
+// ele escolhe e aprova, e só a pessoa de Vendas na internet cadastra e coloca à venda.
+import { get, post, patch, api } from '../api.js';
 import { esc, icon, relative, pageHead, button, field, openModal, closeTopLayer, toast, confirmDialog, tag, initials } from '../ui.js';
 import { ROLES, ROLE_KEYS } from '../../shared/domain.js';
+
+function workflowPanel(owner, split, hasSiteTeam) {
+  const how = `<p class="hint"><strong>Marcada:</strong> o dono escolhe os produtos (um por um ou vários de uma vez) e manda preparar;
+    a pessoa de Vendas na internet cadastra fotos e texto e manda para aprovação; o dono (ou o gerente que pode aprovar) aprova;
+    ela coloca à venda.<br><strong>Desmarcada:</strong> o dono e o gerente fazem tudo sozinhos — escolhem, cadastram, aprovam e
+    colocam à venda. Bom quando só uma pessoa usa o portal.</p>`;
+  return `<section class="panel" aria-labelledby="workflowTitle">
+    <div class="panel-head"><h2 id="workflowTitle">Como a equipe divide o trabalho dos anúncios</h2></div>
+    ${owner
+      ? `<label class="check"><input type="checkbox" data-change="workflow"${split ? ' checked' : ''}><span><strong>Cada um faz a sua parte</strong></span></label>`
+      : `<p><strong>${split ? 'Cada um faz a sua parte' : 'O dono e o gerente fazem tudo'}</strong> <span class="muted">(só o dono muda)</span></p>`}
+    ${how}
+    ${owner && !split && !hasSiteTeam ? '<p class="hint">Para marcar, cadastre antes uma pessoa na função <strong>Vendas na internet</strong>.</p>' : ''}
+  </section>`;
+}
 
 export default {
   id: 'equipe',
@@ -9,15 +26,20 @@ export default {
   icon: 'shield',
   roles: ['owner', 'manager'],
 
-  load: () => get('/users'),
+  async load() {
+    const [people, { workflow }] = await Promise.all([get('/users'), get('/settings/workflow')]);
+    return { ...people, workflow };
+  },
 
   render({ user, data }) {
     const owner = user.role === 'owner';
+    const hasSiteTeam = data.users.some(u => u.role === 'site' && u.active);
     return `${pageHead({
       title: 'Equipe',
       lead: owner ? 'Cadastre quem usa o portal e escolha a função de cada pessoa. Se tirar o acesso, a pessoa sai na hora.' : 'Quem usa o portal. Só o dono muda a função e o acesso das pessoas.',
       actions: owner ? button('Cadastrar pessoa', { action: 'new', icon: 'plus', variant: 'primary' }) : ''
     })}
+    ${workflowPanel(owner, data.workflow?.split === true, hasSiteTeam)}
     <div class="role-guide">${ROLE_KEYS.map(r => `<div><strong>${esc(ROLES[r].label)}</strong><p>${esc(ROLES[r].description)}</p></div>`).join('')}</div>
     <section class="panel flush"><div class="table-wrap"><table class="table">
       <thead><tr><th scope="col">Pessoa</th><th scope="col">Função</th><th scope="col">Aprova</th><th scope="col">Acesso</th><th scope="col">Último acesso</th>${owner ? '<th scope="col"><span class="sr-only">Ações</span></th>' : ''}</tr></thead>
@@ -29,6 +51,31 @@ export default {
         <td class="nowrap">${esc(relative(u.lastLoginAt))}</td>
         ${owner ? `<td class="row-actions">${button('Editar', { action: 'edit', icon: 'edit', variant: 'ghost small', data: { id: u.id } })}</td>` : ''}
       </tr>`).join('')}</tbody></table></div></section>`;
+  },
+
+  changes: {
+    // Caixinha "Cada um faz a sua parte": confirma com as mesmas palavras e grava no servidor.
+    async workflow(ctx, el) {
+      const split = el.checked;
+      const ok = await confirmDialog({
+        title: split ? 'Marcar “Cada um faz a sua parte”?' : 'Desmarcar “Cada um faz a sua parte”?',
+        text: split
+          ? 'Você (e o gerente que pode aprovar) passam a escolher os produtos e aprovar. Quem cadastra fotos e texto e coloca à venda passa a ser só a pessoa de Vendas na internet.'
+          : 'Você e o gerente voltam a poder fazer tudo: escolher, cadastrar, aprovar e colocar à venda.',
+        confirmLabel: split ? 'Marcar' : 'Desmarcar'
+      });
+      if (ok === null) { el.checked = !split; return; }
+      try {
+        const { workflow } = await api('/settings/workflow', { method: 'PUT', body: { split } });
+        ctx.setWorkflow(workflow);
+        toast(workflow.split ? 'Pronto: cada um faz a sua parte.' : 'Pronto: o dono e o gerente fazem tudo.');
+      } catch (error) {
+        el.checked = !split;
+        toast(error.message, 'danger');
+        return;
+      }
+      await ctx.refresh();
+    }
   },
 
   actions: {

@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   QUEUE_TRANSITIONS, ART_TRANSITIONS, availableTransitions, findTransition, canApprove, promotionPhase, todayInSaoPaulo,
-  channelFees, marginOf, DEFAULT_CHANNELS
+  channelFees, marginOf, DEFAULT_CHANNELS, isPreparer
 } from '../public/shared/domain.js';
 
 const owner = { role: 'owner' };
@@ -24,6 +24,17 @@ test('fila: site envia para aprovação, aprovador aprova', () => {
   assert.ok(availableTransitions(QUEUE_TRANSITIONS, 'review', owner).some(t => t.to === 'approved'));
   assert.ok(!availableTransitions(QUEUE_TRANSITIONS, 'review', manager).some(t => t.to === 'approved'));
   assert.ok(!availableTransitions(QUEUE_TRANSITIONS, 'review', site).some(t => t.to === 'approved'));
+});
+
+test('fila: "Cada um faz a sua parte" tira o dono e o gerente da preparação', () => {
+  assert.ok(isPreparer(owner) && isPreparer(manager) && isPreparer(site));
+  assert.ok(!isPreparer(marketing));
+  const split = { workflow: { split: true } };
+  assert.ok(!isPreparer(owner, split.workflow) && !isPreparer(managerApprover, split.workflow));
+  assert.ok(isPreparer(site, split.workflow));
+  assert.deepEqual(availableTransitions(QUEUE_TRANSITIONS, 'preparing', owner, split).map(t => t.to), ['blocked', 'archived']);
+  assert.deepEqual(availableTransitions(QUEUE_TRANSITIONS, 'preparing', site, split).map(t => t.to), ['review']);
+  assert.ok(availableTransitions(QUEUE_TRANSITIONS, 'preparing', owner).some(t => t.to === 'review'));
 });
 
 test('fila: "publicado" nunca é uma transição manual', () => {

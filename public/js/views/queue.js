@@ -419,7 +419,7 @@ function renderFooter(item) {
 }
 
 // "Próximo passo": diz, em uma frase, o que quem está olhando precisa fazer agora — e onde fica o botão.
-function nextStep(item) {
+function nextStep(item, workflow) {
   const can = to => item.transitions.some(t => t.to === to);
   const pendingSite = (item.channels || []).some(c => c.id === 'site' && item.listings?.site?.status !== 'done');
   let text = '';
@@ -428,6 +428,9 @@ function nextStep(item) {
   else if (item.stage === 'review' && can('approved')) text = 'Confira o texto e as fotos aqui embaixo. Se estiver tudo certo, toque em <strong>Aprovar</strong>, no rodapé.';
   else if (item.stage === 'approved' && item.can.publish && pendingSite) text = 'Aprovado! Desça até <strong>Onde está à venda</strong> e toque em <strong>Colocar à venda no site</strong>.';
   else if (item.stage === 'approved' && item.can.publish) text = 'Aprovado! Anuncie na Shopee e no Mercado Livre e marque <strong>Já anunciei</strong> em cada um, lá embaixo.';
+  // "Cada um faz a sua parte": quem não prepara fica sabendo que a vez é da pessoa de Vendas na internet.
+  else if (workflow?.split && ['selected', 'preparing'].includes(item.stage)) text = 'Esperando a pessoa de Vendas na internet preparar fotos e texto. Quando ela mandar, aparece no seu Início para aprovar.';
+  else if (workflow?.split && item.stage === 'approved') text = 'Aprovado. Agora a pessoa de Vendas na internet coloca à venda.';
   return text ? `<div class="next-step">${notice(`<strong>Próximo passo:</strong> ${text}`, 'info')}</div>` : '';
 }
 
@@ -566,5 +569,5 @@ function renderItem(ctx, item, entries, campaigns, channels, product = null) {
       </ul>` : '<p class="muted">Nada mudou ainda.</p>'}
     </section>`;
 
-  return `${steps}${item.stage === 'blocked' ? notice('Produto pausado. O motivo está no histórico, mais abaixo.', 'danger') : nextStep(item)}${facts}${pricing}${content}${publication}${historyHtml}`;
+  return `${steps}${item.stage === 'blocked' ? notice('Produto pausado. O motivo está no histórico, mais abaixo.', 'danger') : nextStep(item, ctx.workflow)}${facts}${pricing}${content}${publication}${historyHtml}`;
 }
